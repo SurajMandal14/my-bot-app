@@ -94,7 +94,7 @@ export default function MasterAdminSettingsPage() {
         }
     }, [toast]);
     
-    const mapSchoolToFormData = (school: SchoolType): SchoolFormData => ({
+    const mapSchoolToFormData = useCallback((school: SchoolType): SchoolFormData => ({
         schoolName: school.schoolName,
         schoolLogoUrl: school.schoolLogoUrl || "", 
         reportCardTemplate: school.reportCardTemplate || 'none',
@@ -111,7 +111,7 @@ export default function MasterAdminSettingsPage() {
         })) : [{ location: "", classCategory: "", terms: [...DEFAULT_TERMS] }],
         activeAcademicYear: school.activeAcademicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
         marksEntryLocks: school.marksEntryLocks || {},
-    });
+    }), []);
 
     const loadSchoolData = useCallback(async () => {
         if (!authUser?.schoolId) {
@@ -140,7 +140,7 @@ export default function MasterAdminSettingsPage() {
              toast({ variant: 'warning', title: "Warning", description: "Could not load academic years list."});
         }
         setIsLoading(false);
-    }, [authUser, form, toast]);
+    }, [authUser, form, toast, mapSchoolToFormData]);
 
     useEffect(() => {
         if (authUser) {
@@ -273,36 +273,33 @@ export default function MasterAdminSettingsPage() {
                     </div>
                     {activeAcademicYear ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {assessmentKeys.map(key => (
-                            <FormField 
-                                key={key} 
-                                control={form.control} 
-                                name={`marksEntryLocks.${activeAcademicYear}.${key}`}
-                                render={({ field }) => (
-                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                                        <div className="space-y-0.5">
-                                            <FormLabel className="text-base flex items-center">
-                                                {field.value ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}
-                                                {key} Entry
-                                            </FormLabel>
-                                        </div>
-                                        <FormControl>
-                                            <Switch 
-                                                checked={!!field.value} 
-                                                onCheckedChange={(checked) => {
-                                                    const currentLocks = form.getValues('marksEntryLocks') || {};
-                                                    const yearLocks = currentLocks[activeAcademicYear] || DEFAULT_ASSESSMENT_LOCKS;
-                                                    const updatedYearLocks = { ...yearLocks, [key]: checked };
-                                                    form.setValue('marksEntryLocks', { ...currentLocks, [activeAcademicYear]: updatedYearLocks });
-                                                    field.onChange(checked);
-                                                }}
-                                                disabled={isSubmitting} 
-                                            />
-                                        </FormControl>
-                                    </FormItem>
-                                )}
-                            />
-                        ))}
+                        {assessmentKeys.map(key => {
+                            const fieldName = `marksEntryLocks.${activeAcademicYear}.${key}` as const;
+                            return (
+                                <FormField 
+                                    key={key} 
+                                    control={form.control} 
+                                    name={fieldName}
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                            <div className="space-y-0.5">
+                                                <FormLabel className="text-base flex items-center">
+                                                    {field.value ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}
+                                                    {key} Entry
+                                                </FormLabel>
+                                            </div>
+                                            <FormControl>
+                                                <Switch 
+                                                    checked={!!field.value} 
+                                                    onCheckedChange={field.onChange}
+                                                    disabled={isSubmitting} 
+                                                />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                            );
+                        })}
                         </div>
                     ) : (
                         <p className="text-muted-foreground text-sm">Select an active academic year to manage marks entry locks.</p>
