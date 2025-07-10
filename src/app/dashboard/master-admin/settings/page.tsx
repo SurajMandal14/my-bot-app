@@ -117,7 +117,8 @@ export default function MasterAdminSettingsPage() {
         
         if (schoolResult.success && schoolResult.school) {
             setSchool(schoolResult.school);
-            form.reset(mapSchoolToFormData(schoolResult.school));
+            const formData = mapSchoolToFormData(schoolResult.school);
+            form.reset(formData);
         } else {
             toast({ variant: 'destructive', title: "Error", description: "Failed to load your school's details."});
             setSchool(null);
@@ -125,7 +126,7 @@ export default function MasterAdminSettingsPage() {
 
         if (academicYearsResult.success && academicYearsResult.academicYears) {
             setAcademicYears(academicYearsResult.academicYears);
-             if (schoolResult.school && !schoolResult.school.activeAcademicYear) {
+             if (schoolResult.success && schoolResult.school && !schoolResult.school.activeAcademicYear) {
                 const defaultYear = academicYearsResult.academicYears.find(y => y.isDefault);
                 if (defaultYear) {
                     form.setValue('activeAcademicYear', defaultYear.year);
@@ -145,18 +146,30 @@ export default function MasterAdminSettingsPage() {
         }
     }, [authUser, loadSchoolData]);
 
+    // Force re-render of form values when activeAcademicYear changes to show correct locks
+    useEffect(() => {
+        form.trigger();
+    }, [activeAcademicYear, form]);
+
+
     const handleSaveChanges = async () => {
         if (!school) {
             toast({variant: 'warning', title: 'No School Loaded', description: 'Cannot save settings without school information.'});
             return;
         }
+        
+        const values = form.getValues();
+        const validation = schoolFormSchema.safeParse(values);
+
+        if (!validation.success) {
+            console.error("Form Validation Errors:", validation.error.flatten().fieldErrors);
+            toast({ variant: 'destructive', title: 'Validation Failed', description: 'Some fields have invalid values. Please check and try again.' });
+            return;
+        }
+        
         setIsSubmitting(true);
         try {
-            const values = form.getValues();
-            
-            // Because we relaxed the schema, we pass the values directly.
-            // The schema now mainly checks for basic types and presence.
-            const result = await updateSchool(school._id, values);
+            const result = await updateSchool(school._id, validation.data);
 
             if (result.success) {
                 toast({ title: 'School Settings Updated', description: "Your changes have been saved successfully." });
@@ -282,7 +295,7 @@ export default function MasterAdminSettingsPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {assessmentKeys.map(key => (
                             <Controller
-                                key={key}
+                                key={`${activeAcademicYear}-${key}`}
                                 control={form.control}
                                 name={`marksEntryLocks.${activeAcademicYear}.${key}`}
                                 render={({ field }) => (
@@ -297,15 +310,7 @@ export default function MasterAdminSettingsPage() {
                                             <Switch 
                                                 checked={!!field.value} 
                                                 onCheckedChange={(checked) => {
-                                                    const currentLocks = form.getValues('marksEntryLocks') || {};
-                                                    const yearLocks = currentLocks[activeAcademicYear] || {};
-                                                    form.setValue('marksEntryLocks', {
-                                                        ...currentLocks,
-                                                        [activeAcademicYear]: {
-                                                            ...yearLocks,
-                                                            [key]: checked,
-                                                        }
-                                                    });
+                                                    form.setValue(`marksEntryLocks.${activeAcademicYear}.${key}`, checked);
                                                     field.onChange(checked);
                                                 }}
                                                 disabled={isSubmitting} 
