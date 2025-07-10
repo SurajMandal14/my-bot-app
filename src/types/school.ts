@@ -95,8 +95,8 @@ const assessmentLockSchema = z.object({
 export const schoolFormSchema = z.object({
   schoolName: z.string().min(3, "School name must be at least 3 characters."),
   schoolLogoUrl: z.string().url({ message: "Please enter a valid URL for the school logo." }).optional().or(z.literal('')),
-  tuitionFees: z.array(classTuitionFeeSchema).optional(),
-  busFeeStructures: z.array(busFeeLocationCategorySchema).optional(),
+  tuitionFees: z.array(classTuitionFeeSchema).optional().default([]),
+  busFeeStructures: z.array(busFeeLocationCategorySchema).optional().default([]),
   reportCardTemplate: z.custom<ReportCardTemplateKey>((val) => {
     return typeof val === 'string' && Object.keys(REPORT_CARD_TEMPLATES).includes(val);
   }, { message: "Invalid report card template selected." }).optional().default('none'),
