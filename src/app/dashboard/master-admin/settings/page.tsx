@@ -285,7 +285,7 @@ export default function MasterAdminSettingsPage() {
                      {activeAcademicYear ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {assessmentKeys.map(key => (
-                            <FormField
+                            <Controller
                                 key={key}
                                 control={form.control}
                                 name={`marksEntryLocks.${activeAcademicYear}.${key}`}
@@ -300,7 +300,18 @@ export default function MasterAdminSettingsPage() {
                                         <FormControl>
                                             <Switch 
                                                 checked={!!field.value} 
-                                                onCheckedChange={field.onChange}
+                                                onCheckedChange={(checked) => {
+                                                    const currentLocks = form.getValues('marksEntryLocks') || {};
+                                                    const yearLocks = currentLocks[activeAcademicYear] || {};
+                                                    form.setValue('marksEntryLocks', {
+                                                        ...currentLocks,
+                                                        [activeAcademicYear]: {
+                                                            ...yearLocks,
+                                                            [key]: checked,
+                                                        }
+                                                    });
+                                                    field.onChange(checked);
+                                                }}
                                                 disabled={isSubmitting} 
                                             />
                                         </FormControl>
