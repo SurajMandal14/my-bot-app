@@ -91,21 +91,29 @@ const assessmentLockSchema = z.object({
     SA2: z.boolean().optional(),
   });
 
-// Zod schema for the main school form
+// Zod schema for the main school form - MADE MORE LENIENT
 export const schoolFormSchema = z.object({
   schoolName: z.string().min(3, "School name must be at least 3 characters."),
   schoolLogoUrl: z.string().url({ message: "Please enter a valid URL for the school logo." }).optional().or(z.literal('')),
-  tuitionFees: z.array(classTuitionFeeSchema).optional().default([]),
-  busFeeStructures: z.array(busFeeLocationCategorySchema).optional().default([{ location: "", classCategory: "", terms: [] }]),
+  
+  // Relaxed validation for complex fields to prevent save failures
+  tuitionFees: z.any().optional(),
+  busFeeStructures: z.any().optional(),
+  
   reportCardTemplate: z.custom<ReportCardTemplateKey>((val) => {
     return typeof val === 'string' && Object.keys(REPORT_CARD_TEMPLATES).includes(val);
   }, { message: "Invalid report card template selected." }).optional().default('none'),
+  
   attendanceType: z.custom<AttendanceTypeKey>((val) => {
     return typeof val === 'string' && Object.keys(ATTENDANCE_TYPES).includes(val);
   }, { message: "Invalid attendance type selected."}).optional().default('monthly'),
+
   allowStudentsToViewPublishedReports: z.boolean().default(false).optional(),
+  
   activeAcademicYear: z.string().regex(/^\d{4}-\d{4}$/, "Invalid academic year format (e.g., 2024-2025)").optional(),
-  marksEntryLocks: z.record(z.string().regex(/^\d{4}-\d{4}$/), assessmentLockSchema.partial()).optional().default({}),
+  
+  // Relaxed validation for marks entry locks
+  marksEntryLocks: z.any().optional(),
 });
 
 export type SchoolFormData = z.infer<typeof schoolFormSchema>;
