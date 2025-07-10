@@ -58,7 +58,7 @@ export interface School {
   allowStudentsToViewPublishedReports?: boolean; // New field
   // Operational Settings
   activeAcademicYear?: string;
-  marksEntryLocks?: Record<string, AssessmentLocks>; // Year -> LockStatus e.g. {"2023-2024": {FA1: true, ...}}
+  marksEntryLocks?: Record<string, Partial<AssessmentLocks>>; // Year -> LockStatus e.g. {"2023-2024": {FA1: true, ...}}
   createdAt: Date | string; // Allow string for client-side
   updatedAt: Date | string; // Allow string for client-side
 }
@@ -105,7 +105,7 @@ export const schoolFormSchema = z.object({
   }, { message: "Invalid attendance type selected."}).optional().default('monthly'),
   allowStudentsToViewPublishedReports: z.boolean().default(false).optional(),
   activeAcademicYear: z.string().regex(/^\d{4}-\d{4}$/, "Invalid academic year format (e.g., 2024-2025)").optional(),
-  marksEntryLocks: z.record(z.string(), assessmentLockSchema).default({}),
+  marksEntryLocks: z.record(z.string(), z.partial(assessmentLockSchema)).default({}),
 });
 
 export type SchoolFormData = z.infer<typeof schoolFormSchema>;

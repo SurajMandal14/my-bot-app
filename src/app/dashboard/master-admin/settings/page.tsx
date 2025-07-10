@@ -289,7 +289,13 @@ export default function MasterAdminSettingsPage() {
                                         <FormControl>
                                             <Switch 
                                                 checked={!!field.value} 
-                                                onCheckedChange={field.onChange} 
+                                                onCheckedChange={(checked) => {
+                                                    const currentLocks = form.getValues('marksEntryLocks') || {};
+                                                    const yearLocks = currentLocks[activeAcademicYear] || DEFAULT_ASSESSMENT_LOCKS;
+                                                    const updatedYearLocks = { ...yearLocks, [key]: checked };
+                                                    form.setValue('marksEntryLocks', { ...currentLocks, [activeAcademicYear]: updatedYearLocks });
+                                                    field.onChange(checked);
+                                                }}
                                                 disabled={isSubmitting} 
                                             />
                                         </FormControl>
