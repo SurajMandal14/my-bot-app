@@ -117,6 +117,17 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
 
     const { db } = await connectToDatabase();
     const schoolsCollection = db.collection<School>('schools');
+    
+    const existingSchool = await schoolsCollection.findOne({ _id: new ObjectId(schoolId) as any });
+    if (!existingSchool) {
+      return { success: false, message: 'School not found for update.', error: 'No school matched the provided ID.' };
+    }
+
+    // Merge marksEntryLocks correctly
+    const mergedMarksEntryLocks = {
+        ...existingSchool.marksEntryLocks,
+        ...marksEntryLocks,
+    };
 
     const updateData: Partial<Omit<School, '_id' | 'createdAt'>> = {
       schoolName,
@@ -139,14 +150,42 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
       allowStudentsToViewPublishedReports: allowStudentsToViewPublishedReports || false,
       attendanceType: attendanceType || 'monthly',
       activeAcademicYear: activeAcademicYear,
-      marksEntryLocks: marksEntryLocks,
+      marksEntryLocks: mergedMarksEntryLocks,
       updatedAt: new Date(),
     };
     
     if (typeof schoolLogoUrl === 'string') {
       updateData.schoolLogoUrl = schoolLogoUrl || undefined; 
     }
+    
+    // Check if there are actual changes before updating
+    const relevantExistingData = {
+        schoolName: existingSchool.schoolName,
+        tuitionFees: (existingSchool.tuitionFees || []).map(tf => ({ className: tf.className, terms: tf.terms.map(t => ({...t})) })),
+        busFeeStructures: (existingSchool.busFeeStructures || []).map(bfs => ({ location: bfs.location, classCategory: bfs.classCategory, terms: bfs.terms.map(t => ({...t})) })),
+        reportCardTemplate: existingSchool.reportCardTemplate || 'none',
+        allowStudentsToViewPublishedReports: existingSchool.allowStudentsToViewPublishedReports || false,
+        attendanceType: existingSchool.attendanceType || 'monthly',
+        activeAcademicYear: existingSchool.activeAcademicYear,
+        marksEntryLocks: existingSchool.marksEntryLocks || {},
+        schoolLogoUrl: existingSchool.schoolLogoUrl || undefined,
+    };
 
+    const relevantUpdateData = {
+        schoolName: updateData.schoolName,
+        tuitionFees: updateData.tuitionFees,
+        busFeeStructures: updateData.busFeeStructures,
+        reportCardTemplate: updateData.reportCardTemplate,
+        allowStudentsToViewPublishedReports: updateData.allowStudentsToViewPublishedReports,
+        attendanceType: updateData.attendanceType,
+        activeAcademicYear: updateData.activeAcademicYear,
+        marksEntryLocks: updateData.marksEntryLocks,
+        schoolLogoUrl: updateData.schoolLogoUrl,
+    };
+
+    if (isEqual(relevantExistingData, relevantUpdateData)) {
+      return { success: true, message: 'No changes detected to update.' };
+    }
 
     const result = await schoolsCollection.updateOne(
       { _id: new ObjectId(schoolId) as any },

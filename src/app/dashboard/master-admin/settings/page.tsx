@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlusCircle, School as SchoolIconUI, DollarSign, Loader2, Edit, XCircle, FileText, ImageIcon, Trash2, Bus, Eye, CheckSquare, Settings, Lock, Unlock, Save } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
 import {
   Form,
   FormControl,
@@ -271,15 +271,16 @@ export default function MasterAdminSettingsPage() {
                         <Label>Marks Entry Lock for <span className="font-semibold text-primary">{activeAcademicYear || '...'}</span></Label>
                         <p className="text-sm text-muted-foreground">Enable or disable marks entry for specific assessments in the active academic year.</p>
                     </div>
-                    {activeAcademicYear ? (
+                     {activeAcademicYear ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {assessmentKeys.map(key => {
                             const fieldName = `marksEntryLocks.${activeAcademicYear}.${key}` as const;
                             return (
-                                <FormField 
-                                    key={key} 
-                                    control={form.control} 
+                                <Controller
+                                    key={key}
                                     name={fieldName}
+                                    control={form.control}
+                                    defaultValue={form.getValues(fieldName) ?? false}
                                     render={({ field }) => (
                                         <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                                             <div className="space-y-0.5">
@@ -290,8 +291,18 @@ export default function MasterAdminSettingsPage() {
                                             </div>
                                             <FormControl>
                                                 <Switch 
-                                                    checked={!!field.value} 
-                                                    onCheckedChange={field.onChange}
+                                                    checked={field.value} 
+                                                    onCheckedChange={(checked) => {
+                                                        const currentLocks = form.getValues('marksEntryLocks') || {};
+                                                        const yearLocks = currentLocks[activeAcademicYear] || {};
+                                                        form.setValue('marksEntryLocks', {
+                                                          ...currentLocks,
+                                                          [activeAcademicYear]: {
+                                                            ...yearLocks,
+                                                            [key]: checked,
+                                                          },
+                                                        });
+                                                    }}
                                                     disabled={isSubmitting} 
                                                 />
                                             </FormControl>
