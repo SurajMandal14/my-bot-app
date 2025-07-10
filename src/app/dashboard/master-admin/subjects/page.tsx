@@ -25,6 +25,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { createSubject, getSubjects, updateSubject, deleteSubject } from "@/app/actions/subjects";
@@ -212,10 +213,10 @@ export default function MasterAdminSubjectsPage() {
                     <TableCell>{subject.name}</TableCell>
                     <TableCell>{format(new Date(subject.createdAt), "PP")}</TableCell>
                     <TableCell className="space-x-1">
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setEditingSubject(subject)} disabled={isSubmitting || isDeleting}><Edit3 className="h-4 w-4" /></Button>
+                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setEditingSubject(subject)} disabled={isSubmitting || isDeleting || isLoading}><Edit3 className="h-4 w-4" /></Button>
                       <AlertDialog open={subjectToDelete?._id === subject._id} onOpenChange={(open) => !open && setSubjectToDelete(null)}>
                         <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => setSubjectToDelete(subject)} disabled={isSubmitting || isDeleting}><Trash2 className="h-4 w-4" /></Button>
+                          <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => setSubjectToDelete(subject)} disabled={isSubmitting || isDeleting || isLoading}><Trash2 className="h-4 w-4" /></Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
@@ -226,7 +227,7 @@ export default function MasterAdminSubjectsPage() {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel onClick={() => setSubjectToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">{isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Delete Subject</AlertDialogAction>
+                            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">{isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Delete Subject</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
