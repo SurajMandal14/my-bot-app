@@ -302,71 +302,69 @@ export default function GenerateCBSEStateReportPage() {
           const marksResult = await getStudentMarksForReportCard(
             currentStudent._id,
             currentStudent.schoolId!,
-            frontAcademicYear, 
-            currentStudent.classId! 
+            frontAcademicYear
           );
-
-          // Initialize with default empty structures
+          
           const newFaMarksForState: Record<string, FrontSubjectFAData> = getDefaultSubjectFaDataFront(currentLoadedClassSubjects);
           let tempSaDataForNewReport: ReportCardSASubjectEntry[] = [];
           
-          const allFetchedMarks = marksResult.success && marksResult.marks ? marksResult.marks : [];
-          
-          const paperNamesUsedBySubject = new Map<string, Set<string>>();
-          allFetchedMarks.forEach(mark => {
-              if (mark.assessmentName.startsWith("SA")) {
-                  const parts = mark.assessmentName.split('-');
-                  if (parts.length === 3) {
-                      const subjectName = mark.subjectName;
-                      const paperName = parts[1]; // "Paper1" or "Paper2"
-                      if (!paperNamesUsedBySubject.has(subjectName)) {
-                          paperNamesUsedBySubject.set(subjectName, new Set());
-                      }
-                      paperNamesUsedBySubject.get(subjectName)!.add(paperName);
-                  }
-              }
-          });
+          if (marksResult.success && marksResult.marks) {
+            const allFetchedMarks = marksResult.marks;
 
-          currentLoadedClassSubjects.forEach(subject => {
-            tempSaDataForNewReport.push({
-                subjectName: subject.name,
-                paper: subject.name === "Science" ? "Physics" : "I",
-                sa1: getDefaultSaPaperData(),
-                sa2: getDefaultSaPaperData(),
-                faTotal200M: null,
+            const paperNamesUsedBySubject = new Map<string, Set<string>>();
+            allFetchedMarks.forEach(mark => {
+                if (mark.assessmentName.startsWith("SA")) {
+                    const parts = mark.assessmentName.split('-');
+                    if (parts.length === 3) {
+                        const subjectName = mark.subjectName;
+                        const paperName = parts[1]; // "Paper1" or "Paper2"
+                        if (!paperNamesUsedBySubject.has(subjectName)) {
+                            paperNamesUsedBySubject.set(subjectName, new Set());
+                        }
+                        paperNamesUsedBySubject.get(subjectName)!.add(paperName);
+                    }
+                }
             });
 
-            const papersForThisSubject = paperNamesUsedBySubject.get(subject.name);
-            const hasPaper2 = papersForThisSubject?.has('Paper2') || subject.name === 'Science';
-            if(hasPaper2) {
+            currentLoadedClassSubjects.forEach(subject => {
               tempSaDataForNewReport.push({
                   subjectName: subject.name,
-                  paper: subject.name === "Science" ? "Biology" : "II",
+                  paper: subject.name === "Science" ? "Physics" : "I",
                   sa1: getDefaultSaPaperData(),
                   sa2: getDefaultSaPaperData(),
                   faTotal200M: null,
               });
-            }
-          });
-          
 
-          if (marksResult.success && marksResult.marks) {
+              const papersForThisSubject = paperNamesUsedBySubject.get(subject.name);
+              const hasPaper2 = papersForThisSubject?.has('Paper2') || subject.name === 'Science';
+              if(hasPaper2) {
+                tempSaDataForNewReport.push({
+                    subjectName: subject.name,
+                    paper: subject.name === "Science" ? "Biology" : "II",
+                    sa1: getDefaultSaPaperData(),
+                    sa2: getDefaultSaPaperData(),
+                    faTotal200M: null,
+                });
+              }
+            });
+
             allFetchedMarks.forEach(mark => {
                 const subjectIdentifier = mark.subjectName;
+                const assessmentName = mark.assessmentName;
 
-                if (mark.assessmentName.startsWith("FA")) {
-                    const assessmentNameParts = mark.assessmentName.split('-');
+                if (assessmentName.startsWith("FA")) {
+                    const assessmentNameParts = assessmentName.split('-');
                     if (assessmentNameParts.length === 2) {
-                        const faPeriodKey = assessmentNameParts[0].toLowerCase() as keyof FrontSubjectFAData;
-                        const toolKeyRaw = assessmentNameParts[1];
+                        const faPeriodKey = assessmentNameParts[0].toLowerCase() as keyof FrontSubjectFAData; // "fa1", "fa2" etc.
+                        const toolKeyRaw = assessmentNameParts[1]; // "Tool1", "Tool2" etc.
                         const toolKey = toolKeyRaw.toLowerCase().replace('tool', 'tool') as keyof FrontMarksEntry;
 
                         if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
                             (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
                         }
                     }
-                } else if (mark.assessmentName.startsWith("SA")) {
-                    const parts = mark.assessmentName.split('-');
+                } else if (assessmentName.startsWith("SA")) {
+                    const parts = assessmentName.split('-');
                     if (parts.length !== 3) return;
 
                     const saPeriod = (parts[0].toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
@@ -762,5 +760,3 @@ export default function GenerateCBSEStateReportPage() {
     </div>
   );
 }
-
-    

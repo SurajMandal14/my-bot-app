@@ -58,6 +58,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         maxMarks: sm.maxMarks,
         markedByTeacherId: new ObjectId(markedByTeacherId),
         updatedAt: new Date(),
+        studentName: sm.studentName // Also update studentName in case it changes
       };
 
       return {
@@ -72,10 +73,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
           },
           update: {
             $set: fieldsToUpdate,
-            $setOnInsert: {
-                ...fieldsOnInsert,
-                studentName: sm.studentName // Also set studentName on insert
-            },
+            $setOnInsert: fieldsOnInsert,
           },
           upsert: true,
         },
