@@ -81,7 +81,7 @@ export default function MasterAdminConcessionPage() {
       schoolId: "",
       academicYear: "",
       concessionType: undefined,
-      amount: "" as any, // Changed from undefined to empty string
+      amount: "" as any,
       reason: "",
     },
   });
@@ -287,7 +287,7 @@ export default function MasterAdminConcessionPage() {
                 )}/>
                 <FormField control={form.control} name="amount" render={({ field }) => (
                   <FormItem><FormLabel className="flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground"/>Concession Amount (<span className="font-sans">₹</span>)</FormLabel>
-                    <FormControl><Input type="number" placeholder="0" {...field} disabled={isSubmitting} /></FormControl><FormMessage />
+                    <FormControl><Input type="number" placeholder="0" {...field} value={field.value || ""} disabled={isSubmitting} /></FormControl><FormMessage />
                   </FormItem>
                 )}/>
                 <FormField control={form.control} name="reason" render={({ field }) => (
@@ -308,15 +308,17 @@ export default function MasterAdminConcessionPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Concession</AlertDialogTitle>
-            <AlertDialogDescription>
-              Please confirm the details before applying the concession:
+            <div>
+              <AlertDialogDescription>
+                Please confirm the details before applying the concession:
+              </AlertDialogDescription>
               <ul className="mt-2 list-disc list-inside text-sm text-foreground">
                 <li>Student: <strong>{foundStudentName}</strong></li>
                 <li>Amount: <strong><span className="font-sans">₹</span>{concessionToApply?.amount?.toLocaleString()}</strong></li>
                 <li>Type: <strong>{concessionToApply?.concessionType}</strong></li>
                 <li>Academic Year: <strong>{concessionToApply?.academicYear}</strong></li>
               </ul>
-            </AlertDialogDescription>
+            </div>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setConcessionToApply(null)} disabled={isSubmitting}>Cancel</AlertDialogCancel>
@@ -361,7 +363,12 @@ export default function MasterAdminConcessionPage() {
                         </AlertDialogTrigger>
                       {concessionToRevoke && concessionToRevoke._id === con._id && (
                         <AlertDialogContent>
-                          <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will revoke the concession of <span className="font-sans">₹</span>{concessionToRevoke.amount} for {concessionToRevoke.studentName}. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will revoke the concession of <span className="font-sans">₹</span>{concessionToRevoke.amount} for {concessionToRevoke.studentName}. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel onClick={() => setConcessionToRevoke(null)} disabled={isRevoking}>Cancel</AlertDialogCancel>
                             <AlertDialogAction onClick={handleRevokeConcession} disabled={isRevoking} className="bg-destructive hover:bg-destructive/90">{isRevoking && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Revoke</AlertDialogAction>
