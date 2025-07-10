@@ -81,7 +81,7 @@ export default function MasterAdminConcessionPage() {
       schoolId: "",
       academicYear: "",
       concessionType: undefined,
-      amount: undefined,
+      amount: "" as any, // Changed from undefined to empty string
       reason: "",
     },
   });
@@ -194,7 +194,7 @@ export default function MasterAdminConcessionPage() {
     setIsSubmitting(false);
     if (result.success) {
       toast({ title: "Concession Applied", description: result.message });
-      form.reset({ studentId: "", amount: undefined, reason: "", concessionType: undefined, schoolId: authUser.schoolId!, academicYear: academicYearFilter });
+      form.reset({ studentId: "", amount: "" as any, reason: "", concessionType: undefined, schoolId: authUser.schoolId!, academicYear: academicYearFilter });
       setAdmissionIdInput("");
       setFoundStudentName(null);
       fetchConcessionsForYear(academicYearFilter);
@@ -312,7 +312,7 @@ export default function MasterAdminConcessionPage() {
               Please confirm the details before applying the concession:
               <ul className="mt-2 list-disc list-inside text-sm text-foreground">
                 <li>Student: <strong>{foundStudentName}</strong></li>
-                <li>Amount: <strong><span className="font-sans">₹</span>{concessionToApply?.amount.toLocaleString()}</strong></li>
+                <li>Amount: <strong><span className="font-sans">₹</span>{concessionToApply?.amount?.toLocaleString()}</strong></li>
                 <li>Type: <strong>{concessionToApply?.concessionType}</strong></li>
                 <li>Academic Year: <strong>{concessionToApply?.academicYear}</strong></li>
               </ul>
