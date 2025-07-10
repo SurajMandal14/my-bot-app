@@ -18,6 +18,9 @@ import { getSubjectsForTeacher, submitMarks, getMarksForAssessment, type Subject
 import { getStudentsByClass } from "@/app/actions/schoolUsers";
 import { getSchoolById } from "@/app/actions/schools";
 import type { School } from "@/types/school";
+import { getAcademicYears } from '@/app/actions/academicYears';
+import type { AcademicYear } from '@/types/academicYear';
+
 
 const ASSESSMENT_TYPES = ["FA1", "FA2", "FA3", "FA4", "SA1", "SA2"];
 const FA_ASSESSMENTS = ["FA1", "FA2", "FA3", "FA4"];
@@ -81,7 +84,9 @@ export default function TeacherMarksEntryPage() {
 
   const [selectedAssessment, setSelectedAssessment] = useState<string>("");
   const [selectedPaper, setSelectedPaper] = useState<SaPaperType | "">("");
-  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>(getCurrentAcademicYear());
+  
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
 
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
   const [studentsForMarks, setStudentsForMarks] = useState<AppUser[]>([]);
@@ -119,9 +124,10 @@ export default function TeacherMarksEntryPage() {
       return;
     }
     setIsLoadingSubjects(true);
-    const [subjectsResult, schoolResult] = await Promise.all([
+    const [subjectsResult, schoolResult, academicYearsResult] = await Promise.all([
       getSubjectsForTeacher(authUser._id.toString(), authUser.schoolId.toString()),
       getSchoolById(authUser.schoolId.toString()),
+      getAcademicYears()
     ]);
     
     if (subjectsResult.length > 0) {
@@ -135,10 +141,21 @@ export default function TeacherMarksEntryPage() {
         setSchoolDetails(schoolResult.school);
         if (schoolResult.school.activeAcademicYear) {
             setSelectedAcademicYear(schoolResult.school.activeAcademicYear);
+        } else if (academicYearsResult.success && academicYearsResult.academicYears) {
+             const defaultYear = academicYearsResult.academicYears.find(y => y.isDefault);
+             setSelectedAcademicYear(defaultYear ? defaultYear.year : academicYearsResult.academicYears[0]?.year || "");
+        } else {
+            setSelectedAcademicYear(getCurrentAcademicYear());
         }
     } else {
         toast({ variant: "destructive", title: "Error", description: "Could not load school settings for marks entry."});
         setSchoolDetails(null);
+    }
+
+    if(academicYearsResult.success && academicYearsResult.academicYears) {
+        setAcademicYears(academicYearsResult.academicYears);
+    } else {
+        toast({variant: "warning", title: "Academic Years", description: "Could not load academic years list."});
     }
     
     setIsLoadingSubjects(false);
@@ -481,14 +498,21 @@ export default function TeacherMarksEntryPage() {
             </div>
           )}
            <div>
-            <Label htmlFor="academic-year-input">Academic Year</Label>
-            <Input
-                id="academic-year-input"
-                value={selectedAcademicYear}
-                onChange={(e) => setSelectedAcademicYear(e.target.value)}
-                placeholder="e.g., 2023-2024"
-                disabled={!selectedSubject}
-            />
+            <Label htmlFor="academic-year-select">Academic Year</Label>
+            <Select 
+                onValueChange={setSelectedAcademicYear} 
+                value={selectedAcademicYear} 
+                disabled={!selectedSubject || isLoadingSubjects || academicYears.length === 0}
+            >
+                <SelectTrigger id="academic-year-select">
+                    <SelectValue placeholder="Select year"/>
+                </SelectTrigger>
+                <SelectContent>
+                    {academicYears.map(year => (
+                        <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
