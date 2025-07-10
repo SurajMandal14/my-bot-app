@@ -197,10 +197,10 @@ export default function GenerateCBSEStateReportPage() {
     initializeReportState();
     
     try {
-      const studentRes = await getStudentDetailsForReportCard(admissionIdInput, authUser.schoolId.toString());
+      const studentRes = await getStudentDetailsForReportCard(admissionIdInput, authUser.schoolId.toString(), frontAcademicYear);
       
       if (!studentRes.success || !studentRes.student) {
-        toast({ variant: "destructive", title: "Student Not Found", description: studentRes.message || `Could not find student with Admission ID: ${admissionIdInput}.` });
+        toast({ variant: "destructive", title: "Student Not Found", description: studentRes.message || `Could not find student with Admission ID: ${admissionIdInput} for the selected academic year.` });
         setIsLoadingStudentAndClassData(false);
         return;
       }
@@ -250,7 +250,7 @@ export default function GenerateCBSEStateReportPage() {
           return; 
         }
       } else {
-         toast({ variant: "destructive", title: "Class Missing", description: `Student ${currentStudent.name} is not assigned to a class.`});
+         toast({ variant: "destructive", title: "Class Missing", description: `Student ${currentStudent.name} is not assigned to a class for this academic year.`});
          setIsLoadingStudentAndClassData(false);
          return;
       }
@@ -349,45 +349,41 @@ export default function GenerateCBSEStateReportPage() {
             });
 
             allFetchedMarks.forEach(mark => {
-                const subjectIdentifier = mark.subjectName;
-                const assessmentName = mark.assessmentName;
+              const subjectIdentifier = mark.subjectName;
+              const assessmentName = mark.assessmentName;
+              const assessmentNameParts = assessmentName.split('-');
 
-                if (assessmentName.startsWith("FA")) {
-                    const assessmentNameParts = assessmentName.split('-');
-                    if (assessmentNameParts.length === 2) {
-                        const faPeriodKey = assessmentNameParts[0].toLowerCase() as keyof FrontSubjectFAData; // "fa1", "fa2" etc.
-                        const toolKeyRaw = assessmentNameParts[1]; // "Tool1", "Tool2" etc.
-                        const toolKey = toolKeyRaw.toLowerCase().replace('tool', 'tool') as keyof FrontMarksEntry;
+              if (assessmentName.startsWith("FA") && assessmentNameParts.length === 2) {
+                  const faPeriodKey = assessmentNameParts[0].toLowerCase() as keyof FrontSubjectFAData;
+                  const toolKeyRaw = assessmentNameParts[1];
+                  const toolKey = toolKeyRaw.toLowerCase() as keyof FrontMarksEntry;
 
-                        if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
-                            (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
-                        }
-                    }
-                } else if (assessmentName.startsWith("SA")) {
-                    const parts = assessmentName.split('-');
-                    if (parts.length !== 3) return;
-
-                    const saPeriod = (parts[0].toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
-                    const dbPaperPart = parts[1];
-                    const asKey = parts[2].toLowerCase() as keyof SAPaperData;
-                    
-                    let displayPaperName: string;
-                    if (mark.subjectName === "Science") {
-                        displayPaperName = dbPaperPart === 'Paper1' ? 'Physics' : 'Biology';
-                    } else {
-                        displayPaperName = dbPaperPart === 'Paper1' ? 'I' : 'II';
-                    }
-                    
-                    const targetRow = tempSaDataForNewReport.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
-                    
-                    if (targetRow && targetRow[saPeriod]?.[asKey]) {
-                        (targetRow[saPeriod] as any)[asKey] = {
-                            marks: mark.marksObtained,
-                            maxMarks: mark.maxMarks,
-                        };
-                    }
-                }
+                  if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
+                      (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
+                  }
+              } else if (assessmentName.startsWith("SA") && assessmentNameParts.length === 3) {
+                  const saPeriod = (assessmentNameParts[0].toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
+                  const dbPaperPart = assessmentNameParts[1];
+                  const asKey = assessmentNameParts[2].toLowerCase() as keyof SAPaperData;
+                  
+                  let displayPaperName: string;
+                  if (mark.subjectName === "Science") {
+                      displayPaperName = dbPaperPart === 'Paper1' ? 'Physics' : 'Biology';
+                  } else {
+                      displayPaperName = dbPaperPart === 'Paper1' ? 'I' : 'II';
+                  }
+                  
+                  const targetRow = tempSaDataForNewReport.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
+                  
+                  if (targetRow && targetRow[saPeriod]?.[asKey]) {
+                      (targetRow[saPeriod] as any)[asKey] = {
+                          marks: mark.marksObtained,
+                          maxMarks: mark.maxMarks,
+                      };
+                  }
+              }
             });
+
             setFaMarks(newFaMarksForState);
           } else { 
             if (marksResult.message) {
@@ -745,8 +741,8 @@ export default function GenerateCBSEStateReportPage() {
                 <CardTitle className="text-destructive">Student Data Not Loaded</CardTitle>
             </CardHeader>
             <CardContent>
-                <p>Student data could not be loaded for Admission ID: <span className="font-semibold">{admissionIdInput}</span>.</p>
-                <p className="mt-1">Please ensure the Admission ID is correct and the student is properly configured in the system (assigned to a class, etc.).</p>
+                <p>Student data could not be loaded for Admission ID: <span className="font-semibold">{admissionIdInput}</span> for academic year <span className="font-semibold">{frontAcademicYear}</span>.</p>
+                <p className="mt-1">Please ensure the Admission ID and Academic Year are correct and the student is properly configured in the system (assigned to a class, etc.).</p>
             </CardContent>
           </Card>
       )}

@@ -39,9 +39,8 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
 
     const operations = studentMarks.map(sm => {
       // Fields to set ONLY on initial insert
-      const fieldsOnInsert: Omit<MarkEntry, '_id' | 'updatedAt' | 'markedByTeacherId' | 'marksObtained' | 'maxMarks'> = {
+      const fieldsOnInsert: Omit<MarkEntry, '_id' | 'updatedAt' | 'markedByTeacherId' | 'marksObtained' | 'maxMarks' | 'studentName'> = {
         studentId: new ObjectId(sm.studentId),
-        studentName: sm.studentName,
         classId: classId,
         className: className,
         subjectId: subjectId, // subjectName is stored in subjectId field
@@ -73,7 +72,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
           },
           update: {
             $set: fieldsToUpdate,
-            $setOnInsert: fieldsOnInsert,
+            $setOnInsert: { ...fieldsOnInsert, studentName: sm.studentName },
           },
           upsert: true,
         },

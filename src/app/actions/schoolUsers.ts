@@ -472,7 +472,7 @@ export interface GetStudentDetailsForReportCardResult {
   message?: string;
 }
 
-export async function getStudentDetailsForReportCard(admissionIdQuery: string, schoolIdQuery: string): Promise<GetStudentDetailsForReportCardResult> {
+export async function getStudentDetailsForReportCard(admissionIdQuery: string, schoolIdQuery: string, academicYear: string): Promise<GetStudentDetailsForReportCardResult> {
   try {
     if (!admissionIdQuery || admissionIdQuery.trim() === "") {
       return { success: false, message: 'Admission ID cannot be empty.', error: 'Invalid Admission ID.' };
@@ -480,6 +480,10 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
     if (!ObjectId.isValid(schoolIdQuery)) {
       return { success: false, message: 'Invalid School ID format.', error: 'Invalid School ID.' };
     }
+    if (!academicYear) {
+      return { success: false, message: 'Academic Year is required.', error: 'Invalid Academic Year.' };
+    }
+
 
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<User>('users');
@@ -487,11 +491,12 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
     const studentDoc = await usersCollection.findOne({ 
         admissionId: admissionIdQuery, 
         schoolId: new ObjectId(schoolIdQuery) as any,
-        role: 'student' 
+        role: 'student',
+        academicYear: academicYear,
     });
 
     if (!studentDoc) {
-      return { success: false, message: `Student with Admission ID '${admissionIdQuery}' not found in this school.`, error: 'Student not found.' };
+      return { success: false, message: `Student with Admission ID '${admissionIdQuery}' not found in this school for the academic year ${academicYear}.`, error: 'Student not found.' };
     }
     
     const student = studentDoc as User; // Type assertion
