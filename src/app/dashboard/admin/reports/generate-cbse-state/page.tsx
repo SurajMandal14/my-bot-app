@@ -259,7 +259,7 @@ export default function GenerateCBSEStateReportPage() {
           currentStudent._id, 
           currentStudent.schoolId!, 
           frontAcademicYear,
-          undefined, 
+          "Annual", 
           false 
       );
 
@@ -297,7 +297,7 @@ export default function GenerateCBSEStateReportPage() {
       } else { 
           setLoadedReportId(null);
           setLoadedReportIsPublished(null);
-          toast({title: "No Saved Report", description: "Fetching individual marks for new report."});
+          toast({title: "Generating New Report", description: "Fetching all available marks..."});
 
           const marksResult = await getStudentMarksForReportCard(
             currentStudent._id,
@@ -400,7 +400,7 @@ export default function GenerateCBSEStateReportPage() {
           setCoMarks(defaultCoMarksFront);
           setAttendanceData(defaultAttendanceDataBack);
           setFinalOverallGradeInput(null);
-          await handleSaveReportCard(true); // Auto-save after generating a new report
+          await handleSaveReportCard(true);
       }
     } catch (error) {
       toast({ variant: "destructive", title: "Error Loading Data", description: "An unexpected error occurred."});
@@ -492,7 +492,7 @@ export default function GenerateCBSEStateReportPage() {
   
   const isFieldDisabledForRole = (subjectName?: string): boolean => {
     if (currentUserRole === 'student') return true;
-    if (currentUserRole === 'admin' && !!loadedStudent) return true; 
+    if (currentUserRole === 'admin' && !!loadedStudent) return false; 
     if (currentUserRole === 'teacher') {
       if (!subjectName) return true; 
       if (subjectName === "Science" && (teacherEditableSubjects.includes("Physics") || teacherEditableSubjects.includes("Biology"))) return false;

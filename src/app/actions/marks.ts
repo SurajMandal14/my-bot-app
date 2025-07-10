@@ -38,14 +38,13 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
     }
 
     const operations = studentMarks.map(sm => {
-      const fieldsOnInsert: Omit<MarkEntry, '_id' | 'updatedAt' | 'markedByTeacherId' | 'marksObtained' | 'maxMarks' > = {
+      const fieldsOnInsert = {
         studentId: new ObjectId(sm.studentId),
         studentName: sm.studentName,
         classId: classId,
         className: className,
         subjectId: subjectId, 
         subjectName: subjectName,
-        assessmentName: sm.assessmentName, 
         academicYear: academicYear,
         schoolId: new ObjectId(schoolId),
         createdAt: new Date(),
@@ -64,13 +63,13 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
             studentId: fieldsOnInsert.studentId,
             classId: fieldsOnInsert.classId,
             subjectId: fieldsOnInsert.subjectId, 
-            assessmentName: fieldsOnInsert.assessmentName,
+            assessmentName: sm.assessmentName,
             academicYear: fieldsOnInsert.academicYear,
             schoolId: fieldsOnInsert.schoolId,
           },
           update: {
             $set: fieldsToUpdate,
-            $setOnInsert: fieldsOnInsert,
+            $setOnInsert: { ...fieldsOnInsert, assessmentName: sm.assessmentName },
           },
           upsert: true,
         },
@@ -116,7 +115,7 @@ export async function getMarksForAssessment(
     const { db } = await connectToDatabase();
     const marksCollection = db.collection<MarkEntry>('marks');
 
-    let queryAssessmentFilter: { $regex: string } | { $in: string[] };
+    let queryAssessmentFilter: { $regex: string };
 
     if (["FA1", "FA2", "FA3", "FA4"].includes(assessmentNameBase)) {
       queryAssessmentFilter = { $regex: `^${assessmentNameBase}-Tool` };
@@ -126,13 +125,13 @@ export async function getMarksForAssessment(
       }
       queryAssessmentFilter = { $regex: `^${assessmentNameBase}-${paper}-AS` }; 
     } else {
-      queryAssessmentFilter = { $in: [assessmentNameBase] };
+        return { success: false, message: 'Unsupported assessment type for this query.' };
     }
 
     const marks = await marksCollection.find({
       schoolId: new ObjectId(schoolId),
       classId: classId,
-      subjectId: subjectNameParam, // Querying by subjectName (which is stored in subjectId field in DB)
+      subjectId: subjectNameParam,
       assessmentName: queryAssessmentFilter,
       academicYear: academicYear,
     }).toArray();
@@ -217,6 +216,9 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
   try {
     if (!ObjectId.isValid(studentId) || !ObjectId.isValid(schoolId)) {
       return { success: false, message: 'Invalid Student or School ID format.', error: 'Invalid ID format.' };
+    }
+    if (!academicYear) {
+      return { success: false, message: 'Academic Year is required to fetch marks.' };
     }
 
     const { db } = await connectToDatabase();
