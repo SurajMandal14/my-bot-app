@@ -83,12 +83,12 @@ export const busFeeLocationCategorySchema = z.object({
 });
 
 const assessmentLockSchema = z.object({
-    FA1: z.boolean().default(false),
-    FA2: z.boolean().default(false),
-    FA3: z.boolean().default(false),
-    FA4: z.boolean().default(false),
-    SA1: z.boolean().default(false),
-    SA2: z.boolean().default(false),
+    FA1: z.boolean().optional(),
+    FA2: z.boolean().optional(),
+    FA3: z.boolean().optional(),
+    FA4: z.boolean().optional(),
+    SA1: z.boolean().optional(),
+    SA2: z.boolean().optional(),
   });
 
 // Zod schema for the main school form
@@ -105,7 +105,7 @@ export const schoolFormSchema = z.object({
   }, { message: "Invalid attendance type selected."}).optional().default('monthly'),
   allowStudentsToViewPublishedReports: z.boolean().default(false).optional(),
   activeAcademicYear: z.string().regex(/^\d{4}-\d{4}$/, "Invalid academic year format (e.g., 2024-2025)").optional(),
-  marksEntryLocks: z.record(z.string(), assessmentLockSchema.partial()).default({}),
+  marksEntryLocks: z.record(z.string(), assessmentLockSchema).optional().default({}),
 });
 
 export type SchoolFormData = z.infer<typeof schoolFormSchema>;

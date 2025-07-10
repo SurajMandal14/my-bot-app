@@ -125,6 +125,12 @@ export default function MasterAdminSettingsPage() {
 
         if (academicYearsResult.success && academicYearsResult.academicYears) {
             setAcademicYears(academicYearsResult.academicYears);
+             if (schoolResult.school && !schoolResult.school.activeAcademicYear) {
+                const defaultYear = academicYearsResult.academicYears.find(y => y.isDefault);
+                if (defaultYear) {
+                    form.setValue('activeAcademicYear', defaultYear.year);
+                }
+            }
         } else {
              toast({ variant: 'warning', title: "Warning", description: "Could not load academic years list."});
         }
@@ -263,31 +269,31 @@ export default function MasterAdminSettingsPage() {
                      {activeAcademicYear ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {assessmentKeys.map(key => {
+                            const currentLocks = form.watch(`marksEntryLocks.${activeAcademicYear}`);
+                            const isChecked = currentLocks ? !!currentLocks[key] : false;
+
                             return (
-                                <FormField
-                                    key={key}
-                                    control={form.control}
-                                    name={`marksEntryLocks.${activeAcademicYear}.${key}`}
-                                    render={({ field }) => {
-                                        return (
-                                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                                                <div className="space-y-0.5">
-                                                    <FormLabel className="text-base flex items-center">
-                                                        {field.value ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}
-                                                        {key} Entry
-                                                    </FormLabel>
-                                                </div>
-                                                <FormControl>
-                                                    <Switch 
-                                                        checked={!!field.value} 
-                                                        onCheckedChange={field.onChange}
-                                                        disabled={isSubmitting} 
-                                                    />
-                                                </FormControl>
-                                            </FormItem>
-                                        );
-                                    }}
-                                />
+                                <FormItem key={key} className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                    <div className="space-y-0.5">
+                                        <FormLabel className="text-base flex items-center">
+                                            {isChecked ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}
+                                            {key} Entry
+                                        </FormLabel>
+                                    </div>
+                                    <FormControl>
+                                        <Switch 
+                                            checked={isChecked} 
+                                            onCheckedChange={(checked) => {
+                                                const currentYearLocks = form.getValues(`marksEntryLocks.${activeAcademicYear}`) || {};
+                                                form.setValue(`marksEntryLocks.${activeAcademicYear}`, {
+                                                    ...currentYearLocks,
+                                                    [key]: checked,
+                                                });
+                                            }}
+                                            disabled={isSubmitting} 
+                                        />
+                                    </FormControl>
+                                </FormItem>
                             );
                         })}
                         </div>

@@ -7,7 +7,6 @@ import type { School, SchoolFormData, ReportCardTemplateKey, ClassTuitionFeeConf
 import { schoolFormSchema } from '@/types/school';
 import { revalidatePath } from 'next/cache';
 import { ObjectId } from 'mongodb';
-import _ from 'lodash';
 
 export interface CreateSchoolResult {
   success: boolean;
@@ -103,7 +102,7 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
     if (!ObjectId.isValid(schoolId)) {
       return { success: false, message: 'Invalid school ID format.' };
     }
-
+    
     const validatedFields = schoolFormSchema.safeParse(values);
     if (!validatedFields.success) {
       const errors = validatedFields.error.errors.map(e => `${e.path.join('.')} - ${e.message}`).join('; ');
