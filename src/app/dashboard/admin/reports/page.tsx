@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,7 +83,6 @@ export default function AdminReportsPage() {
   const [isDownloadingFeePdf, setIsDownloadingFeePdf] = useState(false);
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [lastFetchedSchoolId, setLastFetchedSchoolId] = useState<string | null>(null);
   const [filterAcademicYear, setFilterAcademicYear] = useState<string>("");
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
 
@@ -119,26 +117,33 @@ export default function AdminReportsPage() {
     }
   }, [toast]);
   
-  useEffect(() => {
-    async function fetchYears() {
-      const yearsResult = await getAcademicYears();
-      if(yearsResult.success && yearsResult.academicYears) {
-        setAcademicYears(yearsResult.academicYears);
+  const fetchOptions = useCallback(async () => {
+    if (!authUser?.schoolId) return;
+
+    setIsLoading(true);
+    const [classOptionsResult, academicYearsResult] = await Promise.all([
+      getClassesForSchoolAsOptions(authUser.schoolId.toString()),
+      getAcademicYears()
+    ]);
+    
+    setClassOptions(classOptionsResult);
+
+    if (academicYearsResult.success && academicYearsResult.academicYears) {
+      setAcademicYears(academicYearsResult.academicYears);
+      const activeYear = schoolDetails?.activeAcademicYear || academicYearsResult.academicYears.find(y => y.isDefault)?.year || academicYearsResult.academicYears[0]?.year || "";
+      if (activeYear) {
+        setFilterAcademicYear(activeYear);
+        setAcademicYearForBulkPublish(activeYear);
       }
+    } else {
+      toast({ variant: "destructive", title: "Error", description: "Could not load academic years." });
     }
-    fetchYears();
-  }, []);
-
-  const fetchClassOptionsForBulkPublish = useCallback(async () => {
-    if (authUser?.schoolId) {
-      const options = await getClassesForSchoolAsOptions(authUser.schoolId.toString());
-      setClassOptions(options);
-    }
-  }, [authUser?.schoolId]);
+    setIsLoading(false);
+  }, [authUser?.schoolId, schoolDetails?.activeAcademicYear, toast]);
 
   useEffect(() => {
-    fetchClassOptionsForBulkPublish();
-  }, [fetchClassOptionsForBulkPublish]);
+    fetchOptions();
+  }, [fetchOptions]);
 
 
   const calculateAnnualTuitionFee = useCallback((className: string | undefined, schoolConfig: School | null): number => {
@@ -148,7 +153,42 @@ export default function AdminReportsPage() {
     return classFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
   }, []);
 
- const processFeeData = useCallback(() => {
+  const loadReportData = useCallback(async () => {
+    if (!authUser || !authUser.schoolId || !filterAcademicYear) {
+        setIsLoading(false);
+        return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const [studentsResult, schoolRes, paymentsResult, concessionsResult] = await Promise.all([
+        getSchoolUsers(authUser.schoolId.toString()),
+        getSchoolById(authUser.schoolId.toString()),
+        getFeePaymentsBySchool(authUser.schoolId.toString()),
+        getFeeConcessionsForSchool(authUser.schoolId.toString(), filterAcademicYear),
+      ]);
+
+      if (studentsResult.success && studentsResult.users) {
+        setAllSchoolStudents(studentsResult.users.filter(u => u.role === 'student'));
+      }
+      if (schoolRes.success && schoolRes.school) setSchoolDetails(schoolRes.school);
+      if (paymentsResult.success && paymentsResult.payments) setAllSchoolPayments(paymentsResult.payments);
+      if (concessionsResult.success && concessionsResult.concessions) setAllSchoolConcessions(concessionsResult.concessions);
+      
+    } catch (error) {
+       toast({ variant: "destructive", title: "Error Fetching Report Data", description: "An error occurred while fetching school-wide information."});
+       console.error("Error fetching report data:", error);
+    }
+    setIsLoading(false);
+  }, [authUser, toast, filterAcademicYear]);
+  
+  useEffect(() => {
+    loadReportData();
+  }, [loadReportData]);
+
+
+  const processFeeData = useCallback(() => {
     if (!allSchoolStudents.length || !schoolDetails || !allSchoolPayments) {
       setFeeClassSummaries([]);
       setFeeOverallSummary(null);
@@ -161,7 +201,9 @@ export default function AdminReportsPage() {
 
     const classFeeMap = new Map<string, { totalExpected: number, totalCollected: number, totalConcessions: number, studentCount: number }>();
 
-    allSchoolStudents.forEach(student => {
+    const studentsForYear = allSchoolStudents.filter(s => s.academicYear === filterAcademicYear);
+
+    studentsForYear.forEach(student => {
       if (student.classId) {
         const classObj = classOptions.find(c => c.value === student.classId);
         const classNameForTuitionLookup = classObj?.name; 
@@ -230,67 +272,6 @@ export default function AdminReportsPage() {
   }, [allSchoolStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, processFeeData]);
 
 
-  const loadReportData = useCallback(async (isManualRefresh = false) => {
-    if (!authUser || !authUser.schoolId) {
-        setIsLoading(false);
-        return;
-    }
-
-    setIsLoading(true);
-
-    if (isManualRefresh || lastFetchedSchoolId !== authUser.schoolId.toString()) {
-      try {
-        const [studentsResult, schoolRes, paymentsResult, concessionsResult, classesOptRes] = await Promise.all([
-          getSchoolUsers(authUser.schoolId.toString()),
-          getSchoolById(authUser.schoolId.toString()),
-          getFeePaymentsBySchool(authUser.schoolId.toString()),
-          getFeeConcessionsForSchool(authUser.schoolId.toString(), filterAcademicYear),
-          getClassesForSchoolAsOptions(authUser.schoolId.toString())
-        ]);
-
-        if (classesOptRes) setClassOptions(classesOptRes);
-
-        if (studentsResult.success && studentsResult.users) {
-          setAllSchoolStudents(studentsResult.users.filter(u => u.role === 'student'));
-        } else {
-          toast({ variant: "warning", title: "Student Data", description: studentsResult.message || "Could not fetch student list." });
-          setAllSchoolStudents([]);
-        }
-
-        if (schoolRes.success && schoolRes.school) {
-          setSchoolDetails(schoolRes.school);
-          const activeYear = schoolRes.school.activeAcademicYear || academicYears.find(y => y.isDefault)?.year || academicYears[0]?.year || "";
-          setFilterAcademicYear(activeYear);
-          setAcademicYearForBulkPublish(activeYear);
-        } else {
-          toast({ variant: "destructive", title: "School Info Error", description: schoolRes.message || "Could not load school details for reports."});
-          setSchoolDetails(null);
-        }
-
-        if (paymentsResult.success && paymentsResult.payments) {
-          setAllSchoolPayments(paymentsResult.payments);
-        } else {
-          toast({ variant: "warning", title: "Fee Payment Data", description: paymentsResult.message || "Could not fetch fee payments." });
-          setAllSchoolPayments([]);
-        }
-
-        if (concessionsResult.success && concessionsResult.concessions) {
-            setAllSchoolConcessions(concessionsResult.concessions);
-        } else {
-            toast({ variant: "warning", title: "Concession Data", description: concessionsResult.message || "Could not fetch concession data." });
-            setAllSchoolConcessions([]);
-        }
-
-        setLastFetchedSchoolId(authUser.schoolId.toString());
-      } catch (error) {
-         toast({ variant: "destructive", title: "Error Fetching School Data", description: "An error occurred while fetching school-wide information."});
-         console.error("Error fetching school-wide data:", error);
-      }
-    }
-    
-    setIsLoading(false);
-  }, [authUser, toast, lastFetchedSchoolId, filterAcademicYear, academicYears]);
-
   const fetchAttendance = useCallback(async () => {
     if (!authUser || !authUser.schoolId) return;
 
@@ -308,10 +289,9 @@ export default function AdminReportsPage() {
 
   useEffect(() => {
     if (authUser && authUser.schoolId) {
-      loadReportData(false);
       fetchAttendance();
     }
-  }, [authUser, loadReportData, fetchAttendance, filterAcademicYear]);
+  }, [authUser, fetchAttendance]);
 
 
   const handleDownloadFeePdf = async () => {
@@ -630,7 +610,17 @@ export default function AdminReportsPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
                 <div>
                     <CardTitle>Fee Collection Summary Report</CardTitle>
-                    <CardDescription>Fee reports are for the school's active academic year: {filterAcademicYear}</CardDescription>
+                    <div className="flex items-center gap-2 mt-2">
+                        <Label htmlFor="fee-academic-year">Academic Year:</Label>
+                        <Select onValueChange={setFilterAcademicYear} value={filterAcademicYear} disabled={isLoading || academicYears.length === 0}>
+                            <SelectTrigger id="fee-academic-year" className="w-[180px]">
+                                <SelectValue placeholder="Select Year" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
                  <div className="flex items-center gap-2">
                     <Button
@@ -735,3 +725,5 @@ export default function AdminReportsPage() {
     </div>
   );
 }
+
+    

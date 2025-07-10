@@ -180,6 +180,7 @@ export default function GenerateCBSEStateReportPage() {
     }
 
     setIsLoadingStudentAndClassData(true);
+    initializeReportState();
     
     try {
       const studentRes = await getStudentDetailsForReportCard(admissionIdInput, authUser.schoolId.toString());
@@ -187,7 +188,6 @@ export default function GenerateCBSEStateReportPage() {
       if (!studentRes.success || !studentRes.student) {
         toast({ variant: "destructive", title: "Student Not Found", description: studentRes.message || `Could not find student with Admission ID: ${admissionIdInput}.` });
         setIsLoadingStudentAndClassData(false);
-        initializeReportState(); 
         return;
       }
       const currentStudent = studentRes.student;
@@ -233,13 +233,11 @@ export default function GenerateCBSEStateReportPage() {
         } else {
           toast({ variant: "destructive", title: "Class Details Error", description: classRes.message || `Could not load class details for class ID: ${currentStudent.classId}.`});
           setIsLoadingStudentAndClassData(false);
-          initializeReportState();
           return; 
         }
       } else {
          toast({ variant: "destructive", title: "Class Missing", description: `Student ${currentStudent.name} is not assigned to a class.`});
          setIsLoadingStudentAndClassData(false);
-         initializeReportState();
          return;
       }
       
@@ -756,3 +754,5 @@ export default function GenerateCBSEStateReportPage() {
     </div>
   );
 }
+
+    
