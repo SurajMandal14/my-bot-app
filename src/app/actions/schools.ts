@@ -54,7 +54,7 @@ export async function createSchool(values: SchoolFormData): Promise<CreateSchool
       allowStudentsToViewPublishedReports: allowStudentsToViewPublishedReports || false,
       attendanceType: attendanceType || 'monthly',
       activeAcademicYear: activeAcademicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
-      marksEntryLocks: marksEntryLocks || { FA1: false, FA2: false, FA3: false, FA4: false, SA1: false, SA2: false },
+      marksEntryLocks: marksEntryLocks || {},
     };
 
     const schoolToInsert = {
@@ -208,7 +208,7 @@ export async function getSchools(): Promise<GetSchoolsResult> {
       allowStudentsToViewPublishedReports: doc.allowStudentsToViewPublishedReports === undefined ? false : doc.allowStudentsToViewPublishedReports,
       attendanceType: doc.attendanceType || 'monthly',
       activeAcademicYear: doc.activeAcademicYear,
-      marksEntryLocks: doc.marksEntryLocks || { FA1: false, FA2: false, FA3: false, FA4: false, SA1: false, SA2: false },
+      marksEntryLocks: doc.marksEntryLocks || {},
       createdAt: new Date(doc.createdAt).toISOString(),
       updatedAt: new Date(doc.updatedAt).toISOString(),
     }));
@@ -260,7 +260,7 @@ export async function getSchoolById(schoolId: string): Promise<GetSchoolByIdResu
       allowStudentsToViewPublishedReports: schoolDoc.allowStudentsToViewPublishedReports === undefined ? false : schoolDoc.allowStudentsToViewPublishedReports, // Default to false if missing
       attendanceType: schoolDoc.attendanceType || 'monthly',
       activeAcademicYear: schoolDoc.activeAcademicYear,
-      marksEntryLocks: schoolDoc.marksEntryLocks || { FA1: false, FA2: false, FA3: false, FA4: false, SA1: false, SA2: false },
+      marksEntryLocks: schoolDoc.marksEntryLocks || {},
       createdAt: new Date(schoolDoc.createdAt).toISOString(),
       updatedAt: new Date(schoolDoc.updatedAt).toISOString(),
     };

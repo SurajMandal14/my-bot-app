@@ -36,6 +36,15 @@ export const ATTENDANCE_TYPES = {
 } as const;
 export type AttendanceTypeKey = keyof typeof ATTENDANCE_TYPES;
 
+export interface AssessmentLocks {
+  FA1: boolean;
+  FA2: boolean;
+  FA3: boolean;
+  FA4: boolean;
+  SA1: boolean;
+  SA2: boolean;
+}
+
 
 // Main School interface
 export interface School {
@@ -49,10 +58,7 @@ export interface School {
   allowStudentsToViewPublishedReports?: boolean; // New field
   // Operational Settings
   activeAcademicYear?: string;
-  marksEntryLocks?: {
-    FA1: boolean; FA2: boolean; FA3: boolean; FA4: boolean;
-    SA1: boolean; SA2: boolean;
-  };
+  marksEntryLocks?: Record<string, AssessmentLocks>; // Year -> LockStatus e.g. {"2023-2024": {FA1: true, ...}}
   createdAt: Date | string; // Allow string for client-side
   updatedAt: Date | string; // Allow string for client-side
 }
@@ -76,6 +82,15 @@ export const busFeeLocationCategorySchema = z.object({
   terms: z.array(termFeeSchema).length(3, "Exactly 3 terms are required for bus fees."),
 });
 
+const assessmentLockSchema = z.object({
+    FA1: z.boolean().default(false),
+    FA2: z.boolean().default(false),
+    FA3: z.boolean().default(false),
+    FA4: z.boolean().default(false),
+    SA1: z.boolean().default(false),
+    SA2: z.boolean().default(false),
+  });
+
 // Zod schema for the main school form
 export const schoolFormSchema = z.object({
   schoolName: z.string().min(3, "School name must be at least 3 characters."),
@@ -90,14 +105,7 @@ export const schoolFormSchema = z.object({
   }, { message: "Invalid attendance type selected."}).optional().default('monthly'),
   allowStudentsToViewPublishedReports: z.boolean().default(false).optional(),
   activeAcademicYear: z.string().regex(/^\d{4}-\d{4}$/, "Invalid academic year format (e.g., 2024-2025)").optional(),
-  marksEntryLocks: z.object({
-    FA1: z.boolean().default(false),
-    FA2: z.boolean().default(false),
-    FA3: z.boolean().default(false),
-    FA4: z.boolean().default(false),
-    SA1: z.boolean().default(false),
-    SA2: z.boolean().default(false),
-  }).default({ FA1: false, FA2: false, FA3: false, FA4: false, SA1: false, SA2: false }),
+  marksEntryLocks: z.record(z.string(), assessmentLockSchema).default({}),
 });
 
 export type SchoolFormData = z.infer<typeof schoolFormSchema>;

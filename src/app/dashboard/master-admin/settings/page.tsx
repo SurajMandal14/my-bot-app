@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { getSchoolById, updateSchool } from "@/app/actions/schools";
-import { schoolFormSchema, type SchoolFormData, REPORT_CARD_TEMPLATES, type ReportCardTemplateKey, type TermFee, ATTENDANCE_TYPES } from '@/types/school'; 
+import { schoolFormSchema, type SchoolFormData, REPORT_CARD_TEMPLATES, type ReportCardTemplateKey, type TermFee, ATTENDANCE_TYPES, type AssessmentLocks } from '@/types/school'; 
 import type { School as SchoolType } from "@/types/school";
 import type { AuthUser } from "@/types/user";
 import { useEffect, useState, useCallback } from "react";
@@ -33,7 +33,11 @@ const DEFAULT_TERMS: TermFee[] = [
   { term: 'Term 3', amount: 0 },
 ];
 
-const assessmentKeys: (keyof SchoolFormData['marksEntryLocks'])[] = ["FA1", "FA2", "FA3", "FA4", "SA1", "SA2"];
+const DEFAULT_ASSESSMENT_LOCKS: AssessmentLocks = {
+    FA1: false, FA2: false, FA3: false, FA4: false, SA1: false, SA2: false
+};
+
+const assessmentKeys: (keyof AssessmentLocks)[] = ["FA1", "FA2", "FA3", "FA4", "SA1", "SA2"];
 
 export default function MasterAdminSettingsPage() {
     const { toast } = useToast();
@@ -54,7 +58,7 @@ export default function MasterAdminSettingsPage() {
             allowStudentsToViewPublishedReports: false,
             attendanceType: 'monthly',
             activeAcademicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
-            marksEntryLocks: { FA1: false, FA2: false, FA3: false, FA4: false, SA1: false, SA2: false },
+            marksEntryLocks: {},
         }
     });
     
@@ -69,6 +73,7 @@ export default function MasterAdminSettingsPage() {
     });
     
     const termNames: TermFee['term'][] = ['Term 1', 'Term 2', 'Term 3'];
+    const activeAcademicYear = form.watch("activeAcademicYear");
 
     useEffect(() => {
         const storedUser = localStorage.getItem('loggedInUser');
@@ -105,7 +110,7 @@ export default function MasterAdminSettingsPage() {
           terms: bfs.terms && bfs.terms.length === 3 ? bfs.terms.map(t => ({term: t.term, amount: t.amount || 0})) : [...DEFAULT_TERMS],
         })) : [{ location: "", classCategory: "", terms: [...DEFAULT_TERMS] }],
         activeAcademicYear: school.activeAcademicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
-        marksEntryLocks: school.marksEntryLocks || { FA1: false, FA2: false, FA3: false, FA4: false, SA1: false, SA2: false },
+        marksEntryLocks: school.marksEntryLocks || {},
     });
 
     const loadSchoolData = useCallback(async () => {
@@ -200,7 +205,7 @@ export default function MasterAdminSettingsPage() {
                     <FormField control={form.control} name="schoolLogoUrl" render={({ field }) => ( <FormItem><FormLabel className="flex items-center"><ImageIcon className="mr-2 h-4 w-4 text-muted-foreground" /> School Logo URL</FormLabel><FormControl><Input type="text" placeholder="https://example.com/logo.png" {...field} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem> )}/>
                     <FormField control={form.control} name="reportCardTemplate" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><FileText className="mr-2 h-4 w-4 text-muted-foreground" /> Report Card Template</FormLabel><Select onValueChange={field.onChange} value={field.value || 'none'} disabled={isSubmitting}><FormControl><SelectTrigger><SelectValue placeholder="Select a template" /></SelectTrigger></FormControl><SelectContent>{Object.entries(REPORT_CARD_TEMPLATES).map(([key, label]) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                     <FormField control={form.control} name="attendanceType" render={({ field }) => (<FormItem><FormLabel className="flex items-center"><CheckSquare className="mr-2 h-4 w-4 text-muted-foreground" /> Attendance Type</FormLabel><Select onValueChange={field.onChange} value={field.value || 'monthly'} disabled={isSubmitting}><FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl><SelectContent>{Object.entries(ATTENDANCE_TYPES).map(([key, label]) => (<SelectItem key={key} value={key} disabled={key !== 'monthly'}>{label}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                    <FormField control={form.control} name="allowStudentsToViewPublishedReports" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm md:col-span-1"><div className="space-y-0.5"><FormLabel className="text-base flex items-center"><Eye className="mr-2 h-4 w-4"/>Student Report Visibility</FormLabel><p className="text-xs text-muted-foreground">Allow students to view their published reports.</p></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={isSubmitting}/></FormControl></FormItem>)}/>
+                    <FormField control={form.control} name="allowStudentsToViewPublishedReports" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm md:col-span-1"><div className="space-y-0.5"><FormLabel className="text-base flex items-center"><Eye className="mr-2 h-4 w-4"/>Student Report Visibility</FormLabel><p className="text-xs text-muted-foreground">Allow students of this school to view their published report cards.</p></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={isSubmitting}/></FormControl></FormItem>)}/>
                 </CardContent>
             </Card>
 
@@ -262,13 +267,40 @@ export default function MasterAdminSettingsPage() {
                             </FormItem>
                         )}
                     />
-                    <div className="space-y-2"><Label>Marks Entry Lock</Label><p className="text-sm text-muted-foreground">Enable or disable marks entry for specific assessments.</p></div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {assessmentKeys.map(key => (<FormField key={key} control={form.control} name={`marksEntryLocks.${key}`} render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5">
-                            <FormLabel className="text-base flex items-center">{field.value ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}{key} Entry</FormLabel>
-                        </div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={isSubmitting} /></FormControl></FormItem>)}/>))}
+                    <div className="space-y-2">
+                        <Label>Marks Entry Lock for <span className="font-semibold text-primary">{activeAcademicYear || '...'}</span></Label>
+                        <p className="text-sm text-muted-foreground">Enable or disable marks entry for specific assessments in the active academic year.</p>
                     </div>
+                    {activeAcademicYear ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {assessmentKeys.map(key => (
+                            <FormField 
+                                key={key} 
+                                control={form.control} 
+                                name={`marksEntryLocks.${activeAcademicYear}.${key}`}
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                        <div className="space-y-0.5">
+                                            <FormLabel className="text-base flex items-center">
+                                                {field.value ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}
+                                                {key} Entry
+                                            </FormLabel>
+                                        </div>
+                                        <FormControl>
+                                            <Switch 
+                                                checked={!!field.value} 
+                                                onCheckedChange={field.onChange} 
+                                                disabled={isSubmitting} 
+                                            />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                        ))}
+                        </div>
+                    ) : (
+                        <p className="text-muted-foreground text-sm">Select an active academic year to manage marks entry locks.</p>
+                    )}
                 </CardContent>
             </Card>
 

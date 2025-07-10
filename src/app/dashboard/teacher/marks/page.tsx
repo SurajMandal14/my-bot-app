@@ -95,7 +95,7 @@ export default function TeacherMarksEntryPage() {
   const isCurrentAssessmentFA = FA_ASSESSMENTS.includes(selectedAssessment);
   const isCurrentAssessmentSA = SA_ASSESSMENTS.includes(selectedAssessment);
   
-  const isMarksEntryLocked = selectedAssessment && schoolDetails?.marksEntryLocks?.[selectedAssessment as keyof School['marksEntryLocks']] === true;
+  const isMarksEntryLocked = selectedAssessment && selectedAcademicYear && schoolDetails?.marksEntryLocks?.[selectedAcademicYear]?.[selectedAssessment as keyof School['marksEntryLocks']] === true;
 
 
   useEffect(() => {
@@ -133,6 +133,9 @@ export default function TeacherMarksEntryPage() {
 
     if (schoolResult.success && schoolResult.school) {
         setSchoolDetails(schoolResult.school);
+        if (schoolResult.school.activeAcademicYear) {
+            setSelectedAcademicYear(schoolResult.school.activeAcademicYear);
+        }
     } else {
         toast({ variant: "destructive", title: "Error", description: "Could not load school settings for marks entry."});
         setSchoolDetails(null);
@@ -495,7 +498,7 @@ export default function TeacherMarksEntryPage() {
           <Lock className="h-4 w-4" />
           <AlertTitle>Marks Entry Locked</AlertTitle>
           <AlertDescription>
-            The administrator has locked marks entry for <strong>{selectedAssessment}</strong>. Please contact your school admin if this is a mistake.
+            The administrator has locked marks entry for <strong>{selectedAssessment}</strong> for the academic year {selectedAcademicYear}. Please contact your school admin if this is a mistake.
           </AlertDescription>
         </Alert>
       )}
@@ -624,5 +627,3 @@ export default function TeacherMarksEntryPage() {
     </div>
   );
 }
-
-    
