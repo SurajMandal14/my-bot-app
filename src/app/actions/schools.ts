@@ -7,6 +7,7 @@ import type { School, SchoolFormData, ReportCardTemplateKey, ClassTuitionFeeConf
 import { schoolFormSchema } from '@/types/school';
 import { revalidatePath } from 'next/cache';
 import { ObjectId } from 'mongodb';
+import { isEqual } from 'lodash';
 
 export interface CreateSchoolResult {
   success: boolean;
