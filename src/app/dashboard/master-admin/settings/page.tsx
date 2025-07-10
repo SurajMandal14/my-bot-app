@@ -24,6 +24,8 @@ import { schoolFormSchema, type SchoolFormData, REPORT_CARD_TEMPLATES, type Repo
 import type { School as SchoolType } from "@/types/school";
 import type { AuthUser } from "@/types/user";
 import { useEffect, useState, useCallback } from "react";
+import { getAcademicYears } from "@/app/actions/academicYears";
+import type { AcademicYear } from "@/types/academicYear";
 
 const DEFAULT_TERMS: TermFee[] = [
   { term: 'Term 1', amount: 0 },
@@ -37,6 +39,7 @@ export default function MasterAdminSettingsPage() {
     const { toast } = useToast();
     const [authUser, setAuthUser] = useState<AuthUser | null>(null);
     const [school, setSchool] = useState<SchoolType | null>(null);
+    const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -113,13 +116,23 @@ export default function MasterAdminSettingsPage() {
         }
 
         setIsLoading(true);
-        const result = await getSchoolById(authUser.schoolId);
-        if (result.success && result.school) {
-            setSchool(result.school);
-            form.reset(mapSchoolToFormData(result.school));
+        const [schoolResult, academicYearsResult] = await Promise.all([
+            getSchoolById(authUser.schoolId),
+            getAcademicYears()
+        ]);
+        
+        if (schoolResult.success && schoolResult.school) {
+            setSchool(schoolResult.school);
+            form.reset(mapSchoolToFormData(schoolResult.school));
         } else {
             toast({ variant: 'destructive', title: "Error", description: "Failed to load your school's details."});
             setSchool(null);
+        }
+
+        if (academicYearsResult.success && academicYearsResult.academicYears) {
+            setAcademicYears(academicYearsResult.academicYears);
+        } else {
+             toast({ variant: 'warning', title: "Warning", description: "Could not load academic years list."});
         }
         setIsLoading(false);
     }, [authUser, form, toast]);
@@ -223,7 +236,32 @@ export default function MasterAdminSettingsPage() {
             <Card>
                 <CardHeader><CardTitle className="text-lg">Operational Settings</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                    <FormField control={form.control} name="activeAcademicYear" render={({ field }) => (<FormItem className="max-w-xs"><FormLabel>Active Academic Year</FormLabel><FormControl><Input placeholder="e.g., 2024-2025" {...field} value={field.value || ""} /></FormControl><FormMessage /></FormItem>)}/>
+                    <FormField
+                        control={form.control}
+                        name="activeAcademicYear"
+                        render={({ field }) => (
+                            <FormItem className="max-w-xs">
+                                <FormLabel>Active Academic Year</FormLabel>
+                                <Select
+                                    onValueChange={field.onChange}
+                                    value={field.value || ""}
+                                    disabled={isSubmitting || academicYears.length === 0}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={academicYears.length > 0 ? "Select academic year" : "No years available"} />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {academicYears.map(year => (
+                                            <SelectItem key={year._id} value={year.year}>{year.year} {year.isDefault && "(Default)"}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
                     <div className="space-y-2"><Label>Marks Entry Lock</Label><p className="text-sm text-muted-foreground">Enable or disable marks entry for specific assessments.</p></div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {assessmentKeys.map(key => (<FormField key={key} control={form.control} name={`marksEntryLocks.${key}`} render={({ field }) => (

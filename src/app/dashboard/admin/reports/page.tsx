@@ -37,20 +37,11 @@ import { getMonthlyAttendanceForAdmin } from "@/app/actions/attendance";
 import type { MonthlyAttendanceRecord } from "@/types/attendance";
 import Link from "next/link";
 import { format } from "date-fns";
+import { getAcademicYears } from "@/app/actions/academicYears";
+import type { AcademicYear } from "@/types/academicYear";
 
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-
-const getCurrentAcademicYear = (): string => {
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-  if (currentMonth >= 5) {
-    return `${currentYear}-${currentYear + 1}`;
-  } else {
-    return `${currentYear - 1}-${currentYear}`;
-  }
-};
 
 interface ClassFeeSummary {
   className: string;
@@ -94,12 +85,13 @@ export default function AdminReportsPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [lastFetchedSchoolId, setLastFetchedSchoolId] = useState<string | null>(null);
-  const [filterAcademicYear, setFilterAcademicYear] = useState<string>(getCurrentAcademicYear());
+  const [filterAcademicYear, setFilterAcademicYear] = useState<string>("");
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
 
   // States for Bulk Report Publishing
   const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
   const [selectedClassForBulkPublish, setSelectedClassForBulkPublish] = useState<string>("");
-  const [academicYearForBulkPublish, setAcademicYearForBulkPublish] = useState<string>(getCurrentAcademicYear());
+  const [academicYearForBulkPublish, setAcademicYearForBulkPublish] = useState<string>("");
   const [reportsForBulkPublish, setReportsForBulkPublish] = useState<BulkPublishReportInfo[]>([]);
   const [isLoadingBulkReports, setIsLoadingBulkReports] = useState(false);
   const [isBulkPublishing, setIsBulkPublishing] = useState(false);
@@ -126,6 +118,16 @@ export default function AdminReportsPage() {
       setAuthUser(null);
     }
   }, [toast]);
+  
+  useEffect(() => {
+    async function fetchYears() {
+      const yearsResult = await getAcademicYears();
+      if(yearsResult.success && yearsResult.academicYears) {
+        setAcademicYears(yearsResult.academicYears);
+      }
+    }
+    fetchYears();
+  }, []);
 
   const fetchClassOptionsForBulkPublish = useCallback(async () => {
     if (authUser?.schoolId) {
@@ -257,6 +259,9 @@ export default function AdminReportsPage() {
 
         if (schoolRes.success && schoolRes.school) {
           setSchoolDetails(schoolRes.school);
+          const activeYear = schoolRes.school.activeAcademicYear || academicYears.find(y => y.isDefault)?.year || academicYears[0]?.year || "";
+          setFilterAcademicYear(activeYear);
+          setAcademicYearForBulkPublish(activeYear);
         } else {
           toast({ variant: "destructive", title: "School Info Error", description: schoolRes.message || "Could not load school details for reports."});
           setSchoolDetails(null);
@@ -284,7 +289,7 @@ export default function AdminReportsPage() {
     }
     
     setIsLoading(false);
-  }, [authUser, toast, lastFetchedSchoolId, filterAcademicYear]);
+  }, [authUser, toast, lastFetchedSchoolId, filterAcademicYear, academicYears]);
 
   const fetchAttendance = useCallback(async () => {
     if (!authUser || !authUser.schoolId) return;
@@ -473,7 +478,14 @@ export default function AdminReportsPage() {
             </div>
             <div className="flex-grow">
               <Label htmlFor="bulk-academic-year">Academic Year</Label>
-              <Input id="bulk-academic-year" value={academicYearForBulkPublish} onChange={(e) => setAcademicYearForBulkPublish(e.target.value)} placeholder="YYYY-YYYY" disabled={isLoadingBulkReports || isBulkPublishing}/>
+              <Select onValueChange={setAcademicYearForBulkPublish} value={academicYearForBulkPublish} disabled={isLoadingBulkReports || isBulkPublishing || academicYears.length === 0}>
+                <SelectTrigger id="bulk-academic-year">
+                  <SelectValue placeholder="Select Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <Button onClick={handleLoadReportsForBulkPublish} disabled={isLoadingBulkReports || isBulkPublishing || !selectedClassForBulkPublish || !academicYearForBulkPublish.match(/^\d{4}-\d{4}$/)}>
               {isLoadingBulkReports ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Users className="mr-2 h-4 w-4"/>} Load Reports
@@ -618,10 +630,9 @@ export default function AdminReportsPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
                 <div>
                     <CardTitle>Fee Collection Summary Report</CardTitle>
-                    <CardDescription>Fee reports are for academic year: {filterAcademicYear}</CardDescription>
+                    <CardDescription>Fee reports are for the school's active academic year: {filterAcademicYear}</CardDescription>
                 </div>
                  <div className="flex items-center gap-2">
-                    <Input id="fee-academic-year" value={filterAcademicYear} onChange={(e) => setFilterAcademicYear(e.target.value)} placeholder="YYYY-YYYY" className="w-[150px]"/>
                     <Button
                         variant="outline"
                         onClick={handleDownloadFeePdf}
