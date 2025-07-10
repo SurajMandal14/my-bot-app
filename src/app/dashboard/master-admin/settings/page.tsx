@@ -49,25 +49,26 @@ export default function MasterAdminSettingsPage() {
 
     const form = useForm<SchoolFormData>({
         resolver: zodResolver(schoolFormSchema),
+        // Default values will be replaced by useEffect once data loads
         defaultValues: {
             schoolName: "",
-            tuitionFees: [{ className: "", terms: [...DEFAULT_TERMS] }],
-            busFeeStructures: [{ location: "", classCategory: "", terms: [...DEFAULT_TERMS] }],
+            tuitionFees: [],
+            busFeeStructures: [],
             schoolLogoUrl: "",
             reportCardTemplate: 'none',
             allowStudentsToViewPublishedReports: false,
             attendanceType: 'monthly',
-            activeAcademicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+            activeAcademicYear: "",
             marksEntryLocks: {},
         }
     });
     
-    const { fields: tuitionFeeFields, append: appendTuitionFee, remove: removeTuitionFee, update: updateTuitionFee } = useFieldArray({
+    const { fields: tuitionFeeFields, append: appendTuitionFee, remove: removeTuitionFee } = useFieldArray({
         control: form.control,
         name: "tuitionFees",
     });
 
-    const { fields: busFeeFields, append: appendBusFee, remove: removeBusFee, update: updateBusFee } = useFieldArray({
+    const { fields: busFeeFields, append: appendBusFee, remove: removeBusFee } = useFieldArray({
         control: form.control,
         name: "busFeeStructures",
     });
@@ -100,15 +101,8 @@ export default function MasterAdminSettingsPage() {
         reportCardTemplate: school.reportCardTemplate || 'none',
         allowStudentsToViewPublishedReports: school.allowStudentsToViewPublishedReports || false,
         attendanceType: school.attendanceType || 'monthly',
-        tuitionFees: school.tuitionFees?.length > 0 ? school.tuitionFees.map(tf => ({ 
-          className: tf.className,
-          terms: tf.terms && tf.terms.length === 3 ? tf.terms.map(t => ({term: t.term, amount: t.amount || 0})) : [...DEFAULT_TERMS],
-        })) : [{ className: "", terms: [...DEFAULT_TERMS] }],
-        busFeeStructures: school.busFeeStructures?.length > 0 ? school.busFeeStructures.map(bfs => ({
-          location: bfs.location,
-          classCategory: bfs.classCategory,
-          terms: bfs.terms && bfs.terms.length === 3 ? bfs.terms.map(t => ({term: t.term, amount: t.amount || 0})) : [...DEFAULT_TERMS],
-        })) : [{ location: "", classCategory: "", terms: [...DEFAULT_TERMS] }],
+        tuitionFees: school.tuitionFees?.length > 0 ? school.tuitionFees : [{ className: "", terms: [...DEFAULT_TERMS] }],
+        busFeeStructures: school.busFeeStructures?.length > 0 ? school.busFeeStructures : [{ location: "", classCategory: "", terms: [...DEFAULT_TERMS] }],
         activeAcademicYear: school.activeAcademicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
         marksEntryLocks: school.marksEntryLocks || {},
     }), []);
@@ -217,7 +211,7 @@ export default function MasterAdminSettingsPage() {
                         <FormField control={form.control} name={`tuitionFees.${classIndex}.className`} render={({ field: classNameField }) => (<FormItem className="flex-grow mr-2"><FormLabel>Class Name</FormLabel><FormControl><Input placeholder="e.g., Grade 10" {...classNameField} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>)}/>
                         <Button type="button" variant="ghost" size="icon" onClick={() => removeTuitionFee(classIndex)} className="mt-6 text-destructive hover:bg-destructive/10" disabled={isSubmitting}><Trash2 className="h-5 w-5" /></Button>
                     </div><div className="grid grid-cols-1 md:grid-cols-3 gap-4">{termNames.map((termName, termIndex) => (
-                        <FormField key={`${field.id}-tuition-term-${termIndex}`} control={form.control} name={`tuitionFees.${classIndex}.terms.${termIndex}.amount`} render={({ field: amountField }) => (<FormItem><FormLabel className="flex items-center"><span className="font-sans mr-1">₹</span>{termName} Fee</FormLabel><FormControl><Input type="number" placeholder="Amount" {...amountField} value={amountField.value || ""} onChange={e => { const val = parseFloat(e.target.value); amountField.onChange(isNaN(val) ? "" : val); const currentTerms = form.getValues(`tuitionFees.${classIndex}.terms`); if (currentTerms[termIndex] && currentTerms[termIndex].term !== termName) { updateTuitionFee(classIndex, { ...form.getValues(`tuitionFees.${classIndex}`), terms: currentTerms.map((t, i) => i === termIndex ? {...t, term: termName} : t) }); } }} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>)}/>))}
+                        <FormField key={`${field.id}-tuition-term-${termIndex}`} control={form.control} name={`tuitionFees.${classIndex}.terms.${termIndex}.amount`} render={({ field: amountField }) => (<FormItem><FormLabel className="flex items-center"><span className="font-sans mr-1">₹</span>{termName} Fee</FormLabel><FormControl><Input type="number" placeholder="Amount" {...amountField} value={amountField.value || ""} onChange={e => { const val = parseFloat(e.target.value); amountField.onChange(isNaN(val) ? "" : val);}} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>)}/>))}
                     </div></Card>))}
                     <Button type="button" variant="outline" size="sm" onClick={() => appendTuitionFee({ className: "", terms: [...DEFAULT_TERMS] })} disabled={isSubmitting}><PlusCircle className="mr-2 h-4 w-4" /> Add Class Tuition</Button>
                 </CardContent>
@@ -232,7 +226,7 @@ export default function MasterAdminSettingsPage() {
                         <FormField control={form.control} name={`busFeeStructures.${busIndex}.classCategory`} render={({ field: categoryField }) => (<FormItem><FormLabel>Stations</FormLabel><FormControl><Input placeholder="e.g., Station 1, Station 2" {...categoryField} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>)}/>
                     </div><Button type="button" variant="ghost" size="icon" onClick={() => removeBusFee(busIndex)} className="mt-6 text-destructive hover:bg-destructive/10" disabled={isSubmitting}><Trash2 className="h-5 w-5" /></Button>
                     </div><div className="grid grid-cols-1 md:grid-cols-3 gap-4">{termNames.map((termName, termIndex) => (
-                        <FormField key={`${field.id}-bus-term-${termIndex}`} control={form.control} name={`busFeeStructures.${busIndex}.terms.${termIndex}.amount`} render={({ field: amountField }) => (<FormItem><FormLabel className="flex items-center"><span className="font-sans mr-1">₹</span>{termName} Bus Fee</FormLabel><FormControl><Input type="number" placeholder="Amount" {...amountField} value={amountField.value || ""} onChange={e => { const val = parseFloat(e.target.value); amountField.onChange(isNaN(val) ? "" : val); const currentTerms = form.getValues(`busFeeStructures.${busIndex}.terms`); if (currentTerms[termIndex] && currentTerms[termIndex].term !== termName) { updateBusFee(busIndex, { ...form.getValues(`busFeeStructures.${busIndex}`), terms: currentTerms.map((t, i) => i === termIndex ? {...t, term: termName} : t) }); } }} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>)}/>))}
+                        <FormField key={`${field.id}-bus-term-${termIndex}`} control={form.control} name={`busFeeStructures.${busIndex}.terms.${termIndex}.amount`} render={({ field: amountField }) => (<FormItem><FormLabel className="flex items-center"><span className="font-sans mr-1">₹</span>{termName} Bus Fee</FormLabel><FormControl><Input type="number" placeholder="Amount" {...amountField} value={amountField.value || ""} onChange={e => { const val = parseFloat(e.target.value); amountField.onChange(isNaN(val) ? "" : val);}} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>)}/>))}
                     </div></Card>))}
                     <Button type="button" variant="outline" size="sm" onClick={() => appendBusFee({ location: "", classCategory: "", terms: [...DEFAULT_TERMS] })} disabled={isSubmitting}><PlusCircle className="mr-2 h-4 w-4" /> Add Bus Fee</Button>
                 </CardContent>
@@ -274,41 +268,35 @@ export default function MasterAdminSettingsPage() {
                      {activeAcademicYear ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {assessmentKeys.map(key => {
-                            const fieldName = `marksEntryLocks.${activeAcademicYear}.${key}` as const;
+                            const currentLocks = form.getValues('marksEntryLocks');
+                            const yearLocks = currentLocks?.[activeAcademicYear] || {};
+                            const isChecked = yearLocks[key] || false;
                             return (
-                                <Controller
-                                    key={key}
-                                    name={fieldName}
-                                    control={form.control}
-                                    defaultValue={form.getValues(fieldName) ?? false}
-                                    render={({ field }) => (
-                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                                            <div className="space-y-0.5">
-                                                <FormLabel className="text-base flex items-center">
-                                                    {field.value ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}
-                                                    {key} Entry
-                                                </FormLabel>
-                                            </div>
-                                            <FormControl>
-                                                <Switch 
-                                                    checked={field.value} 
-                                                    onCheckedChange={(checked) => {
-                                                        const currentLocks = form.getValues('marksEntryLocks') || {};
-                                                        const yearLocks = currentLocks[activeAcademicYear] || {};
-                                                        form.setValue('marksEntryLocks', {
-                                                          ...currentLocks,
-                                                          [activeAcademicYear]: {
-                                                            ...yearLocks,
-                                                            [key]: checked,
-                                                          },
-                                                        });
-                                                    }}
-                                                    disabled={isSubmitting} 
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
+                                <FormItem key={key} className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                    <div className="space-y-0.5">
+                                        <FormLabel className="text-base flex items-center">
+                                            {isChecked ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}
+                                            {key} Entry
+                                        </FormLabel>
+                                    </div>
+                                    <FormControl>
+                                        <Switch 
+                                            checked={isChecked} 
+                                            onCheckedChange={(checked) => {
+                                                const currentLocks = form.getValues('marksEntryLocks') || {};
+                                                const yearLocksForUpdate = currentLocks[activeAcademicYear] || {};
+                                                form.setValue('marksEntryLocks', {
+                                                  ...currentLocks,
+                                                  [activeAcademicYear]: {
+                                                    ...yearLocksForUpdate,
+                                                    [key]: checked,
+                                                  },
+                                                });
+                                            }}
+                                            disabled={isSubmitting} 
+                                        />
+                                    </FormControl>
+                                </FormItem>
                             );
                         })}
                         </div>

@@ -7,7 +7,6 @@ import type { School, SchoolFormData, ReportCardTemplateKey, ClassTuitionFeeConf
 import { schoolFormSchema } from '@/types/school';
 import { revalidatePath } from 'next/cache';
 import { ObjectId } from 'mongodb';
-import { isEqual } from 'lodash';
 
 export interface CreateSchoolResult {
   success: boolean;
@@ -118,17 +117,6 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
     const { db } = await connectToDatabase();
     const schoolsCollection = db.collection<School>('schools');
     
-    const existingSchool = await schoolsCollection.findOne({ _id: new ObjectId(schoolId) as any });
-    if (!existingSchool) {
-      return { success: false, message: 'School not found for update.', error: 'No school matched the provided ID.' };
-    }
-
-    // Merge marksEntryLocks correctly to prevent overwriting other years' data
-    const mergedMarksEntryLocks = {
-        ...existingSchool.marksEntryLocks,
-        ...marksEntryLocks,
-    };
-
     const updateData: Partial<Omit<School, '_id' | 'createdAt'>> = {
       schoolName,
       tuitionFees: (tuitionFees || []).map(tf => ({
@@ -150,7 +138,7 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
       allowStudentsToViewPublishedReports: allowStudentsToViewPublishedReports || false,
       attendanceType: attendanceType || 'monthly',
       activeAcademicYear: activeAcademicYear,
-      marksEntryLocks: mergedMarksEntryLocks,
+      marksEntryLocks: marksEntryLocks,
       updatedAt: new Date(),
     };
     
@@ -165,11 +153,6 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
 
     if (result.matchedCount === 0) {
       return { success: false, message: 'School not found.', error: 'No school matched the provided ID.' };
-    }
-
-    if (result.matchedCount > 0 && result.modifiedCount === 0) {
-      // This might happen if the data is identical. Still consider it a success.
-      return { success: true, message: 'No new changes detected to save.' };
     }
     
     revalidatePath('/dashboard/super-admin/schools');
