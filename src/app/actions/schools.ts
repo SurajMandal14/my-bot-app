@@ -123,7 +123,7 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
       return { success: false, message: 'School not found for update.', error: 'No school matched the provided ID.' };
     }
 
-    // Merge marksEntryLocks correctly
+    // Merge marksEntryLocks correctly to prevent overwriting other years' data
     const mergedMarksEntryLocks = {
         ...existingSchool.marksEntryLocks,
         ...marksEntryLocks,
@@ -157,35 +157,6 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
     if (typeof schoolLogoUrl === 'string') {
       updateData.schoolLogoUrl = schoolLogoUrl || undefined; 
     }
-    
-    // Check if there are actual changes before updating
-    const relevantExistingData = {
-        schoolName: existingSchool.schoolName,
-        tuitionFees: (existingSchool.tuitionFees || []).map(tf => ({ className: tf.className, terms: tf.terms.map(t => ({...t})) })),
-        busFeeStructures: (existingSchool.busFeeStructures || []).map(bfs => ({ location: bfs.location, classCategory: bfs.classCategory, terms: bfs.terms.map(t => ({...t})) })),
-        reportCardTemplate: existingSchool.reportCardTemplate || 'none',
-        allowStudentsToViewPublishedReports: existingSchool.allowStudentsToViewPublishedReports || false,
-        attendanceType: existingSchool.attendanceType || 'monthly',
-        activeAcademicYear: existingSchool.activeAcademicYear,
-        marksEntryLocks: existingSchool.marksEntryLocks || {},
-        schoolLogoUrl: existingSchool.schoolLogoUrl || undefined,
-    };
-
-    const relevantUpdateData = {
-        schoolName: updateData.schoolName,
-        tuitionFees: updateData.tuitionFees,
-        busFeeStructures: updateData.busFeeStructures,
-        reportCardTemplate: updateData.reportCardTemplate,
-        allowStudentsToViewPublishedReports: updateData.allowStudentsToViewPublishedReports,
-        attendanceType: updateData.attendanceType,
-        activeAcademicYear: updateData.activeAcademicYear,
-        marksEntryLocks: updateData.marksEntryLocks,
-        schoolLogoUrl: updateData.schoolLogoUrl,
-    };
-
-    if (isEqual(relevantExistingData, relevantUpdateData)) {
-      return { success: true, message: 'No changes detected to update.' };
-    }
 
     const result = await schoolsCollection.updateOne(
       { _id: new ObjectId(schoolId) as any },
@@ -194,6 +165,11 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
 
     if (result.matchedCount === 0) {
       return { success: false, message: 'School not found.', error: 'No school matched the provided ID.' };
+    }
+
+    if (result.matchedCount > 0 && result.modifiedCount === 0) {
+      // This might happen if the data is identical. Still consider it a success.
+      return { success: true, message: 'No new changes detected to save.' };
     }
     
     revalidatePath('/dashboard/super-admin/schools');
