@@ -38,22 +38,35 @@ import { feeConcessionFormSchema, CONCESSION_TYPES } from '@/types/concessions';
 import type { User as AppUser, AuthUser } from "@/types/user";
 import { useEffect, useState, useCallback } from "react";
 import { format } from 'date-fns';
+import { getAcademicYears } from "@/app/actions/academicYears";
+import type { AcademicYear } from "@/types/academicYear";
+
+const getCurrentAcademicYear = (): string => {
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  if (currentMonth >= 5) {
+    return `${today.getFullYear()}-${today.getFullYear() + 1}`;
+  } else {
+    return `${today.getFullYear() - 1}-${today.getFullYear()}`;
+  }
+};
+
 
 export default function MasterAdminConcessionPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   
   const [concessions, setConcessions] = useState<FeeConcession[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   
-  const [isLoadingConcessions, setIsLoadingConcessions] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [concessionToRevoke, setConcessionToRevoke] = useState<FeeConcession | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
   
-  const [academicYearFilter, setAcademicYearFilter] = useState<string>(`${new Date().getFullYear()}-${new Date().getFullYear() + 1}`);
+  const [academicYearFilter, setAcademicYearFilter] = useState<string>("");
   
-  // State for student search
   const [admissionIdInput, setAdmissionIdInput] = useState("");
   const [foundStudentName, setFoundStudentName] = useState<string | null>(null);
   const [isSearchingStudent, setIsSearchingStudent] = useState(false);
@@ -65,9 +78,9 @@ export default function MasterAdminConcessionPage() {
     defaultValues: {
       studentId: "",
       schoolId: "",
-      academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+      academicYear: "",
       concessionType: undefined,
-      amount: 0,
+      amount: undefined,
       reason: "",
     },
   });
@@ -88,23 +101,58 @@ export default function MasterAdminConcessionPage() {
     } else { setAuthUser(null); }
   }, [toast, form]);
 
-  const fetchConcessionsForSchool = useCallback(async (schoolId: string, year?: string) => {
-    setIsLoadingConcessions(true);
-    const concessionsResult = await getFeeConcessionsForSchool(schoolId, year);
-    if (concessionsResult.success && concessionsResult.concessions) {
-      setConcessions(concessionsResult.concessions);
-    } else {
-      toast({ variant: "warning", title: "Concessions", description: concessionsResult.message || "Failed to load concessions."});
-      setConcessions([]);
-    }
-    setIsLoadingConcessions(false);
-  }, [toast]);
+  const fetchInitialData = useCallback(async () => {
+      if (!authUser?.schoolId) {
+          setIsLoading(false);
+          return;
+      }
+      setIsLoading(true);
+      const [concessionsResult, academicYearsResult] = await Promise.all([
+          getFeeConcessionsForSchool(authUser.schoolId.toString()),
+          getAcademicYears()
+      ]);
+
+      if (concessionsResult.success && concessionsResult.concessions) {
+          setConcessions(concessionsResult.concessions);
+      } else {
+          toast({ variant: "warning", title: "Concessions", description: concessionsResult.message || "Failed to load concessions."});
+      }
+
+      if (academicYearsResult.success && academicYearsResult.academicYears) {
+          setAcademicYears(academicYearsResult.academicYears);
+          const defaultYear = academicYearsResult.academicYears.find(y => y.isDefault)?.year || getCurrentAcademicYear();
+          setAcademicYearFilter(defaultYear);
+          form.setValue('academicYear', defaultYear);
+      } else {
+          setAcademicYearFilter(getCurrentAcademicYear());
+          form.setValue('academicYear', getCurrentAcademicYear());
+      }
+      setIsLoading(false);
+  }, [authUser, toast, form]);
 
   useEffect(() => {
     if (authUser?.schoolId) {
-      fetchConcessionsForSchool(authUser.schoolId.toString(), academicYearFilter);
+      fetchInitialData();
     }
-  }, [authUser, academicYearFilter, fetchConcessionsForSchool]);
+  }, [authUser, fetchInitialData]);
+
+  const fetchConcessionsForYear = useCallback(async (year: string) => {
+    if (!authUser?.schoolId) return;
+    setIsLoading(true);
+    const result = await getFeeConcessionsForSchool(authUser.schoolId, year);
+    if (result.success && result.concessions) {
+      setConcessions(result.concessions);
+    } else {
+      setConcessions([]);
+    }
+    setIsLoading(false);
+  }, [authUser]);
+
+  useEffect(() => {
+    if(academicYearFilter) {
+      fetchConcessionsForYear(academicYearFilter);
+    }
+  }, [academicYearFilter, fetchConcessionsForYear]);
 
   const handleSearchStudent = async () => {
     if (!admissionIdInput.trim() || !authUser?.schoolId) {
@@ -145,10 +193,10 @@ export default function MasterAdminConcessionPage() {
     setIsSubmitting(false);
     if (result.success) {
       toast({ title: "Concession Applied", description: result.message });
-      form.reset({ ...form.getValues(), studentId: "", amount: 0, reason: "", concessionType: undefined });
+      form.reset({ studentId: "", amount: undefined, reason: "", concessionType: undefined, schoolId: authUser.schoolId!, academicYear: academicYearFilter });
       setAdmissionIdInput("");
       setFoundStudentName(null);
-      if (authUser.schoolId) fetchConcessionsForSchool(authUser.schoolId.toString(), academicYearFilter);
+      fetchConcessionsForYear(academicYearFilter);
     } else {
       toast({ variant: "destructive", title: "Application Failed", description: result.error || result.message });
     }
@@ -162,7 +210,7 @@ export default function MasterAdminConcessionPage() {
     setIsRevoking(false);
     if (result.success) {
       toast({ title: "Concession Revoked", description: result.message });
-      fetchConcessionsForSchool(authUser.schoolId.toString(), academicYearFilter);
+      fetchConcessionsForYear(academicYearFilter);
     } else {
       toast({ variant: "destructive", title: "Revocation Failed", description: result.error || result.message });
     }
@@ -221,7 +269,11 @@ export default function MasterAdminConcessionPage() {
                 
                 <FormField control={form.control} name="academicYear" render={({ field }) => (
                   <FormItem><FormLabel className="flex items-center"><CalendarFold className="mr-2 h-4 w-4 text-muted-foreground"/>Academic Year</FormLabel>
-                    <FormControl><Input placeholder="e.g., 2023-2024" {...field} disabled={isSubmitting} /></FormControl><FormMessage />
+                     <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select a year" /></SelectTrigger></FormControl>
+                      <SelectContent>{academicYears.map((year) => (<SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>))}</SelectContent>
+                    </Select>
+                    <FormMessage />
                   </FormItem>
                 )}/>
                 <FormField control={form.control} name="concessionType" render={({ field }) => (
@@ -234,7 +286,7 @@ export default function MasterAdminConcessionPage() {
                 )}/>
                 <FormField control={form.control} name="amount" render={({ field }) => (
                   <FormItem><FormLabel className="flex items-center"><DollarSign className="mr-2 h-4 w-4 text-muted-foreground"/>Concession Amount (<span className="font-sans">₹</span>)</FormLabel>
-                    <FormControl><Input type="number" placeholder="0.00" {...field} disabled={isSubmitting} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} /></FormControl><FormMessage />
+                    <FormControl><Input type="number" placeholder="0" {...field} disabled={isSubmitting} /></FormControl><FormMessage />
                   </FormItem>
                 )}/>
                 <FormField control={form.control} name="reason" render={({ field }) => (
@@ -280,23 +332,27 @@ export default function MasterAdminConcessionPage() {
             <CardTitle>Existing Fee Concessions</CardTitle>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Label htmlFor="academicYearFilter" className="whitespace-nowrap">Filter Year:</Label>
-              <Input id="academicYearFilter" placeholder="e.g., 2023-2024" className="w-full sm:w-[180px]" value={academicYearFilter} onChange={(e) => setAcademicYearFilter(e.target.value)} disabled={isLoadingConcessions}/>
-              <Button variant="outline" size="icon" onClick={() => fetchConcessionsForSchool(authUser.schoolId!, academicYearFilter)} disabled={isLoadingConcessions}><Search className="h-4 w-4" /></Button>
+              <Select onValueChange={setAcademicYearFilter} value={academicYearFilter} disabled={isLoading}>
+                <SelectTrigger id="academicYearFilter" className="w-[180px]"><SelectValue placeholder="Select a year" /></SelectTrigger>
+                <SelectContent>{academicYears.map((year) => (<SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>))}</SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {isLoadingConcessions ? (<div className="flex items-center justify-center py-6"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading concessions...</p></div>)
+          {isLoading ? (<div className="flex items-center justify-center py-6"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading concessions...</p></div>)
           : concessions.length > 0 ? (
           <Table>
-            <TableHeader><TableRow><TableHead>Student</TableHead><TableHead>School</TableHead><TableHead>Academic Year</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Amount (<span className="font-sans">₹</span>)</TableHead><TableHead>Reason</TableHead><TableHead>Applied By</TableHead><TableHead>Date</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Student Name</TableHead><TableHead>Adm. No.</TableHead><TableHead>Academic Year</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Amount (<span className="font-sans">₹</span>)</TableHead><TableHead>Applied On</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
             <TableBody>
               {concessions.map((con) => (
                 <TableRow key={con._id.toString()}>
-                  <TableCell>{con.studentName || 'N/A'}</TableCell><TableCell>{con.schoolName || 'N/A'}</TableCell><TableCell>{con.academicYear}</TableCell><TableCell>{con.concessionType}</TableCell>
+                  <TableCell>{con.studentName || 'N/A'}</TableCell>
+                  <TableCell>{con.admissionId || 'N/A'}</TableCell>
+                  <TableCell>{con.academicYear}</TableCell>
+                  <TableCell>{con.concessionType}</TableCell>
                   <TableCell className="text-right"><span className="font-sans">₹</span>{con.amount.toLocaleString()}</TableCell>
-                  <TableCell className="max-w-xs truncate" title={con.reason}>{con.reason}</TableCell>
-                  <TableCell>{con.appliedByMasterAdminName || 'N/A'}</TableCell><TableCell>{format(new Date(con.createdAt), "PP")}</TableCell>
+                  <TableCell>{format(new Date(con.createdAt), "PP")}</TableCell>
                   <TableCell>
                     <AlertDialog open={concessionToRevoke?._id === con._id} onOpenChange={(open) => !open && setConcessionToRevoke(null)}>
                         <AlertDialogTrigger asChild>

@@ -141,6 +141,7 @@ export async function getFeeConcessionsForSchool(schoolId: string, academicYear?
           appliedByMasterAdminId: 1, createdAt: 1, updatedAt: 1,
           studentName: '$studentInfo.name',
           schoolName: '$schoolInfo.schoolName',
+          admissionId: '$studentInfo.admissionId',
           appliedByMasterAdminName: '$adminInfo.name',
         },
       },
@@ -158,6 +159,7 @@ export async function getFeeConcessionsForSchool(schoolId: string, academicYear?
       appliedByMasterAdminId: (doc.appliedByMasterAdminId as ObjectId).toString(),
       studentName: doc.studentName || 'N/A',
       schoolName: doc.schoolName || 'N/A',
+      admissionId: doc.admissionId || 'N/A',
       appliedByMasterAdminName: doc.appliedByMasterAdminName || 'N/A',
       createdAt: new Date(doc.createdAt).toISOString(),
       updatedAt: new Date(doc.updatedAt).toISOString(),
@@ -199,7 +201,6 @@ export async function getFeeConcessionsForStudent(studentId: string, schoolId: s
       appliedByMasterAdminId: (doc.appliedByMasterAdminId as ObjectId).toString(),
       createdAt: new Date(doc.createdAt).toISOString(),
       updatedAt: new Date(doc.updatedAt).toISOString(),
-      // studentName, schoolName, appliedByMasterAdminName could be looked up if needed here too
     }));
 
     return { success: true, concessions: clientConcessions };
