@@ -45,7 +45,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         className: className,
         subjectId: subjectId,
         subjectName: subjectName,
-        assessmentName: sm.assessmentName, // Use specific assessment name from each mark entry
+        assessmentName: sm.assessmentName, 
         academicYear: academicYear,
         marksObtained: sm.marksObtained,
         maxMarks: sm.maxMarks,
@@ -58,7 +58,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
           filter: {
             studentId: markFieldsToSet.studentId,
             classId: markFieldsToSet.classId,
-            subjectId: markFieldsToSet.subjectId,
+            subjectId: markFieldsToSet.subjectId, // subjectName is stored in subjectId field
             assessmentName: markFieldsToSet.assessmentName,
             academicYear: markFieldsToSet.academicYear,
             schoolId: markFieldsToSet.schoolId,
@@ -74,12 +74,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
               updatedAt: new Date(),
             },
             $setOnInsert: {
-              studentId: markFieldsToSet.studentId,
-              classId: markFieldsToSet.classId,
-              subjectId: markFieldsToSet.subjectId,
-              assessmentName: markFieldsToSet.assessmentName,
-              academicYear: markFieldsToSet.academicYear,
-              schoolId: markFieldsToSet.schoolId,
+              ...markFieldsToSet, // Set all fields on insert
               createdAt: new Date(),
             },
           },
