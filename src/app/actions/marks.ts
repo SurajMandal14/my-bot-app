@@ -38,12 +38,12 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
     }
 
     const operations = studentMarks.map(sm => {
-      // Fields to set ONLY on initial insert
-      const fieldsOnInsert: Omit<MarkEntry, '_id' | 'updatedAt' | 'markedByTeacherId' | 'marksObtained' | 'maxMarks' | 'studentName'> = {
+      const fieldsOnInsert: Omit<MarkEntry, '_id' | 'updatedAt' | 'markedByTeacherId' | 'marksObtained' | 'maxMarks' > = {
         studentId: new ObjectId(sm.studentId),
+        studentName: sm.studentName,
         classId: classId,
         className: className,
-        subjectId: subjectId, // subjectName is stored in subjectId field
+        subjectId: subjectId, 
         subjectName: subjectName,
         assessmentName: sm.assessmentName, 
         academicYear: academicYear,
@@ -51,13 +51,11 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         createdAt: new Date(),
       };
       
-      // Fields to update every time
       const fieldsToUpdate = {
         marksObtained: sm.marksObtained,
         maxMarks: sm.maxMarks,
         markedByTeacherId: new ObjectId(markedByTeacherId),
         updatedAt: new Date(),
-        studentName: sm.studentName // Also update studentName in case it changes
       };
 
       return {
@@ -72,7 +70,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
           },
           update: {
             $set: fieldsToUpdate,
-            $setOnInsert: { ...fieldsOnInsert, studentName: sm.studentName },
+            $setOnInsert: fieldsOnInsert,
           },
           upsert: true,
         },
@@ -121,16 +119,13 @@ export async function getMarksForAssessment(
     let queryAssessmentFilter: { $regex: string } | { $in: string[] };
 
     if (["FA1", "FA2", "FA3", "FA4"].includes(assessmentNameBase)) {
-      // Fetch all tools for a given FA
       queryAssessmentFilter = { $regex: `^${assessmentNameBase}-Tool` };
     } else if (["SA1", "SA2"].includes(assessmentNameBase)) {
       if (!paper) {
         return { success: false, message: 'Paper selection is required for SA assessments.', error: 'Paper not specified.' };
       }
-      // Fetch all assessment skills for a given SA and Paper
       queryAssessmentFilter = { $regex: `^${assessmentNameBase}-${paper}-AS` }; 
     } else {
-      // For any other specific assessment names
       queryAssessmentFilter = { $in: [assessmentNameBase] };
     }
 
