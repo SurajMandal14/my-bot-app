@@ -39,7 +39,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
 
     const operations = studentMarks.map(sm => {
       // Fields to set ONLY on initial insert
-      const fieldsOnInsert = {
+      const fieldsOnInsert: Omit<MarkEntry, '_id' | 'updatedAt' | 'markedByTeacherId' | 'marksObtained' | 'maxMarks'> = {
         studentId: new ObjectId(sm.studentId),
         studentName: sm.studentName,
         classId: classId,
@@ -72,7 +72,10 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
           },
           update: {
             $set: fieldsToUpdate,
-            $setOnInsert: fieldsOnInsert,
+            $setOnInsert: {
+                ...fieldsOnInsert,
+                studentName: sm.studentName // Also set studentName on insert
+            },
           },
           upsert: true,
         },
@@ -218,10 +221,10 @@ export async function getSubjectsForTeacher(teacherId: string, schoolId: string)
     }
 }
 
-export async function getStudentMarksForReportCard(studentId: string, schoolId: string, academicYear: string, classId: string): Promise<GetMarksResult> {
+export async function getStudentMarksForReportCard(studentId: string, schoolId: string, academicYear: string): Promise<GetMarksResult> {
   try {
-    if (!ObjectId.isValid(studentId) || !ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
-      return { success: false, message: 'Invalid Student, School, or Class ID format.', error: 'Invalid ID format.' };
+    if (!ObjectId.isValid(studentId) || !ObjectId.isValid(schoolId)) {
+      return { success: false, message: 'Invalid Student or School ID format.', error: 'Invalid ID format.' };
     }
 
     const { db } = await connectToDatabase();
@@ -230,7 +233,6 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
     const marks = await marksCollection.find({
       studentId: new ObjectId(studentId),
       schoolId: new ObjectId(schoolId),
-      classId: classId,
       academicYear: academicYear,
     }).toArray();
 
