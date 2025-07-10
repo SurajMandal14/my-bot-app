@@ -75,7 +75,10 @@ export default function StudentResultsPage() {
       return;
     }
     if (!targetAcademicYear || !targetAcademicYear.match(/^\d{4}-\d{4}$/)) {
-        setError("Invalid academic year format. Please use YYYY-YYYY.");
+        // Don't show an error if it's just not selected yet
+        if (targetAcademicYear !== "") {
+          setError("Invalid academic year format. Please use YYYY-YYYY.");
+        }
         setIsLoading(false);
         setReportCardData(null);
         return;
@@ -109,8 +112,8 @@ export default function StudentResultsPage() {
   useEffect(() => {
     if (authUser?._id && authUser?.schoolId && targetAcademicYear) {
       fetchReport();
-    } else if (!isContextLoading && !authUser) { 
-      setIsLoading(false);
+    } else if (!isContextLoading && (!authUser || !targetAcademicYear)) {
+      setIsLoading(false); // Stop loading if user or year is not set
     }
   }, [authUser, targetAcademicYear, fetchReport, isContextLoading]);
 
