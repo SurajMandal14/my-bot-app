@@ -41,7 +41,9 @@ import type { SchoolClassSubject } from '@/types/classes';
 import type { School } from '@/types/school';
 import { getStudentMarksForReportCard } from '@/app/actions/marks'; 
 import type { MarkEntry as MarkEntryType } from '@/types/marks'; 
-
+import { getAcademicYears } from '@/app/actions/academicYears';
+import type { AcademicYear } from '@/types/academicYear';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 type FrontMarksEntry = FrontMarksEntryTypeImport;
 
@@ -78,17 +80,6 @@ const defaultStudentDataFront: FrontStudentData = {
 
 const defaultAttendanceDataBack: ReportCardAttendanceMonth[] = Array(11).fill(null).map(() => ({ workingDays: null, presentDays: null }));
 
-const getCurrentAcademicYear = (): string => {
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-  if (currentMonth >= 5) { 
-    return `${currentYear}-${currentYear + 1}`;
-  } else { 
-    return `${currentYear - 1}-${currentYear}`;
-  }
-};
-
 const calculateFaTotal200MForRow = (subjectNameForBack: string, paperNameForBack: string, currentFaMarks: Record<string, FrontSubjectFAData>): number | null => {
   const faSubjectKey = (subjectNameForBack === "Science") ? "Science" : subjectNameForBack;
   const subjectFaData = currentFaMarks[faSubjectKey];
@@ -122,7 +113,9 @@ export default function GenerateCBSEStateReportPage() {
   const [faMarks, setFaMarks] = useState<Record<string, FrontSubjectFAData>>(getDefaultSubjectFaDataFront([])); 
   const [coMarks, setCoMarks] = useState<any[]>(defaultCoMarksFront); 
   const [frontSecondLanguage, setFrontSecondLanguage] = useState<'Hindi' | 'Telugu'>('Hindi');
-  const [frontAcademicYear, setFrontAcademicYear] = useState<string>(getCurrentAcademicYear());
+  
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [frontAcademicYear, setFrontAcademicYear] = useState<string>("");
 
   const [saData, setSaData] = useState<ReportCardSASubjectEntry[]>([]); 
   const [attendanceData, setAttendanceData] = useState<ReportCardAttendanceMonth[]>(defaultAttendanceDataBack);
@@ -153,6 +146,23 @@ export default function GenerateCBSEStateReportPage() {
       }
     }
   }, [toast]);
+  
+  const fetchAcademicYearsData = useCallback(async () => {
+    const result = await getAcademicYears();
+    if(result.success && result.academicYears) {
+      setAcademicYears(result.academicYears);
+      const defaultYear = result.academicYears.find(y => y.isDefault) || result.academicYears[0];
+      if (defaultYear) {
+        setFrontAcademicYear(defaultYear.year);
+      }
+    } else {
+      toast({ variant: 'warning', title: 'Could not load academic years' });
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchAcademicYearsData();
+  }, [fetchAcademicYearsData]);
 
   const initializeReportState = (subjects: SchoolClassSubject[] = []) => {
     setLoadedStudent(null);
@@ -177,6 +187,10 @@ export default function GenerateCBSEStateReportPage() {
     if (!authUser || !authUser.schoolId || !authUser._id) {
         toast({ variant: "destructive", title: "Error", description: "Admin/Teacher session or school ID missing." });
         return;
+    }
+     if (!frontAcademicYear) {
+      toast({ variant: "destructive", title: "Missing Input", description: "Please select an Academic Year." });
+      return;
     }
 
     setIsLoadingStudentAndClassData(true);
@@ -611,7 +625,7 @@ export default function GenerateCBSEStateReportPage() {
           </CardTitle>
           <CardDescription>
             Logged in as: <span className="font-semibold capitalize">{authUser?.role || 'N/A'}</span>. 
-            Enter Student's Admission ID to load data. The report is auto-saved on load.
+            Enter Student's Admission ID and select an academic year to load data.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -631,13 +645,23 @@ export default function GenerateCBSEStateReportPage() {
               </div>
             }
              <div className="w-full sm:w-auto">
-              <Label htmlFor="academicYearInput" className="mb-1">Academic Year</Label>
-              <Input
-                id="academicYearInput" value={frontAcademicYear}
-                onChange={e => setFrontAcademicYear(e.target.value)} placeholder="YYYY-YYYY"
-                className="w-full sm:min-w-[150px]"
-                disabled={isSaving || isPublishing || isFieldDisabledForRole()}
-              />
+                <Label htmlFor="academicYearInput">Academic Year</Label>
+                <Select
+                  value={frontAcademicYear}
+                  onValueChange={setFrontAcademicYear}
+                  disabled={academicYears.length === 0}
+                >
+                  <SelectTrigger id="academicYearInput" className="w-full sm:min-w-[150px]">
+                    <SelectValue placeholder="Select Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {academicYears.map((year) => (
+                      <SelectItem key={year._id} value={year.year}>
+                        {year.year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
             </div>
             <Button onClick={handleLoadStudentAndClassData} disabled={isLoadingStudentAndClassData || isSaving || isPublishing || !admissionIdInput.trim() || !authUser || !authUser.schoolId}>
                 {isLoadingStudentAndClassData ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchIcon className="mr-2 h-4 w-4"/>}
@@ -754,5 +778,3 @@ export default function GenerateCBSEStateReportPage() {
     </div>
   );
 }
-
-    
