@@ -159,7 +159,7 @@ export default function MasterAdminSettingsPage() {
                 form.reset(mapSchoolToFormData(result.school));
             }
         } else {
-            toast({ variant: 'destructive', title: 'Update Failed', description: result.error || result.message });
+            toast({ variant: 'destructive', title: 'Update Failed', description: result.error || "An unknown error occurred while saving." });
         }
         setIsSubmitting(false);
     }

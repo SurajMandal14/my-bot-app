@@ -46,7 +46,7 @@ export async function createSchool(values: SchoolFormData): Promise<CreateSchool
         classCategory: bfs.classCategory,
         terms: bfs.terms.map(termFee => ({
           term: termFee.term,
-          amount: termFee.amount,
+          amount: bfs.amount,
         })),
       })) : [],
       schoolLogoUrl: schoolLogoUrl || undefined,
@@ -118,6 +118,17 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
     const { db } = await connectToDatabase();
     const schoolsCollection = db.collection<School>('schools');
     
+    const existingSchool = await schoolsCollection.findOne({ _id: new ObjectId(schoolId) });
+    if (!existingSchool) {
+      return { success: false, message: 'School not found to update.' };
+    }
+    
+    // Merge the new marksEntryLocks with the existing ones
+    const updatedMarksEntryLocks = {
+      ...existingSchool.marksEntryLocks,
+      ...marksEntryLocks,
+    };
+
     const updateData: Partial<Omit<School, '_id' | 'createdAt'>> = {
       schoolName,
       tuitionFees: (tuitionFees || []).map(tf => ({
@@ -139,7 +150,7 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
       allowStudentsToViewPublishedReports: allowStudentsToViewPublishedReports || false,
       attendanceType: attendanceType || 'monthly',
       activeAcademicYear: activeAcademicYear,
-      marksEntryLocks: marksEntryLocks,
+      marksEntryLocks: updatedMarksEntryLocks,
       updatedAt: new Date(),
     };
     
@@ -153,7 +164,7 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
     );
 
     if (result.matchedCount === 0) {
-      return { success: false, message: 'School not found.', error: 'No school matched the provided ID.' };
+      return { success: false, message: 'School not found during update operation.', error: 'No school matched the provided ID.' };
     }
     
     revalidatePath('/dashboard/super-admin/schools');

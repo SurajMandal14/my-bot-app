@@ -105,7 +105,7 @@ export const schoolFormSchema = z.object({
   }, { message: "Invalid attendance type selected."}).optional().default('monthly'),
   allowStudentsToViewPublishedReports: z.boolean().default(false).optional(),
   activeAcademicYear: z.string().regex(/^\d{4}-\d{4}$/, "Invalid academic year format (e.g., 2024-2025)").optional(),
-  marksEntryLocks: z.record(z.string(), assessmentLockSchema).optional().default({}),
+  marksEntryLocks: z.record(z.string().regex(/^\d{4}-\d{4}$/), assessmentLockSchema.partial()).optional().default({}),
 });
 
 export type SchoolFormData = z.infer<typeof schoolFormSchema>;
