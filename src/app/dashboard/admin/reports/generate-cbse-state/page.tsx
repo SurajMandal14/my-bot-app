@@ -306,6 +306,7 @@ export default function GenerateCBSEStateReportPage() {
             currentStudent.classId! 
           );
 
+          // Initialize with default empty structures
           const newFaMarksForState: Record<string, FrontSubjectFAData> = getDefaultSubjectFaDataFront(currentLoadedClassSubjects);
           let tempSaDataForNewReport: ReportCardSASubjectEntry[] = [];
           
@@ -351,15 +352,16 @@ export default function GenerateCBSEStateReportPage() {
 
           if (marksResult.success && marksResult.marks) {
             allFetchedMarks.forEach(mark => {
+                const subjectIdentifier = mark.subjectName;
+
                 if (mark.assessmentName.startsWith("FA")) {
-                    const subjectIdentifier = mark.subjectName;
                     const assessmentNameParts = mark.assessmentName.split('-');
                     if (assessmentNameParts.length === 2) {
                         const faPeriodKey = assessmentNameParts[0].toLowerCase() as keyof FrontSubjectFAData;
                         const toolKeyRaw = assessmentNameParts[1];
                         const toolKey = toolKeyRaw.toLowerCase().replace('tool', 'tool') as keyof FrontMarksEntry;
 
-                        if (newFaMarksForState[subjectIdentifier] && newFaMarksForState[subjectIdentifier][faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
+                        if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
                             (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
                         }
                     }
@@ -380,7 +382,7 @@ export default function GenerateCBSEStateReportPage() {
                     
                     const targetRow = tempSaDataForNewReport.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
                     
-                    if (targetRow && targetRow[saPeriod] && asKey in targetRow[saPeriod]) {
+                    if (targetRow && targetRow[saPeriod]?.[asKey]) {
                         (targetRow[saPeriod] as any)[asKey] = {
                             marks: mark.marksObtained,
                             maxMarks: mark.maxMarks,
@@ -390,10 +392,8 @@ export default function GenerateCBSEStateReportPage() {
             });
             setFaMarks(newFaMarksForState);
           } else { 
-            if (!marksResult.success && marksResult.message) {
+            if (marksResult.message) {
                 toast({ variant: "info", title: "Marks Info", description: marksResult.message });
-            } else if (!marksResult.success) {
-                 toast({ variant: "warning", title: "Marks Info", description: "Could not load student marks for the report."});
             }
             setFaMarks(getDefaultSubjectFaDataFront(currentLoadedClassSubjects)); 
           }
@@ -762,3 +762,5 @@ export default function GenerateCBSEStateReportPage() {
     </div>
   );
 }
+
+    
