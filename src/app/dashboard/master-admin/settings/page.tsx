@@ -33,10 +33,6 @@ const DEFAULT_TERMS: TermFee[] = [
   { term: 'Term 3', amount: 0 },
 ];
 
-const DEFAULT_ASSESSMENT_LOCKS: AssessmentLocks = {
-    FA1: false, FA2: false, FA3: false, FA4: false, SA1: false, SA2: false
-};
-
 const assessmentKeys: (keyof AssessmentLocks)[] = ["FA1", "FA2", "FA3", "FA4", "SA1", "SA2"];
 
 export default function MasterAdminSettingsPage() {
@@ -49,7 +45,6 @@ export default function MasterAdminSettingsPage() {
 
     const form = useForm<SchoolFormData>({
         resolver: zodResolver(schoolFormSchema),
-        // Default values will be replaced by useEffect once data loads
         defaultValues: {
             schoolName: "",
             tuitionFees: [],
@@ -95,16 +90,16 @@ export default function MasterAdminSettingsPage() {
         }
     }, [toast]);
     
-    const mapSchoolToFormData = useCallback((school: SchoolType): SchoolFormData => ({
-        schoolName: school.schoolName,
-        schoolLogoUrl: school.schoolLogoUrl || "", 
-        reportCardTemplate: school.reportCardTemplate || 'none',
-        allowStudentsToViewPublishedReports: school.allowStudentsToViewPublishedReports || false,
-        attendanceType: school.attendanceType || 'monthly',
-        tuitionFees: school.tuitionFees?.length > 0 ? school.tuitionFees : [{ className: "", terms: [...DEFAULT_TERMS] }],
-        busFeeStructures: school.busFeeStructures?.length > 0 ? school.busFeeStructures : [{ location: "", classCategory: "", terms: [...DEFAULT_TERMS] }],
-        activeAcademicYear: school.activeAcademicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
-        marksEntryLocks: school.marksEntryLocks || {},
+    const mapSchoolToFormData = useCallback((schoolToMap: SchoolType): SchoolFormData => ({
+        schoolName: schoolToMap.schoolName,
+        schoolLogoUrl: schoolToMap.schoolLogoUrl || "", 
+        reportCardTemplate: schoolToMap.reportCardTemplate || 'none',
+        allowStudentsToViewPublishedReports: schoolToMap.allowStudentsToViewPublishedReports || false,
+        attendanceType: schoolToMap.attendanceType || 'monthly',
+        tuitionFees: schoolToMap.tuitionFees?.length > 0 ? schoolToMap.tuitionFees : [{ className: "", terms: [...DEFAULT_TERMS] }],
+        busFeeStructures: schoolToMap.busFeeStructures?.length > 0 ? schoolToMap.busFeeStructures : [{ location: "", classCategory: "", terms: [...DEFAULT_TERMS] }],
+        activeAcademicYear: schoolToMap.activeAcademicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+        marksEntryLocks: schoolToMap.marksEntryLocks || {},
     }), []);
 
     const loadSchoolData = useCallback(async () => {
@@ -152,7 +147,7 @@ export default function MasterAdminSettingsPage() {
         setIsSubmitting(true);
         const result = await updateSchool(school._id, values);
         if (result.success) {
-            toast({ title: 'School Settings Updated', description: result.message });
+            toast({ title: 'School Settings Updated', description: "Your changes have been saved successfully." });
             if(result.school) {
                 setSchool(result.school);
                 form.reset(mapSchoolToFormData(result.school));
@@ -268,35 +263,31 @@ export default function MasterAdminSettingsPage() {
                      {activeAcademicYear ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {assessmentKeys.map(key => {
-                            const currentLocks = form.getValues('marksEntryLocks');
-                            const yearLocks = currentLocks?.[activeAcademicYear] || {};
-                            const isChecked = yearLocks[key] || false;
                             return (
-                                <FormItem key={key} className="flex flex-row items-center justify-between rounded-lg border p-4">
-                                    <div className="space-y-0.5">
-                                        <FormLabel className="text-base flex items-center">
-                                            {isChecked ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}
-                                            {key} Entry
-                                        </FormLabel>
-                                    </div>
-                                    <FormControl>
-                                        <Switch 
-                                            checked={isChecked} 
-                                            onCheckedChange={(checked) => {
-                                                const currentLocks = form.getValues('marksEntryLocks') || {};
-                                                const yearLocksForUpdate = currentLocks[activeAcademicYear] || {};
-                                                form.setValue('marksEntryLocks', {
-                                                  ...currentLocks,
-                                                  [activeAcademicYear]: {
-                                                    ...yearLocksForUpdate,
-                                                    [key]: checked,
-                                                  },
-                                                });
-                                            }}
-                                            disabled={isSubmitting} 
-                                        />
-                                    </FormControl>
-                                </FormItem>
+                                <FormField
+                                    key={key}
+                                    control={form.control}
+                                    name={`marksEntryLocks.${activeAcademicYear}.${key}`}
+                                    render={({ field }) => {
+                                        return (
+                                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                                <div className="space-y-0.5">
+                                                    <FormLabel className="text-base flex items-center">
+                                                        {field.value ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}
+                                                        {key} Entry
+                                                    </FormLabel>
+                                                </div>
+                                                <FormControl>
+                                                    <Switch 
+                                                        checked={!!field.value} 
+                                                        onCheckedChange={field.onChange}
+                                                        disabled={isSubmitting} 
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        );
+                                    }}
+                                />
                             );
                         })}
                         </div>

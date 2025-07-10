@@ -7,6 +7,7 @@ import type { School, SchoolFormData, ReportCardTemplateKey, ClassTuitionFeeConf
 import { schoolFormSchema } from '@/types/school';
 import { revalidatePath } from 'next/cache';
 import { ObjectId } from 'mongodb';
+import _ from 'lodash';
 
 export interface CreateSchoolResult {
   success: boolean;
@@ -53,7 +54,7 @@ export async function createSchool(values: SchoolFormData): Promise<CreateSchool
       reportCardTemplate: reportCardTemplate || 'none',
       allowStudentsToViewPublishedReports: allowStudentsToViewPublishedReports || false,
       attendanceType: attendanceType || 'monthly',
-      activeAcademicYear: activeAcademicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+      activeAcademicYear: activeAcademicYear,
       marksEntryLocks: marksEntryLocks || {},
     };
 
@@ -71,14 +72,15 @@ export async function createSchool(values: SchoolFormData): Promise<CreateSchool
     
     revalidatePath('/dashboard/super-admin/schools');
 
+    const createdSchoolDoc = await schoolsCollection.findOne({ _id: result.insertedId });
+    if (!createdSchoolDoc) return { success: false, message: 'Failed to retrieve school after creation.'};
+
     return {
       success: true,
       message: 'School profile created successfully!',
       school: { 
-        ...schoolToInsert, 
-        _id: result.insertedId.toString(),
-        createdAt: schoolToInsert.createdAt.toISOString(), 
-        updatedAt: schoolToInsert.updatedAt.toISOString(),
+        ...createdSchoolDoc, 
+        _id: createdSchoolDoc._id.toString(),
       } as School,
     };
 
@@ -147,7 +149,7 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
     }
 
     const result = await schoolsCollection.updateOne(
-      { _id: new ObjectId(schoolId) as any },
+      { _id: new ObjectId(schoolId) },
       { $set: updateData }
     );
 
@@ -159,15 +161,15 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
     revalidatePath(`/dashboard/admin/settings`); 
     revalidatePath('/dashboard/master-admin/settings');
     
-    const updatedSchoolDoc = await schoolsCollection.findOne({ _id: new ObjectId(schoolId) as any });
-     if (!updatedSchoolDoc) return { success: false, message: 'Failed to retrieve school after update.'};
+    const updatedSchoolDoc = await schoolsCollection.findOne({ _id: new ObjectId(schoolId) });
+    if (!updatedSchoolDoc) return { success: false, message: 'Failed to retrieve school after update.'};
      
-     const clientSchool: School = {
+    const clientSchool: School = {
         ...updatedSchoolDoc,
         _id: updatedSchoolDoc._id.toString(),
         createdAt: new Date(updatedSchoolDoc.createdAt).toISOString(), 
         updatedAt: new Date(updatedSchoolDoc.updatedAt).toISOString(),
-     };
+    };
 
     return {
       success: true,
