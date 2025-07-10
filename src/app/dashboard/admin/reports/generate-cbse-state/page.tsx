@@ -26,7 +26,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import type { AuthUser, UserRole } from '@/types/user';
@@ -350,59 +349,43 @@ export default function GenerateCBSEStateReportPage() {
           
 
           if (marksResult.success && marksResult.marks) {
-            
-            currentLoadedClassSubjects.forEach(subject => {
-              const subjectIdentifier = subject.name; 
-              const subjectSpecificFaMarks = allFetchedMarks.filter(
-                mark => mark.subjectName === subjectIdentifier &&
-                        mark.academicYear === frontAcademicYear &&
-                        mark.classId === currentStudent.classId &&
-                        mark.assessmentName.startsWith("FA")
-              );
+            allFetchedMarks.forEach(mark => {
+                if (mark.assessmentName.startsWith("FA")) {
+                    const subjectIdentifier = mark.subjectName;
+                    const assessmentNameParts = mark.assessmentName.split('-');
+                    if (assessmentNameParts.length === 2) {
+                        const faPeriodKey = assessmentNameParts[0].toLowerCase() as keyof FrontSubjectFAData;
+                        const toolKeyRaw = assessmentNameParts[1];
+                        const toolKey = toolKeyRaw.toLowerCase().replace('tool', 'tool') as keyof FrontMarksEntry;
 
-              subjectSpecificFaMarks.forEach(mark => {
-                const assessmentNameParts = mark.assessmentName.split('-'); 
-                if (assessmentNameParts.length === 2) {
-                  const faPeriodKey = assessmentNameParts[0].toLowerCase() as keyof FrontSubjectFAData; 
-                  const toolKeyRaw = assessmentNameParts[1]; 
-                  const toolKey = (toolKeyRaw.charAt(0).toLowerCase() + toolKeyRaw.slice(1)) as keyof FrontMarksEntry;
+                        if (newFaMarksForState[subjectIdentifier] && newFaMarksForState[subjectIdentifier][faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
+                            (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
+                        }
+                    }
+                } else if (mark.assessmentName.startsWith("SA")) {
+                    const parts = mark.assessmentName.split('-');
+                    if (parts.length !== 3) return;
 
-                  if (newFaMarksForState[subjectIdentifier] &&
-                      newFaMarksForState[subjectIdentifier][faPeriodKey] &&
-                      toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
-                    (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
-                  }
+                    const saPeriod = (parts[0].toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
+                    const dbPaperPart = parts[1];
+                    const asKey = parts[2].toLowerCase() as keyof SAPaperData;
+                    
+                    let displayPaperName: string;
+                    if (mark.subjectName === "Science") {
+                        displayPaperName = dbPaperPart === 'Paper1' ? 'Physics' : 'Biology';
+                    } else {
+                        displayPaperName = dbPaperPart === 'Paper1' ? 'I' : 'II';
+                    }
+                    
+                    const targetRow = tempSaDataForNewReport.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
+                    
+                    if (targetRow && targetRow[saPeriod] && asKey in targetRow[saPeriod]) {
+                        (targetRow[saPeriod] as any)[asKey] = {
+                            marks: mark.marksObtained,
+                            maxMarks: mark.maxMarks,
+                        };
+                    }
                 }
-              });
-            });
-            
-            allFetchedMarks.forEach((mark: MarkEntryType) => {
-              if (mark.assessmentName.startsWith("SA")) {
-                  const parts = mark.assessmentName.split('-'); 
-                  if (parts.length !== 3) return;
-
-                  const saPeriod = (parts[0].toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
-                  const dbPaperPart = parts[1]; // "Paper1" or "Paper2"
-                  const asKey = parts[2].toLowerCase() as keyof SAPaperData;
-                  
-                  let displayPaperName: string;
-                  if (mark.subjectName === "Science") {
-                      displayPaperName = dbPaperPart === 'Paper1' ? 'Physics' : 'Biology';
-                  } else {
-                      displayPaperName = dbPaperPart === 'Paper1' ? 'I' : 'II';
-                  }
-                  
-                  const targetRow = tempSaDataForNewReport.find(
-                      row => row.subjectName === mark.subjectName && row.paper === displayPaperName
-                  );
-                  
-                  if (targetRow && targetRow[saPeriod] && asKey in targetRow[saPeriod]) {
-                      (targetRow[saPeriod] as any)[asKey] = {
-                          marks: mark.marksObtained,
-                          maxMarks: mark.maxMarks,
-                      };
-                  }
-              }
             });
             setFaMarks(newFaMarksForState);
           } else { 
