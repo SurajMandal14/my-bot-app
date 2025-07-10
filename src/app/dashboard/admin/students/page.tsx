@@ -40,6 +40,8 @@ import {
 } from '@/types/user';
 import { getSchoolById } from "@/app/actions/schools";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
+import { getAcademicYears } from "@/app/actions/academicYears";
+import type { AcademicYear } from "@/types/academicYear";
 import type { User as AppUser } from "@/types/user";
 import type { School, TermFee } from "@/types/school";
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -72,6 +74,7 @@ export default function AdminStudentManagementPage() {
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null); 
   const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
   const [allSchoolStudents, setAllSchoolStudents] = useState<SchoolStudent[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -137,9 +140,10 @@ export default function AdminStudentManagementPage() {
     }
     setIsLoadingData(true);
     try {
-      const [usersResult, classesOptionsResult] = await Promise.all([
+      const [usersResult, classesOptionsResult, academicYearsResult] = await Promise.all([
         getSchoolUsers(authUser.schoolId.toString()),
-        getClassesForSchoolAsOptions(authUser.schoolId.toString()) 
+        getClassesForSchoolAsOptions(authUser.schoolId.toString()),
+        getAcademicYears()
       ]);
       
       if (usersResult.success && usersResult.users) {
@@ -147,6 +151,10 @@ export default function AdminStudentManagementPage() {
       }
       
       setClassOptions(classesOptionsResult);
+      
+      if (academicYearsResult.success && academicYearsResult.academicYears) {
+        setAcademicYears(academicYearsResult.academicYears);
+      }
 
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Unexpected error fetching data." });
@@ -331,7 +339,28 @@ export default function AdminStudentManagementPage() {
       <Card><CardHeader><CardTitle className="flex items-center text-xl"><ShieldQuestion className="mr-2 h-6 w-6 text-primary"/>Academic & Other Details</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <FormField control={currentForm.control} name="classId" render={({ field }) => (<FormItem><FormLabel>Class in which admitted</FormLabel><Select onValueChange={handleClassChange} value={field.value} disabled={classOptions.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={classOptions.length > 0 ? "Select class" : "No classes available"} /></SelectTrigger></FormControl><SelectContent>{classOptions.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
-            <FormField control={currentForm.control} name="academicYear" render={({ field }) => (<FormItem><FormLabel>Academic Year of Admission</FormLabel><FormControl><Input placeholder="YYYY-YYYY" {...field} /></FormControl><FormMessage/></FormItem>)}/>
+            <FormField
+              control={currentForm.control}
+              name="academicYear"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Academic Year of Admission</FormLabel>
+                   <Select onValueChange={field.onChange} value={field.value} disabled={academicYears.length === 0}>
+                        <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder={academicYears.length > 0 ? "Select year" : "No years available"} />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            {academicYears.map((year) => (
+                                <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField control={currentForm.control} name="previousSchool" render={({ field }) => (<FormItem className="lg:col-span-1"><FormLabel>Details of school last admitted to</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)}/>
             <FormField control={currentForm.control} name="childIdNumber" render={({ field }) => (<FormItem><FormLabel>Child ID Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)}/>
             <FormField control={currentForm.control} name="motherTongue" render={({ field }) => (<FormItem><FormLabel>Mother Tongue of Pupil</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)}/>
@@ -422,5 +451,3 @@ export default function AdminStudentManagementPage() {
     </div>
   );
 }
-
-    
