@@ -84,7 +84,7 @@ const getCurrentAcademicYear = (): string => {
   const currentYear = today.getFullYear();
   if (currentMonth >= 5) { 
     return `${currentYear}-${currentYear + 1}`;
-  } else {
+  } else { 
     return `${currentYear - 1}-${currentYear}`;
   }
 };
@@ -410,6 +410,7 @@ export default function GenerateCBSEStateReportPage() {
           setCoMarks(defaultCoMarksFront);
           setAttendanceData(defaultAttendanceDataBack);
           setFinalOverallGradeInput(null);
+          await handleSaveReportCard(true); // Auto-save after generating a new report
       }
     } catch (error) {
       toast({ variant: "destructive", title: "Error Loading Data", description: "An unexpected error occurred."});
@@ -518,13 +519,13 @@ export default function GenerateCBSEStateReportPage() {
     toast({ title: "Data Reset", description: "All fields have been reset for current view."});
   }
 
-  const handleSaveReportCard = async () => {
+  const handleSaveReportCard = async (isAutoSave = false) => {
     if (!authUser || !authUser.schoolId || !authUser._id) {
-      toast({ variant: "destructive", title: "Error", description: "Admin/Teacher session not found." });
+      if(!isAutoSave) toast({ variant: "destructive", title: "Error", description: "Admin/Teacher session not found." });
       return;
     }
     if (!loadedStudent || !loadedStudent._id) {
-      toast({ variant: "destructive", title: "Missing Student ID", description: "Please load student data first using Admission ID." });
+       if(!isAutoSave) toast({ variant: "destructive", title: "Missing Student ID", description: "Please load student data first using Admission ID." });
       return;
     }
     setIsSaving(true);
@@ -536,7 +537,7 @@ export default function GenerateCBSEStateReportPage() {
             for (const asKey of ['as1', 'as2', 'as3', 'as4', 'as5', 'as6'] as const) {
                 const skill = row[saPeriod]?.[asKey];
                 if (skill && skill.marks !== null && skill.maxMarks !== null && skill.marks > skill.maxMarks) {
-                    toast({ variant: "destructive", title: "Validation Error", description: `${row.subjectName} (${row.paper}) ${saPeriod.toUpperCase()}-${asKey.toUpperCase()} marks (${skill.marks}) exceed max marks (${skill.maxMarks}).` });
+                    if(!isAutoSave) toast({ variant: "destructive", title: "Validation Error", description: `${row.subjectName} (${row.paper}) ${saPeriod.toUpperCase()}-${asKey.toUpperCase()} marks (${skill.marks}) exceed max marks (${skill.maxMarks}).` });
                     setIsSaving(false); return;
                 }
             }
@@ -562,11 +563,11 @@ export default function GenerateCBSEStateReportPage() {
     const result = await saveReportCard(reportPayload);
     setIsSaving(false);
     if (result.success) {
-      toast({ title: "Report Card Saved", description: result.message + (result.reportCardId ? ` ID: ${result.reportCardId}` : '') });
+      if(!isAutoSave) toast({ title: "Report Card Saved", description: result.message + (result.reportCardId ? ` ID: ${result.reportCardId}` : '') });
       if(result.reportCardId) setLoadedReportId(result.reportCardId);
       if(result.isPublished !== undefined) setLoadedReportIsPublished(result.isPublished);
     } else {
-      toast({ variant: "destructive", title: "Save Failed", description: result.error || result.message });
+      if(!isAutoSave) toast({ variant: "destructive", title: "Save Failed", description: result.error || result.message });
     }
   };
 
@@ -575,6 +576,7 @@ export default function GenerateCBSEStateReportPage() {
         toast({ variant: "destructive", title: "Error", description: "No report loaded or publication status unknown."});
         return;
     }
+    await handleSaveReportCard(true); // Auto-save before publishing
     setIsPublishing(true);
     const result = await setReportCardPublicationStatus(loadedReportId, authUser.schoolId.toString(), actionToConfirm === 'publish');
     setIsPublishing(false);
@@ -588,7 +590,6 @@ export default function GenerateCBSEStateReportPage() {
   };
 
   const currentUserRole = authUser?.role as UserRole;
-  const canSave = (authUser?.role === 'admin' || authUser?.role === 'teacher') && !!loadedStudent && !isSaving;
   const canPublish = authUser?.role === 'admin' && !!loadedStudent && !!loadedReportId && !isPublishing;
 
   return (
@@ -612,7 +613,7 @@ export default function GenerateCBSEStateReportPage() {
           </CardTitle>
           <CardDescription>
             Logged in as: <span className="font-semibold capitalize">{authUser?.role || 'N/A'}</span>. 
-            Enter Student's Admission ID to load data.
+            Enter Student's Admission ID to load data. The report is auto-saved on load.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -653,14 +654,13 @@ export default function GenerateCBSEStateReportPage() {
             </p>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button onClick={handleSaveReportCard} disabled={!canSave}>
-              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
-              {isSaving ? "Saving..." : "Save Report Card"}
-            </Button>
             {currentUserRole === 'admin' && (
                 <AlertDialog open={!!actionToConfirm} onOpenChange={(open) => !open && setActionToConfirm(null)}>
                   <AlertDialogTrigger asChild>
-                    <Button disabled={!canPublish}>
+                    <Button 
+                      onClick={() => setActionToConfirm(loadedReportIsPublished ? 'unpublish' : 'publish')}
+                      disabled={!canPublish}
+                    >
                       {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (loadedReportIsPublished ? <XOctagon className="mr-2 h-4 w-4"/> : <UploadCloud className="mr-2 h-4 w-4"/>)}
                       {isPublishing ? "Updating..." : (loadedReportIsPublished ? "Unpublish Report" : "Publish Report")}
                     </Button>

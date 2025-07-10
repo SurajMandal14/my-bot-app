@@ -22,18 +22,14 @@ import CBSEStateBack, {
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStudentData } from '@/contexts/StudentDataContext';
+import { getAcademicYears } from '@/app/actions/academicYears';
 
-const generateAcademicYears = (range = 5): string[] => {
+const generateAcademicYears = (count = 5): string[] => {
   const years: string[] = [];
-  const today = new Date();
-  const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth();
-  const endYearOfCurrent = currentMonth >= 5 ? currentYear + 1 : currentYear;
-
-  for (let i = 0; i < range; i++) {
-    const end = endYearOfCurrent - i;
-    const start = end - 1;
-    years.push(`${start}-${end}`);
+  let year = new Date().getFullYear();
+  for (let i = 0; i < count; i++) {
+    years.push(`${year - 1}-${year}`);
+    year--;
   }
   return years;
 };
@@ -47,18 +43,28 @@ export default function StudentResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [targetAcademicYear, setTargetAcademicYear] = useState<string>("");
   const [showBackSide, setShowBackSide] = useState(false);
-  const [academicYears, setAcademicYears] = useState<string[]>([]);
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
 
 
   useEffect(() => {
-    setAcademicYears(generateAcademicYears());
+    async function fetchYears() {
+        const result = await getAcademicYears();
+        if(result.success && result.academicYears) {
+            setAvailableYears(result.academicYears.map(y => y.year));
+        } else {
+            setAvailableYears(generateAcademicYears());
+        }
+    }
+    fetchYears();
   }, []);
 
   useEffect(() => {
     if (activeAcademicYear) {
       setTargetAcademicYear(activeAcademicYear);
+    } else if (availableYears.length > 0) {
+      setTargetAcademicYear(availableYears[0]);
     }
-  }, [activeAcademicYear]);
+  }, [activeAcademicYear, availableYears]);
 
 
   const fetchReport = useCallback(async () => {
@@ -193,13 +199,13 @@ export default function StudentResultsPage() {
                 <Select
                   value={targetAcademicYear}
                   onValueChange={setTargetAcademicYear}
-                  disabled={isLoading || isContextLoading}
+                  disabled={isLoading || isContextLoading || availableYears.length === 0}
                 >
                   <SelectTrigger id="academicYearSelect" className="max-w-xs">
                     <SelectValue placeholder="Select Year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {academicYears.map(year => (
+                    {availableYears.map(year => (
                       <SelectItem key={year} value={year}>
                         {year}
                       </SelectItem>
@@ -207,10 +213,6 @@ export default function StudentResultsPage() {
                   </SelectContent>
                 </Select>
             </div>
-            <Button onClick={fetchReport} disabled={isLoading || isContextLoading || !targetAcademicYear.match(/^\d{4}-\d{4}$/)}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <RotateCcw className="mr-2 h-4 w-4"/>}
-                Fetch Report
-            </Button>
         </CardContent>
       </Card>
 
