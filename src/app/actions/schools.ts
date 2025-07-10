@@ -46,7 +46,7 @@ export async function createSchool(values: SchoolFormData): Promise<CreateSchool
         classCategory: bfs.classCategory,
         terms: bfs.terms.map(termFee => ({
           term: termFee.term,
-          amount: bfs.amount,
+          amount: bfs.amount || 0, // Ensure amount has a default
         })),
       })) : [],
       schoolLogoUrl: schoolLogoUrl || undefined,
@@ -122,6 +122,12 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
     if (!existingSchool) {
       return { success: false, message: 'School not found to update.' };
     }
+
+    // Correctly merge the marksEntryLocks
+    const updatedMarksEntryLocks = {
+        ...existingSchool.marksEntryLocks,
+        ...marksEntryLocks,
+    };
     
     const updateData: Partial<Omit<School, '_id' | 'createdAt'>> = {
       schoolName,
@@ -137,14 +143,14 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
         classCategory: bfs.classCategory,
         terms: bfs.terms.map(termFee => ({
           term: termFee.term,
-          amount: termFee.amount,
+          amount: termFee.amount || 0, // Ensure amount has a default
         })),
       })) : [],
       reportCardTemplate: reportCardTemplate || 'none',
       allowStudentsToViewPublishedReports: allowStudentsToViewPublishedReports || false,
       attendanceType: attendanceType || 'monthly',
       activeAcademicYear: activeAcademicYear,
-      marksEntryLocks: marksEntryLocks,
+      marksEntryLocks: updatedMarksEntryLocks,
       updatedAt: new Date(),
     };
     
