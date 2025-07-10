@@ -38,45 +38,41 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
     }
 
     const operations = studentMarks.map(sm => {
-      const markFieldsToSet = {
+      // Fields to set ONLY on initial insert
+      const fieldsOnInsert = {
         studentId: new ObjectId(sm.studentId),
         studentName: sm.studentName,
         classId: classId,
         className: className,
-        subjectId: subjectId,
+        subjectId: subjectId, // subjectName is stored in subjectId field
         subjectName: subjectName,
         assessmentName: sm.assessmentName, 
         academicYear: academicYear,
+        schoolId: new ObjectId(schoolId),
+        createdAt: new Date(),
+      };
+      
+      // Fields to update every time
+      const fieldsToUpdate = {
         marksObtained: sm.marksObtained,
         maxMarks: sm.maxMarks,
         markedByTeacherId: new ObjectId(markedByTeacherId),
-        schoolId: new ObjectId(schoolId),
+        updatedAt: new Date(),
       };
 
       return {
         updateOne: {
           filter: {
-            studentId: markFieldsToSet.studentId,
-            classId: markFieldsToSet.classId,
-            subjectId: markFieldsToSet.subjectId, // subjectName is stored in subjectId field
-            assessmentName: markFieldsToSet.assessmentName,
-            academicYear: markFieldsToSet.academicYear,
-            schoolId: markFieldsToSet.schoolId,
+            studentId: fieldsOnInsert.studentId,
+            classId: fieldsOnInsert.classId,
+            subjectId: fieldsOnInsert.subjectId, 
+            assessmentName: fieldsOnInsert.assessmentName,
+            academicYear: fieldsOnInsert.academicYear,
+            schoolId: fieldsOnInsert.schoolId,
           },
           update: {
-            $set: {
-              studentName: markFieldsToSet.studentName,
-              className: markFieldsToSet.className,
-              subjectName: markFieldsToSet.subjectName,
-              marksObtained: markFieldsToSet.marksObtained,
-              maxMarks: markFieldsToSet.maxMarks,
-              markedByTeacherId: markFieldsToSet.markedByTeacherId,
-              updatedAt: new Date(),
-            },
-            $setOnInsert: {
-              ...markFieldsToSet, // Set all fields on insert
-              createdAt: new Date(),
-            },
+            $set: fieldsToUpdate,
+            $setOnInsert: fieldsOnInsert,
           },
           upsert: true,
         },
