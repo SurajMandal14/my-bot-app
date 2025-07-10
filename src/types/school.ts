@@ -83,12 +83,12 @@ export const busFeeLocationCategorySchema = z.object({
 });
 
 const assessmentLockSchema = z.object({
-    FA1: z.boolean().optional(),
-    FA2: z.boolean().optional(),
-    FA3: z.boolean().optional(),
-    FA4: z.boolean().optional(),
-    SA1: z.boolean().optional(),
-    SA2: z.boolean().optional(),
+    FA1: z.boolean(),
+    FA2: z.boolean(),
+    FA3: z.boolean(),
+    FA4: z.boolean(),
+    SA1: z.boolean(),
+    SA2: z.boolean(),
   });
 
 // Zod schema for the main school form
