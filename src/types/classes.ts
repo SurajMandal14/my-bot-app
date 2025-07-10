@@ -14,6 +14,7 @@ export interface SchoolClass {
   schoolId: string;
   name: string; // e.g., Grade 10
   section?: string; // e.g., A, B
+  academicYear: string; // New field
   classTeacherId?: string | null;
   classTeacherName?: string; // From aggregation
   subjects: SchoolClassSubject[]; 
@@ -27,6 +28,7 @@ export interface SchoolClass {
 export const createClassFormSchema = z.object({
   name: z.string().min(1, { message: "Class name (e.g., Grade 10) is required." }).max(100, { message: "Class name too long."}),
   section: z.string().min(1, { message: "Section (e.g., A) is required."}).max(10, { message: "Section name too long."}),
+  academicYear: z.string().min(1, { message: "Academic Year is required." }),
   classTeacherId: z.string().optional().nullable().or(z.literal('')), 
   subjects: z.array(z.object({ 
       name: z.string().min(1, "Subject name cannot be empty."),

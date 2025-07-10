@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookCopy, PlusCircle, Edit3, Trash2, Loader2, UserCheck, FilePlus, XCircle, Info, Users, Languages, School as SchoolIcon } from "lucide-react"; // Added SchoolIcon
+import { BookCopy, PlusCircle, Edit3, Trash2, Loader2, UserCheck, FilePlus, XCircle, Info, Users, Languages, School as SchoolIcon, CalendarFold } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import {
@@ -33,17 +34,29 @@ import { useToast } from "@/hooks/use-toast";
 import { createSchoolClass, getSchoolClasses, updateSchoolClass, deleteSchoolClass } from "@/app/actions/classes";
 import { getSchoolUsers } from "@/app/actions/schoolUsers"; 
 import { getSchoolById } from "@/app/actions/schools";
-import { getSubjects } from "@/app/actions/subjects"; // Import action to get master subjects
-import type { Subject } from "@/types/subject"; // Import subject type
+import { getSubjects } from "@/app/actions/subjects";
+import { getAcademicYears } from "@/app/actions/academicYears";
+import type { Subject } from "@/types/subject";
 import type { SchoolClass, CreateClassFormData } from '@/types/classes';
 import { createClassFormSchema } from '@/types/classes';
 import type { AuthUser, User as AppUser } from "@/types/user";
 import type { School, ClassTuitionFeeConfig } from "@/types/school";
+import type { AcademicYear } from "@/types/academicYear";
 import { useEffect, useState, useCallback } from "react";
 
 const NONE_TEACHER_VALUE = "__NONE_TEACHER_OPTION__";
 const NONE_SUBJECT_VALUE = "__NONE_SUBJECT_OPTION__";
 const NONE_CLASS_NAME_VALUE = "__NONE_CLASS_NAME_OPTION__";
+
+const getCurrentAcademicYear = (): string => {
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  if (currentMonth >= 5) {
+    return `${today.getFullYear()}-${today.getFullYear() + 1}`;
+  } else {
+    return `${today.getFullYear() - 1}-${today.getFullYear()}`;
+  }
+};
 
 
 export default function AdminClassManagementPage() {
@@ -51,22 +64,24 @@ export default function AdminClassManagementPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [schoolClasses, setSchoolClasses] = useState<SchoolClass[]>([]);
   const [availableTeachers, setAvailableTeachers] = useState<AppUser[]>([]);
-  const [masterSubjects, setMasterSubjects] = useState<Subject[]>([]); // State for master subjects
+  const [masterSubjects, setMasterSubjects] = useState<Subject[]>([]);
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
   const [availableClassNamesForSchool, setAvailableClassNamesForSchool] = useState<string[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingClass, setEditingClass] = useState<SchoolClass | null>(null);
   const [classToDelete, setClassToDelete] = useState<SchoolClass | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isFormOpen, setIsFormOpen] = useState(false); // State to control form visibility
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
   const form = useForm<CreateClassFormData>({
     resolver: zodResolver(createClassFormSchema),
     defaultValues: {
       name: "",
       section: "",
+      academicYear: "",
       classTeacherId: "", 
       subjects: [{ name: "", teacherId: "" }],
       secondLanguageSubjectName: "",
@@ -101,11 +116,12 @@ export default function AdminClassManagementPage() {
     }
     setIsLoadingData(true);
     try {
-      const [classesResult, teachersResult, schoolDetailsResult, masterSubjectsResult] = await Promise.all([
+      const [classesResult, teachersResult, schoolDetailsResult, masterSubjectsResult, academicYearsResult] = await Promise.all([
         getSchoolClasses(authUser.schoolId.toString()),
         getSchoolUsers(authUser.schoolId.toString()),
         getSchoolById(authUser.schoolId.toString()),
-        getSubjects(authUser.schoolId.toString()) // Fetch school-specific subjects
+        getSubjects(authUser.schoolId.toString()),
+        getAcademicYears()
       ]);
 
       if (classesResult.success && classesResult.classes) {
@@ -138,12 +154,22 @@ export default function AdminClassManagementPage() {
          toast({ variant: "warning", title: "Subjects", description: masterSubjectsResult.message || "Failed to load subjects list for this school." });
       }
 
+      if (academicYearsResult.success && academicYearsResult.academicYears) {
+        setAcademicYears(academicYearsResult.academicYears);
+        const defaultYear = academicYearsResult.academicYears.find(y => y.isDefault)?.year || academicYearsResult.academicYears[0]?.year || getCurrentAcademicYear();
+        form.setValue("academicYear", defaultYear);
+      } else {
+        toast({ variant: "warning", title: "Academic Years", description: "Could not load academic years." });
+        form.setValue("academicYear", getCurrentAcademicYear());
+      }
+
+
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Unexpected error fetching initial data." });
     } finally {
       setIsLoadingData(false);
     }
-  }, [authUser, toast]);
+  }, [authUser, toast, form]);
 
   useEffect(() => {
     if (authUser?.schoolId) fetchInitialData();
@@ -155,6 +181,7 @@ export default function AdminClassManagementPage() {
       form.reset({
         name: editingClass.name,
         section: editingClass.section || "",
+        academicYear: editingClass.academicYear || "",
         classTeacherId: editingClass.classTeacherId?.toString() || "",
         subjects: editingClass.subjects.length > 0 
           ? editingClass.subjects.map(s => ({ name: s.name, teacherId: s.teacherId?.toString() || "" })) 
@@ -190,7 +217,8 @@ export default function AdminClassManagementPage() {
 
   const handleAddClick = () => {
     setEditingClass(null);
-    form.reset({ name: "", section: "", classTeacherId: "", subjects: [{ name: "", teacherId: "" }], secondLanguageSubjectName: "" });
+    const defaultYear = academicYears.find(y => y.isDefault)?.year || academicYears[0]?.year || getCurrentAcademicYear();
+    form.reset({ name: "", section: "", academicYear: defaultYear, classTeacherId: "", subjects: [{ name: "", teacherId: "" }], secondLanguageSubjectName: "" });
     setIsFormOpen(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -236,7 +264,7 @@ export default function AdminClassManagementPage() {
             <BookCopy className="mr-2 h-6 w-6" /> Class Management
           </CardTitle>
           <CardDescription>
-            Create and manage classes, assign class teachers, and define subjects with their respective teachers.
+            Create and manage classes, assign class teachers, and define subjects for specific academic years.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -249,7 +277,7 @@ export default function AdminClassManagementPage() {
           <CardContent>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <FormField 
                     control={form.control} 
                     name="name" 
@@ -287,6 +315,28 @@ export default function AdminClassManagementPage() {
                       <FormMessage />
                     </FormItem>
                   )}/>
+                  <FormField
+                    control={form.control}
+                    name="academicYear"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center"><CalendarFold className="mr-2 h-4 w-4 text-muted-foreground"/>Academic Year</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting || isLoadingData || academicYears.length === 0}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select Academic Year" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {academicYears.map(year => (
+                              <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField control={form.control} name="classTeacherId" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="flex items-center"><UserCheck className="mr-2 h-4 w-4 text-muted-foreground"/>Assign Class Teacher (Optional)</FormLabel>
@@ -433,6 +483,7 @@ export default function AdminClassManagementPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Class (Name - Section)</TableHead>
+                <TableHead>Academic Year</TableHead>
                 <TableHead>Class Teacher</TableHead>
                 <TableHead>No. of Students</TableHead>
                 <TableHead>Subjects (Teachers)</TableHead>
@@ -444,6 +495,7 @@ export default function AdminClassManagementPage() {
               {schoolClasses.map((cls) => (
                 <TableRow key={cls._id.toString()}>
                   <TableCell className="font-medium">{classDisplayName(cls)}</TableCell>
+                  <TableCell>{cls.academicYear}</TableCell>
                   <TableCell>{cls.classTeacherName || (cls.classTeacherId ? 'N/A' : 'Not Assigned')}</TableCell>
                   <TableCell className="text-center">{cls.studentCount ?? 0}</TableCell>
                   <TableCell>
