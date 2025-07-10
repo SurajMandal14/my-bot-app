@@ -83,12 +83,12 @@ export const busFeeLocationCategorySchema = z.object({
 });
 
 const assessmentLockSchema = z.object({
-    FA1: z.boolean(),
-    FA2: z.boolean(),
-    FA3: z.boolean(),
-    FA4: z.boolean(),
-    SA1: z.boolean(),
-    SA2: z.boolean(),
+    FA1: z.boolean().optional(),
+    FA2: z.boolean().optional(),
+    FA3: z.boolean().optional(),
+    FA4: z.boolean().optional(),
+    SA1: z.boolean().optional(),
+    SA2: z.boolean().optional(),
   });
 
 // Zod schema for the main school form
@@ -96,7 +96,7 @@ export const schoolFormSchema = z.object({
   schoolName: z.string().min(3, "School name must be at least 3 characters."),
   schoolLogoUrl: z.string().url({ message: "Please enter a valid URL for the school logo." }).optional().or(z.literal('')),
   tuitionFees: z.array(classTuitionFeeSchema).optional().default([]),
-  busFeeStructures: z.array(busFeeLocationCategorySchema).optional().default([]),
+  busFeeStructures: z.array(busFeeLocationCategorySchema).optional().default([{ location: "", classCategory: "", terms: [] }]),
   reportCardTemplate: z.custom<ReportCardTemplateKey>((val) => {
     return typeof val === 'string' && Object.keys(REPORT_CARD_TEMPLATES).includes(val);
   }, { message: "Invalid report card template selected." }).optional().default('none'),
