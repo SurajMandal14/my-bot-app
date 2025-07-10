@@ -145,24 +145,40 @@ export default function MasterAdminSettingsPage() {
         }
     }, [authUser, loadSchoolData]);
 
-    async function onSubmit(values: SchoolFormData) {
+    const handleSaveChanges = async () => {
         if (!school) {
             toast({variant: 'warning', title: 'No School Loaded', description: 'Cannot save settings without school information.'});
             return;
         }
         setIsSubmitting(true);
-        const result = await updateSchool(school._id, values);
-        if (result.success) {
-            toast({ title: 'School Settings Updated', description: "Your changes have been saved successfully." });
-            if(result.school) {
-                setSchool(result.school);
-                form.reset(mapSchoolToFormData(result.school));
+        try {
+            const values = form.getValues();
+            const validation = schoolFormSchema.safeParse(values);
+            if (!validation.success) {
+                console.error("Form Validation Errors:", validation.error.flatten().fieldErrors);
+                toast({ variant: 'destructive', title: 'Validation Failed', description: 'Some fields have invalid values. Please check and try again.' });
+                setIsSubmitting(false);
+                return;
             }
-        } else {
-            toast({ variant: 'destructive', title: 'Update Failed', description: result.error || "An unknown error occurred while saving." });
+
+            const result = await updateSchool(school._id, validation.data);
+
+            if (result.success) {
+                toast({ title: 'School Settings Updated', description: "Your changes have been saved successfully." });
+                if(result.school) {
+                    setSchool(result.school);
+                    form.reset(mapSchoolToFormData(result.school));
+                }
+            } else {
+                toast({ variant: 'destructive', title: 'Update Failed', description: result.error || "An unknown error occurred while saving." });
+            }
+        } catch (error) {
+            console.error("Save Settings Error:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'An unexpected error occurred. Please check the console.' });
+        } finally {
+            setIsSubmitting(false);
         }
-        setIsSubmitting(false);
-    }
+    };
     
     if (isLoading) {
         return <div className="flex justify-center items-center p-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -190,7 +206,7 @@ export default function MasterAdminSettingsPage() {
       </Card>
       
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-8">
             <Card>
                 <CardHeader>
                     <CardTitle className="text-lg">School Profile</CardTitle>
@@ -268,34 +284,30 @@ export default function MasterAdminSettingsPage() {
                     </div>
                      {activeAcademicYear ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {assessmentKeys.map(key => {
-                            const currentLocks = form.watch(`marksEntryLocks.${activeAcademicYear}`);
-                            const isChecked = currentLocks ? !!currentLocks[key] : false;
-
-                            return (
-                                <FormItem key={key} className="flex flex-row items-center justify-between rounded-lg border p-4">
-                                    <div className="space-y-0.5">
-                                        <FormLabel className="text-base flex items-center">
-                                            {isChecked ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}
-                                            {key} Entry
-                                        </FormLabel>
-                                    </div>
-                                    <FormControl>
-                                        <Switch 
-                                            checked={isChecked} 
-                                            onCheckedChange={(checked) => {
-                                                const currentYearLocks = form.getValues(`marksEntryLocks.${activeAcademicYear}`) || {};
-                                                form.setValue(`marksEntryLocks.${activeAcademicYear}`, {
-                                                    ...currentYearLocks,
-                                                    [key]: checked,
-                                                });
-                                            }}
-                                            disabled={isSubmitting} 
-                                        />
-                                    </FormControl>
-                                </FormItem>
-                            );
-                        })}
+                        {assessmentKeys.map(key => (
+                            <FormField
+                                key={key}
+                                control={form.control}
+                                name={`marksEntryLocks.${activeAcademicYear}.${key}`}
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                        <div className="space-y-0.5">
+                                            <FormLabel className="text-base flex items-center">
+                                                {field.value ? <Lock className="mr-2 h-4 w-4 text-destructive"/> : <Unlock className="mr-2 h-4 w-4 text-green-600"/>}
+                                                {key} Entry
+                                            </FormLabel>
+                                        </div>
+                                        <FormControl>
+                                            <Switch 
+                                                checked={!!field.value} 
+                                                onCheckedChange={field.onChange}
+                                                disabled={isSubmitting} 
+                                            />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                        ))}
                         </div>
                     ) : (
                         <p className="text-muted-foreground text-sm">Select an active academic year to manage marks entry locks.</p>
@@ -303,10 +315,10 @@ export default function MasterAdminSettingsPage() {
                 </CardContent>
             </Card>
 
-            <div className="flex justify-end">
-                <Button type="submit" disabled={isSubmitting}>
+            <div className="flex justify-end sticky bottom-4">
+                 <Button type="button" onClick={handleSaveChanges} disabled={isSubmitting} size="lg" className="shadow-2xl">
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
-                    Save School Settings
+                    Save All Changes
                 </Button>
             </div>
         </form>

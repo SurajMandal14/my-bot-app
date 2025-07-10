@@ -123,12 +123,6 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
       return { success: false, message: 'School not found to update.' };
     }
     
-    // Merge the new marksEntryLocks with the existing ones
-    const updatedMarksEntryLocks = {
-      ...existingSchool.marksEntryLocks,
-      ...marksEntryLocks,
-    };
-
     const updateData: Partial<Omit<School, '_id' | 'createdAt'>> = {
       schoolName,
       tuitionFees: (tuitionFees || []).map(tf => ({
@@ -150,7 +144,7 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
       allowStudentsToViewPublishedReports: allowStudentsToViewPublishedReports || false,
       attendanceType: attendanceType || 'monthly',
       activeAcademicYear: activeAcademicYear,
-      marksEntryLocks: updatedMarksEntryLocks,
+      marksEntryLocks: marksEntryLocks,
       updatedAt: new Date(),
     };
     
