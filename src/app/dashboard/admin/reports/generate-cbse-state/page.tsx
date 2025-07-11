@@ -36,7 +36,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label'; 
 import { getStudentDetailsForReportCard, type StudentDetailsForReportCard } from '@/app/actions/schoolUsers';
 import { getClassDetailsById } from '@/app/actions/classes';
-import { getSchoolById } from '@/app/actions/schools';
 import type { SchoolClassSubject } from '@/types/classes';
 import type { School } from '@/types/school';
 import { getStudentMarksForReportCard } from '@/app/actions/marks'; 
@@ -46,6 +45,7 @@ import type { AcademicYear } from '@/types/academicYear';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 type FrontMarksEntry = FrontMarksEntryTypeImport;
+type FaToolKey = keyof FrontMarksEntry;
 
 const getDefaultSaPaperData = (): SAPaperData => ({
     as1: { marks: null, maxMarks: 20 },
@@ -354,9 +354,9 @@ export default function GenerateCBSEStateReportPage() {
               const assessmentNameParts = assessmentName.split('-');
 
               if (assessmentName.startsWith("FA") && assessmentNameParts.length === 2) {
-                  const faPeriodKey = assessmentNameParts[0].toLowerCase() as keyof FrontSubjectFAData;
-                  const toolKeyRaw = assessmentNameParts[1];
-                  const toolKey = toolKeyRaw.toLowerCase().replace('tool', 'tool') as FaToolKey;
+                  const faPeriodKey = assessmentNameParts[0].toLowerCase() as keyof SubjectFAData;
+                  const toolKeyRaw = assessmentNameParts[1]; // e.g., "Tool1"
+                  const toolKey = toolKeyRaw.toLowerCase().replace('tool', 'tool') as FaToolKey; // e.g. "tool1"
 
                   if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
                       (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
@@ -498,7 +498,7 @@ export default function GenerateCBSEStateReportPage() {
       if (subjectName === "Science" && (teacherEditableSubjects.includes("Physics") || teacherEditableSubjects.includes("Biology"))) return false;
       return !teacherEditableSubjects.includes(subjectName);
     }
-    return false; 
+    return true; 
   };
 
   const handlePrint = () => window.print();

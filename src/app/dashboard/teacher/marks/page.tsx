@@ -90,7 +90,7 @@ export default function TeacherMarksEntryPage() {
 
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
   const [studentsForMarks, setStudentsForMarks] = useState<AppUser[]>([]);
-  const [studentMarks, setStudentMarks] = useState<Record<string, StudentMarksFAState | StudentMarksSAState>>({});
+  const [studentMarks, setStudentMarks] = useState<Record<string, StudentMarksFAState | StudentMarksSAState | {}>>({});
   const [selectedStudentIds, setSelectedStudentIds] = useState<Record<string, boolean>>({});
 
   const [isLoadingSubjects, setIsLoadingSubjects] = useState(true);
