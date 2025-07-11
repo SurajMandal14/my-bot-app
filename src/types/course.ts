@@ -5,7 +5,7 @@ export const courseMaterialSchema = z.object({
   classId: z.string().min(1, "Class ID is required."),
   subjectName: z.string().min(1, "Subject name is required."),
   title: z.string().min(3, "Title must be at least 3 characters."),
-  pdfUrl: z.string().url("Please enter a valid URL."),
+  pdfUrl: z.string().min(1, "A PDF file is required."),
 });
 export type CourseMaterialFormData = z.infer<typeof courseMaterialSchema>;
 

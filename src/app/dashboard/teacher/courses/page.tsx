@@ -36,6 +36,7 @@ export default function TeacherCoursesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedSubjectInfo, setSelectedSubjectInfo] = useState<SubjectForTeacher | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const form = useForm<CourseMaterialFormClient>({
     resolver: zodResolver(formClientSchema),
@@ -93,6 +94,38 @@ export default function TeacherCoursesPage() {
     }
   }, [selectedSubjectInfo, fetchMaterialsForClass]);
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      form.setValue("pdfUrl", "");
+      return;
+    }
+    if (file.type !== "application/pdf") {
+      toast({ variant: "destructive", title: "Invalid File Type", description: "Please upload a PDF file." });
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast({ variant: "destructive", title: "File Too Large", description: "Please upload a file smaller than 5MB." });
+      e.target.value = "";
+      return;
+    }
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        form.setValue("pdfUrl", reader.result, { shouldValidate: true });
+        toast({ title: "File Ready", description: `${file.name} is ready to be saved.` });
+      }
+      setIsUploading(false);
+    };
+    reader.onerror = () => {
+      toast({ variant: "destructive", title: "File Error", description: "Could not read the selected file." });
+      setIsUploading(false);
+    };
+  };
+
   async function onSubmit(values: CourseMaterialFormClient) {
     if (!authUser?.schoolId || !selectedSubjectInfo) {
       toast({variant: "destructive", title: "Error", description: "User or subject selection is missing."});
@@ -112,6 +145,8 @@ export default function TeacherCoursesPage() {
     if (result.success) {
       toast({ title: "Material Added", description: result.message });
       form.reset({ title: "", pdfUrl: "" });
+      const fileInput = document.getElementById('pdf-upload') as HTMLInputElement;
+      if(fileInput) fileInput.value = "";
       fetchMaterialsForClass(selectedSubjectInfo.classId);
     } else {
       toast({ variant: "destructive", title: "Failed to Add", description: result.error || result.message });
@@ -175,9 +210,29 @@ export default function TeacherCoursesPage() {
                     </Select>
                   </FormItem>
                  <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title / Topic Name</FormLabel><FormControl><Input placeholder="e.g., Chapter 1: Algebra Basics" {...field} disabled={!selectedSubjectInfo} /></FormControl><FormMessage /></FormItem>)}/>
-                 <FormField control={form.control} name="pdfUrl" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>PDF URL</FormLabel><FormControl><Input type="url" placeholder="https://example.com/document.pdf" {...field} disabled={!selectedSubjectInfo}/></FormControl><FormMessage /></FormItem>)}/>
+                 <FormField
+                    control={form.control}
+                    name="pdfUrl"
+                    render={() => (
+                        <FormItem className="md:col-span-2">
+                        <FormLabel>Upload PDF</FormLabel>
+                        <FormControl>
+                           <Input
+                            id="pdf-upload"
+                            type="file"
+                            accept="application/pdf"
+                            onChange={handleFileChange}
+                            className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                            disabled={isSubmitting || isUploading || !selectedSubjectInfo}
+                            />
+                        </FormControl>
+                        {isUploading && <div className="flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Processing file...</div>}
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
               </div>
-              <Button type="submit" disabled={isSubmitting || !selectedSubjectInfo}>
+              <Button type="submit" disabled={isSubmitting || isUploading || !selectedSubjectInfo}>
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4"/>}
                 Add Material
               </Button>
@@ -200,11 +255,11 @@ export default function TeacherCoursesPage() {
             <Table>
               <TableHeader><TableRow><TableHead>Subject</TableHead><TableHead>Title</TableHead><TableHead>URL</TableHead><TableHead>Added On</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
               <TableBody>
-                {materials.map(mat => (
+                {materials.filter(mat => mat.subjectName === selectedSubjectInfo?.subjectName).map(mat => (
                   <TableRow key={mat._id}>
                     <TableCell>{mat.subjectName}</TableCell>
                     <TableCell>{mat.title}</TableCell>
-                    <TableCell><a href={mat.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block max-w-xs">{mat.pdfUrl}</a></TableCell>
+                    <TableCell><a href={mat.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block max-w-xs">{mat.pdfUrl.startsWith('data:') ? 'View Uploaded PDF' : mat.pdfUrl}</a></TableCell>
                     <TableCell>{format(new Date(mat.createdAt), "PP")}</TableCell>
                     <TableCell>
                       <AlertDialog open={materialToDelete?._id === mat._id} onOpenChange={(open) => !open && setMaterialToDelete(null)}>

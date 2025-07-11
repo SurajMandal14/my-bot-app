@@ -7,7 +7,7 @@ export const questionPaperSchema = z.object({
   subjectName: z.string().min(1, "Subject name is required."),
   examName: z.string().min(3, "Exam name must be at least 3 characters."),
   year: z.coerce.number().min(2000, "Year must be 2000 or later.").max(new Date().getFullYear() + 1, "Year cannot be too far in the future."),
-  pdfUrl: z.string().url("Please enter a valid URL."),
+  pdfUrl: z.string().min(1, "A PDF file is required."),
 });
 export type QuestionPaperFormData = z.infer<typeof questionPaperSchema>;
 
