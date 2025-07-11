@@ -31,12 +31,12 @@ export default function StudentCoursesPage() {
     }, []);
     
     const fetchMaterials = useCallback(async () => {
-        if (!authUser || !authUser.classId) {
+        if (!authUser || !authUser.classId || !authUser.schoolId) {
             setIsLoading(false);
             return;
         }
         setIsLoading(true);
-        const result = await getCourseMaterialsForClass(authUser.classId);
+        const result = await getCourseMaterialsForClass(authUser.classId, authUser.schoolId.toString());
         if (result.success && result.materials) {
             setMaterials(result.materials);
         } else {
