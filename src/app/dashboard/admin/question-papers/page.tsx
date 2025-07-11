@@ -44,7 +44,7 @@ export default function AdminQuestionPapersPage() {
 
   const form = useForm<QuestionPaperFormData>({
     resolver: zodResolver(questionPaperSchema),
-    defaultValues: { classId: "", subjectName: "", examName: "", year: new Date().getFullYear(), pdfUrl: "" },
+    defaultValues: { schoolId: "", classId: "", subjectName: "", examName: "", year: new Date().getFullYear(), pdfUrl: "" },
   });
 
   const selectedClassId = form.watch("classId");
@@ -144,6 +144,7 @@ export default function AdminQuestionPapersPage() {
   async function onSubmit(values: QuestionPaperFormData) {
     if (!authUser?.schoolId) return;
     setIsSubmitting(true);
+    // Ensure schoolId from authUser is used, overriding any stale form state
     const payload = { ...values, schoolId: authUser.schoolId };
     const result = await createQuestionPaper(payload);
     setIsSubmitting(false);
