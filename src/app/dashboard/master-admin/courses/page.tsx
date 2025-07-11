@@ -145,7 +145,8 @@ export default function MasterAdminCoursesPage() {
   async function onSubmit(values: CourseMaterialFormData) {
     if (!authUser?.schoolId) return;
     setIsSubmitting(true);
-    const result = await createCourseMaterial(values);
+    const payload = { ...values, schoolId: authUser.schoolId.toString() };
+    const result = await createCourseMaterial(payload);
     setIsSubmitting(false);
     if (result.success) {
       toast({ title: "Material Added", description: result.message });
@@ -289,7 +290,7 @@ export default function MasterAdminCoursesPage() {
               </TableBody>
             </Table>
           ) : (
-             <p className="text-center text-muted-foreground py-4">{selectedClassId ? "No materials uploaded for this class yet." : "Select a class to see materials."}</p>
+             <p className="text-center text-muted-foreground py-4">{selectedClassId ? "No materials uploaded for this class yet." : "Select a subject to see materials."}</p>
           )}
         </CardContent>
       </Card>
