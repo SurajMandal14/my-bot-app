@@ -4,25 +4,16 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { DollarSign, Receipt, Info, Loader2, ListChecks, BadgePercent } from "lucide-react"; // Added BadgePercent
+import { DollarSign, Receipt, Info, Loader2, ListChecks, BadgePercent, CalendarFold } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { getFeePaymentsByStudent } from "@/app/actions/fees";
-// School and AuthUser details will come from context
 import type { FeePayment } from "@/types/fees";
-import { useStudentData } from "@/contexts/StudentDataContext"; // Import context
+import { useStudentData } from "@/contexts/StudentDataContext"; 
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
-const getCurrentAcademicYearLocal = (): string => {
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-  if (currentMonth >= 5) { 
-    return `${currentYear}-${currentYear + 1}`;
-  } else { 
-    return `${currentYear - 1}-${currentYear}`;
-  }
-};
 
 export default function StudentFeesPage() {
   const { 
@@ -31,7 +22,10 @@ export default function StudentFeesPage() {
     appliedConcessions, 
     isLoading: isLoadingContext, 
     error: errorContext,
-    schoolDetails 
+    schoolDetails,
+    availableAcademicYears,
+    selectedAcademicYear,
+    setSelectedAcademicYear,
   } = useStudentData();
   
   const [feePayments, setFeePayments] = useState<FeePayment[]>([]);
@@ -59,8 +53,6 @@ export default function StudentFeesPage() {
       fetchPayments();
     }
   }, [authUser, fetchPayments]);
-
-  const displayAcademicYear = schoolDetails?.academicYear || getCurrentAcademicYearLocal();
 
   if (isLoadingContext) {
     return (
@@ -109,17 +101,38 @@ export default function StudentFeesPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl font-headline flex items-center">
-            <DollarSign className="mr-2 h-6 w-6" /> My Fee Status
-          </CardTitle>
-          <CardDescription>Overview of your fee payments, concessions, and dues for class {authUser.classId}.</CardDescription>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <CardTitle className="text-2xl font-headline flex items-center">
+                        <DollarSign className="mr-2 h-6 w-6" /> My Fee Status
+                    </CardTitle>
+                    <CardDescription>Overview of your fee payments, concessions, and dues for class {authUser.classId}.</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Label htmlFor="academic-year-select" className="flex items-center gap-2 text-sm font-medium"><CalendarFold className="h-4 w-4"/> Academic Year:</Label>
+                    <Select
+                        value={selectedAcademicYear}
+                        onValueChange={setSelectedAcademicYear}
+                        disabled={isLoadingContext || availableAcademicYears.length === 0}
+                    >
+                        <SelectTrigger id="academic-year-select" className="w-[180px]">
+                            <SelectValue placeholder="Select Year"/>
+                        </SelectTrigger>
+                        <SelectContent>
+                            {availableAcademicYears.map(year => (
+                                <SelectItem key={year} value={year}>{year}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
         </CardHeader>
       </Card>
 
       {feeSummary ? (
         <Card>
           <CardHeader>
-            <CardTitle>Fee Summary (Annual Tuition for {displayAcademicYear})</CardTitle>
+            <CardTitle>Fee Summary (Annual Tuition for {selectedAcademicYear})</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <div className="flex flex-col space-y-1 rounded-lg border p-4 shadow-sm">
@@ -163,7 +176,7 @@ export default function StudentFeesPage() {
         <Card>
             <CardContent className="py-6 text-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-                <p className="text-muted-foreground">Calculating fee summary...</p>
+                <p className="text-muted-foreground">Calculating fee summary for {selectedAcademicYear}...</p>
             </CardContent>
         </Card>
       )}
@@ -171,8 +184,8 @@ export default function StudentFeesPage() {
       {appliedConcessions.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center"><BadgePercent className="mr-2 h-5 w-5 text-blue-600" />Applied Concessions (Academic Year: {displayAcademicYear})</CardTitle>
-            <CardDescription>List of fee concessions applied to your account.</CardDescription>
+            <CardTitle className="flex items-center"><BadgePercent className="mr-2 h-5 w-5 text-blue-600" />Applied Concessions (Academic Year: {selectedAcademicYear})</CardTitle>
+            <CardDescription>List of fee concessions applied to your account for the selected year.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>

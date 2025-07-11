@@ -14,6 +14,8 @@ import { getSchoolById } from '@/app/actions/schools';
 import { getFeeConcessionsForStudent } from '@/app/actions/concessions';
 import { getClassDetailsById } from '@/app/actions/classes';
 import { useToast } from '@/hooks/use-toast';
+import { getAcademicYears } from '@/app/actions/academicYears';
+
 
 const getCurrentAcademicYear = (): string => {
   const today = new Date();
@@ -31,8 +33,8 @@ interface AttendanceSummary {
   present: number;
   total: number;
   percentage: number;
-  late: number; // Added for more detail, assuming logic might exist
-  absent: number; // Added for more detail
+  late: number; 
+  absent: number;
 }
 
 interface FeeSummary {
@@ -52,7 +54,9 @@ interface StudentDataContextType {
   error: string | null;
   refreshData: () => void;
   schoolDetails: School | null;
-  activeAcademicYear: string | null; // Expose active academic year
+  availableAcademicYears: string[];
+  selectedAcademicYear: string;
+  setSelectedAcademicYear: (year: string) => void;
 }
 
 const StudentDataContext = createContext<StudentDataContextType | undefined>(undefined);
@@ -77,7 +81,9 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
   const [feeSummary, setFeeSummary] = useState<FeeSummary | null>(null);
   const [appliedConcessions, setAppliedConcessions] = useState<FeeConcession[]>([]);
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
-  const [activeAcademicYear, setActiveAcademicYear] = useState<string | null>(null);
+  const [availableAcademicYears, setAvailableAcademicYears] = useState<string[]>([]);
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
+  
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -110,16 +116,11 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
     if (!classFeeConfig || !classFeeConfig.terms) return 0;
     return classFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
   }, []);
-
+  
   const fetchAllStudentData = useCallback(async () => {
     if (!authUser || !authUser._id || !authUser.schoolId) {
       setIsLoading(false);
       setError(authUser ? "Missing student ID or School ID." : "User not authenticated for student data.");
-      setAttendanceSummary({ present: 0, percentage: 0, total: 0, late: 0, absent: 0 });
-      setFeeSummary(null);
-      setAppliedConcessions([]);
-      setSchoolDetails(null);
-      setActiveAcademicYear(null);
       return;
     }
 
@@ -127,28 +128,34 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
     setError(null);
 
     try {
-      const schoolResult = await getSchoolById(authUser.schoolId.toString());
-      
+      const [schoolResult, academicYearsResult, attendanceResult, feePaymentsResult] = await Promise.all([
+        getSchoolById(authUser.schoolId.toString()),
+        getAcademicYears(),
+        getStudentMonthlyAttendance(authUser._id.toString()),
+        getFeePaymentsByStudent(authUser._id.toString(), authUser.schoolId.toString()),
+      ]);
+
       let schoolActiveYear: string;
       if (schoolResult.success && schoolResult.school) {
         setSchoolDetails(schoolResult.school);
         schoolActiveYear = schoolResult.school.activeAcademicYear || getCurrentAcademicYear();
-        setActiveAcademicYear(schoolActiveYear);
       } else {
         toast({ variant: "destructive", title: "School Info Error", description: schoolResult.message || "Could not load school details." });
-        setSchoolDetails(null);
-        schoolActiveYear = getCurrentAcademicYear(); // Fallback
-        setActiveAcademicYear(schoolActiveYear);
+        schoolActiveYear = getCurrentAcademicYear(); 
+      }
+      
+      if(academicYearsResult.success && academicYearsResult.academicYears) {
+        setAvailableAcademicYears(academicYearsResult.academicYears.map(y => y.year));
+        if (!selectedAcademicYear) {
+            setSelectedAcademicYear(schoolActiveYear);
+        }
+      } else {
+        setAvailableAcademicYears([schoolActiveYear]);
+         if (!selectedAcademicYear) {
+            setSelectedAcademicYear(schoolActiveYear);
+        }
       }
 
-
-      const [attendanceResult, feePaymentsResult, concessionsResult] = await Promise.all([
-        getStudentMonthlyAttendance(authUser._id.toString()),
-        getFeePaymentsByStudent(authUser._id.toString(), authUser.schoolId.toString()),
-        getFeeConcessionsForStudent(authUser._id.toString(), authUser.schoolId.toString(), schoolActiveYear)
-      ]);
-
-      
       if (attendanceResult.success && attendanceResult.records) {
         const records = attendanceResult.records;
         const totalWorkingDays = records.reduce((sum, r) => sum + r.totalWorkingDays, 0);
@@ -162,20 +169,22 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
         }
       } else {
         toast({ variant: "warning", title: "Attendance Info", description: attendanceResult.message || "Could not fetch attendance data." });
-        setAttendanceSummary({ present: 0, total: 0, percentage: 0, late: 0, absent: 0 });
       }
 
-      if (concessionsResult.success && concessionsResult.concessions) {
+      // Concessions and Fee Summary logic needs to run after academic year is selected
+      const targetYear = selectedAcademicYear || schoolActiveYear;
+      const concessionsResult = await getFeeConcessionsForStudent(authUser._id.toString(), authUser.schoolId.toString(), targetYear);
+      
+       if (concessionsResult.success && concessionsResult.concessions) {
         setAppliedConcessions(concessionsResult.concessions);
       } else {
-        toast({ variant: "info", title: "Concessions", description: concessionsResult.message || "No concessions found or could not load them." });
         setAppliedConcessions([]);
       }
 
-      if (schoolResult.success && schoolResult.school) {
+       if (schoolResult.success && schoolResult.school) {
         const currentSchoolDetails = schoolResult.school;
-        const studentPayments = feePaymentsResult.success && feePaymentsResult.payments ? feePaymentsResult.payments : [];
-        const studentConcessions = concessionsResult.success && concessionsResult.concessions ? concessionsResult.concessions : [];
+        const studentPayments = feePaymentsResult.success ? feePaymentsResult.payments || [] : [];
+        const studentConcessions = concessionsResult.success ? concessionsResult.concessions || [] : [];
         
         let studentClassNameForFee: string | undefined = undefined;
         if (authUser.classId) {
@@ -194,24 +203,11 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
             const totalDue = Math.max(0, totalAnnualTuitionFee - totalPaid - totalConcessionsAmount);
             
             const netPayable = totalAnnualTuitionFee - totalConcessionsAmount;
-            let percentagePaid = 0;
-            if (netPayable > 0) {
-              percentagePaid = Math.round((totalPaid / netPayable) * 100);
-            } else if (netPayable <= 0 && totalPaid >= 0) {
-              percentagePaid = 100;
-            }
-            
+            let percentagePaid = netPayable > 0 ? Math.round((totalPaid / netPayable) * 100) : (totalPaid > 0 ? 100 : 0);
             percentagePaid = Math.min(percentagePaid, 100);
-
-
             setFeeSummary({ totalFee: totalAnnualTuitionFee, totalPaid, totalConcessions: totalConcessionsAmount, totalDue, percentagePaid });
         } else {
             setFeeSummary({ totalFee: 0, totalPaid: 0, totalConcessions: 0, totalDue: 0, percentagePaid: 0 });
-            if (authUser.classId) {
-                toast({ variant: "info", title: "Fee Info", description: "Your assigned class could not be found, so fee details cannot be calculated." });
-            } else {
-                 toast({ variant: "info", title: "Fee Info", description: "You are not assigned to a class, so fee details cannot be calculated." });
-            }
         }
       } else {
         setFeeSummary(null);
@@ -220,15 +216,10 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
     } catch (fetchError) {
       console.error("StudentDataProvider: Error fetching dashboard data:", fetchError);
       setError("An unexpected error occurred fetching dashboard data.");
-      toast({ variant: "destructive", title: "Dashboard Error", description: "Could not load your information." });
-      setAttendanceSummary({ present: 0, total: 0, percentage: 0, late: 0, absent: 0 });
-      setFeeSummary(null);
-      setAppliedConcessions([]);
-      setSchoolDetails(null);
     } finally {
       setIsLoading(false);
     }
-  }, [authUser, toast, calculateAnnualTuitionFee]);
+  }, [authUser, toast, calculateAnnualTuitionFee, selectedAcademicYear]);
   
   useEffect(() => {
     if (authUser?._id && authUser?.schoolId) {
@@ -254,7 +245,9 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
         error, 
         refreshData,
         schoolDetails,
-        activeAcademicYear,
+        availableAcademicYears,
+        selectedAcademicYear,
+        setSelectedAcademicYear
     }}>
       {children}
     </StudentDataContext.Provider>
