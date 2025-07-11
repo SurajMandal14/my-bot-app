@@ -217,7 +217,7 @@ export default function GenerateCBSEStateReportPage() {
       let currentLoadedClassSubjects: SchoolClassSubject[] = [];
       if (currentStudent.classId) {
         const classRes = await getClassDetailsById(currentStudent.classId, currentStudent.schoolId!);
-        if (classRes.success && classRes.classDetails) {
+        if (classRes.success && classRes.classDetails && classRes.classDetails.academicYear === frontAcademicYear) {
           currentLoadedClassSubjects = classRes.classDetails.subjects || [];
           setLoadedClassSubjects(currentLoadedClassSubjects);
           setFrontSecondLanguage(classRes.classDetails.secondLanguageSubjectName === "Telugu" ? "Telugu" : "Hindi");
@@ -245,7 +245,7 @@ export default function GenerateCBSEStateReportPage() {
             aadharNo: currentStudent.aadharNo || '',
           }));
         } else {
-          toast({ variant: "destructive", title: "Class Details Error", description: classRes.message || `Could not load class details for class ID: ${currentStudent.classId}.`});
+          toast({ variant: "destructive", title: "Class Details Error", description: classRes.message || `Could not load correct class details for student's assigned class for academic year ${frontAcademicYear}.`});
           setIsLoadingStudentAndClassData(false);
           return; 
         }
@@ -356,7 +356,7 @@ export default function GenerateCBSEStateReportPage() {
               if (assessmentName.startsWith("FA") && assessmentNameParts.length === 2) {
                   const faPeriodKey = assessmentNameParts[0].toLowerCase() as keyof FrontSubjectFAData;
                   const toolKeyRaw = assessmentNameParts[1];
-                  const toolKey = toolKeyRaw.toLowerCase() as keyof FrontMarksEntry;
+                  const toolKey = toolKeyRaw.toLowerCase().replace('tool', 'tool') as FaToolKey;
 
                   if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
                       (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
