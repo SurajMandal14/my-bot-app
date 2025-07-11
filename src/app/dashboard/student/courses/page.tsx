@@ -6,53 +6,44 @@ import { BookOpen, Download, Loader2, Info } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import type { AuthUser } from "@/types/user";
 import type { CourseMaterial } from "@/types/course";
 import { getCourseMaterialsForClass } from "@/app/actions/courses";
 import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
+import { useStudentData } from "@/contexts/StudentDataContext";
 
 export default function StudentCoursesPage() {
     const { toast } = useToast();
-    const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+    const { authUser, isLoading: isContextLoading } = useStudentData();
     const [materials, setMaterials] = useState<CourseMaterial[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingMaterials, setIsLoadingMaterials] = useState(true);
 
-    useEffect(() => {
-        const storedUser = localStorage.getItem('loggedInUser');
-        if (storedUser && storedUser !== 'undefined') {
-            try {
-                const parsedUser: AuthUser = JSON.parse(storedUser);
-                if(parsedUser.role === 'student') {
-                    setAuthUser(parsedUser);
-                }
-            } catch (e) { console.error(e); }
-        }
-    }, []);
-    
     const fetchMaterials = useCallback(async () => {
         if (!authUser || !authUser.classId || !authUser.schoolId) {
-            setIsLoading(false);
+            setIsLoadingMaterials(false);
             return;
         }
-        setIsLoading(true);
+        setIsLoadingMaterials(true);
         const result = await getCourseMaterialsForClass(authUser.classId, authUser.schoolId.toString());
         if (result.success && result.materials) {
             setMaterials(result.materials);
         } else {
             toast({ variant: 'warning', title: "Could not load materials", description: result.message });
+            setMaterials([]);
         }
-        setIsLoading(false);
+        setIsLoadingMaterials(false);
     }, [authUser, toast]);
 
     useEffect(() => {
         if (authUser) {
             fetchMaterials();
         } else {
-            setIsLoading(false);
+            // If authUser from context is null and context is done loading, stop our loading.
+            if (!isContextLoading) {
+                setIsLoadingMaterials(false);
+            }
         }
-    }, [authUser, fetchMaterials]);
-
+    }, [authUser, fetchMaterials, isContextLoading]);
 
   return (
     <div className="space-y-6">
@@ -66,7 +57,7 @@ export default function StudentCoursesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isContextLoading || isLoadingMaterials ? (
             <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin"/></div>
           ) : !authUser ? (
             <div className="text-center py-6 text-muted-foreground">Please log in to view course materials.</div>
