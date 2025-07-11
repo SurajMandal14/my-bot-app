@@ -160,11 +160,18 @@ export default function MasterAdminConcessionPage() {
       toast({ variant: "destructive", title: "Input Missing", description: "Please provide an admission number." });
       return;
     }
+    
+    const academicYear = form.getValues('academicYear');
+    if (!academicYear) {
+      toast({ variant: "destructive", title: "Input Missing", description: "Please select an academic year before searching." });
+      return;
+    }
+
     setIsSearchingStudent(true);
     setFoundStudentName(null);
     form.setValue('studentId', '');
 
-    const result = await getStudentDetailsForReportCard(admissionIdInput, authUser.schoolId.toString());
+    const result = await getStudentDetailsForReportCard(admissionIdInput, authUser.schoolId.toString(), academicYear);
     if (result.success && result.student) {
       setFoundStudentName(result.student.name);
       form.setValue('studentId', result.student._id.toString());
@@ -387,3 +394,5 @@ export default function MasterAdminConcessionPage() {
     </div>
   );
 }
+
+    
