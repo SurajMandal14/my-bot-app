@@ -43,6 +43,7 @@ import type { MarkEntry as MarkEntryType } from '@/types/marks';
 import { getAcademicYears } from '@/app/actions/academicYears';
 import type { AcademicYear } from '@/types/academicYear';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { getSchoolById } from '@/app/actions/schools';
 
 type FrontMarksEntry = FrontMarksEntryTypeImport;
 type FaToolKey = keyof FrontMarksEntry;
