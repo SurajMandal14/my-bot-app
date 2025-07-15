@@ -577,7 +577,7 @@ export async function bulkCreateSchoolUsers(
         }
       }
 
-      const userEmail = user.email || `${user.admissionId}@${schoolObjectId.toHexString()}.scholr.local`;
+      const userEmail = user.email || `${user.admissionId}@gmail.com`;
       
       let passwordSource = 'password123'; // Default password
       if (user.dob) {
