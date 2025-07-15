@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UserMinus, UserCheck, UserCircle2, ChevronsUpDown, Contact, GraduationCap, Home, Heart, ShieldQuestion, CalendarClock } from "lucide-react";
+import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UserMinus, UserCheck, UserCircle2, ChevronsUpDown, Contact, GraduationCap, Home, Heart, ShieldQuestion, CalendarClock, Upload } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import {
@@ -47,6 +47,7 @@ import type { School, TermFee } from "@/types/school";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { format } from 'date-fns';
 import type { AuthUser } from "@/types/attendance";
+import Link from "next/link";
 
 type SchoolStudent = Partial<AppUser>; 
 
@@ -412,6 +413,9 @@ export default function AdminStudentManagementPage() {
             <CardTitle>Student List</CardTitle>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Input placeholder="Search students..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolStudents.length}/>
+              <Button asChild variant="outline">
+                  <Link href="/dashboard/admin/students/import"><Upload className="mr-2 h-4 w-4" /> Import Students</Link>
+              </Button>
               <Button onClick={handleAddClick}><UserPlus className="mr-2 h-4 w-4"/>Add New Student</Button>
             </div>
           </div>
