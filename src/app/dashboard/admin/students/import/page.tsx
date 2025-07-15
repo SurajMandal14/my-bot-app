@@ -11,17 +11,18 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { UploadCloud, File, Loader2, ArrowRight, Wand2, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
+import { mapStudentData, type StudentDataMappingOutput } from '@/ai/flows/map-student-data-flow';
 
 export default function StudentImportPage() {
     const { toast } = useToast();
     const [file, setFile] = useState<File | null>(null);
     const [fileName, setFileName] = useState<string>('');
     const [headers, setHeaders] = useState<string[]>([]);
-    const [sampleData, setSampleData] = useState<any[]>([]);
+    const [sampleData, setSampleData] = useState<any[][]>([]);
     const [isLoadingFile, setIsLoadingFile] = useState(false);
     
     const [isMapping, setIsMapping] = useState(false);
-    const [mappedData, setMappedData] = useState<any | null>(null);
+    const [mappedData, setMappedData] = useState<StudentDataMappingOutput | null>(null);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         setIsLoadingFile(true);
@@ -64,11 +65,12 @@ export default function StudentImportPage() {
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
                 if (Array.isArray(jsonData) && jsonData.length > 1) {
-                    const extractedHeaders = jsonData[0] as string[];
+                    const extractedHeaders = (jsonData[0] as string[]).map(h => h.trim());
                     const extractedData = jsonData.slice(1, 6); // Get up to 5 sample rows
 
                     setHeaders(extractedHeaders);
-                    setSampleData(extractedData);
+                    setSampleData(extractedData as any[][]);
+                    setMappedData(null); // Reset previous mapping
                 } else {
                      toast({ variant: 'destructive', title: 'Empty Sheet', description: 'The selected file sheet appears to be empty or has no data.' });
                      setHeaders([]);
@@ -95,13 +97,18 @@ export default function StudentImportPage() {
             return;
         }
         setIsMapping(true);
-        // This is where we will call the Genkit flow in the next step.
-        // For now, let's simulate a delay and a placeholder result.
-        setTimeout(() => {
+        try {
+            const result = await mapStudentData({ headers, sampleData });
+            setMappedData(result);
             toast({ title: "AI Mapping Complete", description: "Please review the proposed mappings." });
-            setMappedData({ "Name": "name", "DOB": "dob", "adm_no": "admissionId" }); // Placeholder
+        } catch (error) {
+            console.error("AI Mapping Error:", error);
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+            toast({ variant: 'destructive', title: 'AI Mapping Failed', description: errorMessage });
+            setMappedData(null);
+        } finally {
             setIsMapping(false);
-        }, 2000);
+        }
     };
 
     return (
@@ -194,12 +201,36 @@ export default function StudentImportPage() {
                             {mappedData && !isMapping && (
                                 <div className="mt-6">
                                     <h3 className="font-semibold text-lg mb-2">Review Mapping</h3>
-                                    {/* TODO: Add mapping review UI here */}
-                                    <Alert>
+                                    <div className="overflow-x-auto">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Spreadsheet Column</TableHead>
+                                                    <TableHead>Database Field</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {Object.entries(mappedData).map(([header, dbField]) => (
+                                                    <TableRow key={header}>
+                                                        <TableCell>{header}</TableCell>
+                                                        <TableCell className="flex items-center gap-2">
+                                                            <ArrowRight className="h-4 w-4 text-muted-foreground"/>
+                                                            {dbField ? (
+                                                                <span className="font-mono text-primary bg-primary/10 px-2 py-1 rounded-md">{dbField}</span>
+                                                            ) : (
+                                                                <span className="italic text-muted-foreground">Will be ignored</span>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                    <Alert className="mt-4">
                                         <Wand2 className="h-4 w-4" />
                                         <AlertTitle>Mapping Review</AlertTitle>
                                         <AlertDescription>
-                                            The mapping review interface will be built in the next step.
+                                            The ability to edit these mappings and finalize the import will be added next.
                                         </AlertDescription>
                                     </Alert>
                                 </div>
