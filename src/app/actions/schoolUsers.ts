@@ -538,8 +538,7 @@ export async function bulkCreateSchoolUsers(
   users: Partial<User>[], 
   schoolId: string,
   classId: string,
-  academicYear: string,
-  defaultPassword?: string
+  academicYear: string
 ): Promise<BulkCreateSchoolUsersResult> {
   if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
     return { success: false, message: 'Invalid School or Class ID.' };
@@ -555,19 +554,19 @@ export async function bulkCreateSchoolUsers(
     
     const usersToInsert: Omit<User, '_id'>[] = [];
     let skippedCount = 0;
-
-    const hashedPassword = await bcrypt.hash(defaultPassword || 'password123', 10);
     
     for (const user of users) {
       // Basic validation for each user
-      if (!user.name || (!user.email && !user.admissionId)) {
+      if (!user.name || !user.admissionId) {
         skippedCount++;
         continue;
       }
 
       // Check for existing users
       const orConditions = [];
+      // If email is provided in sheet, check it
       if (user.email) orConditions.push({ email: user.email });
+      // Always check admissionId for the given school
       if (user.admissionId) orConditions.push({ admissionId: user.admissionId, schoolId: schoolObjectId });
 
       if (orConditions.length > 0) {
@@ -577,10 +576,23 @@ export async function bulkCreateSchoolUsers(
           continue;
         }
       }
+
+      const userEmail = user.email || `${user.admissionId}@${schoolObjectId.toHexString()}.scholr.local`;
+      
+      let passwordSource = 'password123'; // Default password
+      if (user.dob) {
+        // Remove any non-digit characters from the DOB string
+        const dobAsPassword = user.dob.replace(/\D/g, '');
+        if (dobAsPassword.length >= 6) { // Basic check for a valid DOB format
+          passwordSource = dobAsPassword;
+        }
+      }
+      
+      const hashedPassword = await bcrypt.hash(passwordSource, 10);
       
       const newUser: Omit<User, '_id'> = {
         name: user.name,
-        email: user.email || `${user.admissionId}@${schoolObjectId.toHexString()}.scholr.local`, // Create a fake email if missing
+        email: userEmail,
         password: hashedPassword,
         role: 'student',
         status: 'active',
