@@ -112,13 +112,28 @@ export default function StudentImportPage() {
                 const workbook = XLSX.read(data, { type: 'array' });
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                const jsonData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
                 if (Array.isArray(jsonData) && jsonData.length > 1) {
-                    const extractedHeaders = (jsonData[0] as any[]).map(h => h ? String(h).trim() : null).filter(h => h !== null && h !== '') as string[];
+                    const originalHeaders = jsonData[0];
                     const dataRows = jsonData.slice(1);
-                    setHeaders(extractedHeaders);
-                    setFullData(dataRows as any[][]);
+                    
+                    const validHeaderIndices: number[] = [];
+                    const finalHeaders: string[] = [];
+
+                    originalHeaders.forEach((header, index) => {
+                        if (header !== null && String(header).trim() !== '') {
+                            validHeaderIndices.push(index);
+                            finalHeaders.push(String(header).trim());
+                        }
+                    });
+
+                    const alignedDataRows = dataRows.map(row => 
+                        validHeaderIndices.map(validIndex => row[validIndex] ?? null)
+                    );
+
+                    setHeaders(finalHeaders);
+                    setFullData(alignedDataRows);
                     setMappedData(null);
                     setProcessedStudents([]);
                 } else {
@@ -228,7 +243,7 @@ export default function StudentImportPage() {
             Object.keys(student).forEach(key => headerSet.add(key));
         });
         // Prioritize common headers
-        const prioritized = ['name', 'admissionId', 'email', 'fatherName', 'motherName', 'dob', 'phone'];
+        const prioritized = ['name', 'admissionId', 'fatherName', 'motherName', 'dob', 'phone'];
         const sortedHeaders = Array.from(headerSet).sort((a, b) => {
             const aIndex = prioritized.indexOf(a);
             const bIndex = prioritized.indexOf(b);
@@ -355,7 +370,7 @@ export default function StudentImportPage() {
                          <Card>
                             <CardHeader><CardTitle>Final Import Preview</CardTitle></CardHeader>
                             <CardContent>
-                                <p className="text-sm text-muted-foreground mb-4">Review the structured data below. This is how it will be imported. Existing students with the same Admission ID or Email will be skipped.</p>
+                                <p className="text-sm text-muted-foreground mb-4">Review the structured data below. This is how it will be imported. Existing students with the same Admission ID will be skipped.</p>
                                 <div className="overflow-x-auto">
                                   <Table>
                                     <TableHeader>
