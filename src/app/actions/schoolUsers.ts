@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -521,5 +522,98 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
     console.error('Get student details for report card by admission ID error:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
     return { success: false, error: errorMessage, message: 'Failed to fetch student details for report card.' };
+  }
+}
+
+// New action for bulk creating students from import
+export interface BulkCreateSchoolUsersResult {
+  success: boolean;
+  message: string;
+  error?: string;
+  importedCount?: number;
+  skippedCount?: number;
+}
+
+export async function bulkCreateSchoolUsers(
+  users: Partial<User>[], 
+  schoolId: string,
+  classId: string,
+  academicYear: string,
+  defaultPassword?: string
+): Promise<BulkCreateSchoolUsersResult> {
+  if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
+    return { success: false, message: 'Invalid School or Class ID.' };
+  }
+  if (!academicYear) {
+    return { success: false, message: 'Academic Year must be provided for import.' };
+  }
+
+  try {
+    const { db } = await connectToDatabase();
+    const usersCollection = db.collection('users');
+    const schoolObjectId = new ObjectId(schoolId);
+    
+    const usersToInsert: Omit<User, '_id'>[] = [];
+    let skippedCount = 0;
+
+    const hashedPassword = await bcrypt.hash(defaultPassword || 'password123', 10);
+    
+    for (const user of users) {
+      // Basic validation for each user
+      if (!user.name || (!user.email && !user.admissionId)) {
+        skippedCount++;
+        continue;
+      }
+
+      // Check for existing users
+      const orConditions = [];
+      if (user.email) orConditions.push({ email: user.email });
+      if (user.admissionId) orConditions.push({ admissionId: user.admissionId, schoolId: schoolObjectId });
+
+      if (orConditions.length > 0) {
+        const existingUser = await usersCollection.findOne({ $or: orConditions });
+        if (existingUser) {
+          skippedCount++;
+          continue;
+        }
+      }
+      
+      const newUser: Omit<User, '_id'> = {
+        name: user.name,
+        email: user.email || `${user.admissionId}@${schoolObjectId.toHexString()}.scholr.local`, // Create a fake email if missing
+        password: hashedPassword,
+        role: 'student',
+        status: 'active',
+        schoolId: schoolObjectId,
+        classId: classId,
+        admissionId: user.admissionId,
+        fatherName: user.fatherName,
+        motherName: user.motherName,
+        dob: user.dob,
+        phone: user.phone,
+        academicYear: academicYear,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      usersToInsert.push(newUser);
+    }
+
+    if (usersToInsert.length > 0) {
+      await usersCollection.insertMany(usersToInsert);
+    }
+    
+    revalidatePath('/dashboard/admin/students');
+
+    return {
+      success: true,
+      message: `Import complete. ${usersToInsert.length} students were successfully imported. ${skippedCount} students were skipped due to missing data or existing accounts.`,
+      importedCount: usersToInsert.length,
+      skippedCount: skippedCount,
+    };
+
+  } catch (error) {
+    console.error('Bulk create school users error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
+    return { success: false, message: 'An unexpected error occurred during bulk import.', error: errorMessage };
   }
 }
