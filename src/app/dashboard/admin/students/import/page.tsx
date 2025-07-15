@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,7 @@ import type { AcademicYear } from "@/types/academicYear";
 import type { AuthUser, User } from '@/types/user';
 import { dbSchemaFields } from '@/types/student-import-schema';
 
-type ProcessedStudent = Partial<Pick<User, 'name' | 'email' | 'admissionId' | 'fatherName' | 'motherName' | 'dob' | 'phone'>>;
+type ProcessedStudent = Partial<User>;
 
 interface ClassOption {
     value: string;
@@ -115,7 +115,7 @@ export default function StudentImportPage() {
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
                 if (Array.isArray(jsonData) && jsonData.length > 1) {
-                    const extractedHeaders = (jsonData[0] as any[]).map(h => h ? String(h).trim() : null).filter(h => h !== null) as string[];
+                    const extractedHeaders = (jsonData[0] as any[]).map(h => h ? String(h).trim() : null).filter(h => h !== null && h !== '') as string[];
                     const dataRows = jsonData.slice(1);
                     setHeaders(extractedHeaders);
                     setFullData(dataRows as any[][]);
@@ -186,7 +186,7 @@ export default function StudentImportPage() {
             const student: ProcessedStudent = {};
             Object.keys(dbFieldToHeaderIndex).forEach(dbField => {
                 const index = dbFieldToHeaderIndex[dbField];
-                if (row[index] !== undefined && row[index] !== null) {
+                if (row[index] !== undefined && row[index] !== null && String(row[index]).trim() !== '') {
                     (student as any)[dbField] = String(row[index]);
                 }
             });
@@ -220,6 +220,25 @@ export default function StudentImportPage() {
         }
         setIsImporting(false);
     }
+
+    const finalPreviewHeaders = useMemo(() => {
+        if (processedStudents.length === 0) return [];
+        const headerSet = new Set<string>();
+        processedStudents.forEach(student => {
+            Object.keys(student).forEach(key => headerSet.add(key));
+        });
+        // Prioritize common headers
+        const prioritized = ['name', 'admissionId', 'email', 'fatherName', 'motherName', 'dob', 'phone'];
+        const sortedHeaders = Array.from(headerSet).sort((a, b) => {
+            const aIndex = prioritized.indexOf(a);
+            const bIndex = prioritized.indexOf(b);
+            if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+            if (aIndex !== -1) return -1;
+            if (bIndex !== -1) return 1;
+            return a.localeCompare(b);
+        });
+        return sortedHeaders;
+    }, [processedStudents]);
 
     return (
         <div className="space-y-6">
@@ -337,7 +356,26 @@ export default function StudentImportPage() {
                             <CardHeader><CardTitle>Final Import Preview</CardTitle></CardHeader>
                             <CardContent>
                                 <p className="text-sm text-muted-foreground mb-4">Review the structured data below. This is how it will be imported. Existing students with the same Admission ID or Email will be skipped.</p>
-                                <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Admission ID</TableHead><TableHead>Email</TableHead><TableHead>Father's Name</TableHead></TableRow></TableHeader><TableBody>{processedStudents.slice(0, 10).map((student, index) => (<TableRow key={index}><TableCell>{student.name || 'N/A'}</TableCell><TableCell>{student.admissionId || 'N/A'}</TableCell><TableCell>{student.email || 'N/A'}</TableCell><TableCell>{student.fatherName || 'N/A'}</TableCell></TableRow>))}</TableBody></Table></div>
+                                <div className="overflow-x-auto">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        {finalPreviewHeaders.map(header => (
+                                          <TableHead key={header} className="capitalize">{header.replace(/([A-Z])/g, ' $1')}</TableHead>
+                                        ))}
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {processedStudents.slice(0, 10).map((student, index) => (
+                                        <TableRow key={index}>
+                                          {finalPreviewHeaders.map(header => (
+                                            <TableCell key={`${index}-${header}`}>{(student as any)[header] || 'N/A'}</TableCell>
+                                          ))}
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
                                 {processedStudents.length > 10 && <p className="text-xs text-muted-foreground mt-2">Showing first 10 of {processedStudents.length} records.</p>}
                                 {importResult && (
                                     <Alert className="mt-4" variant={importResult.imported > 0 ? "default" : "destructive"}>
