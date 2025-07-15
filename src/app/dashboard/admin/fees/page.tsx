@@ -281,7 +281,7 @@ export default function FeeManagementPage() {
                 />
               </div>
               {searchTerm && (
-                <div className="mt-2 border rounded-md max-h-60 overflow-y-auto bg-background z-10 absolute w-[calc(100%-3rem)] md:w-full max-w-sm">
+                <div className="mt-2 border rounded-md max-h-60 overflow-y-auto bg-background absolute w-[calc(100%-3rem)] md:w-full max-w-sm">
                   {filteredStudents.length > 0 ? (
                     filteredStudents.map(student => (
                       <div 
