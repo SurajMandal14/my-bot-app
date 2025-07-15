@@ -19,6 +19,7 @@ import { bulkCreateSchoolUsers } from '@/app/actions/schoolUsers';
 import { getAcademicYears } from '@/app/actions/academicYears';
 import type { AcademicYear } from "@/types/academicYear";
 import type { AuthUser, User } from '@/types/user';
+import { dbSchemaFields } from '@/types/student-import-schema';
 
 type ProcessedStudent = Partial<Pick<User, 'name' | 'email' | 'admissionId' | 'fatherName' | 'motherName' | 'dob' | 'phone'>>;
 
@@ -114,7 +115,7 @@ export default function StudentImportPage() {
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
                 if (Array.isArray(jsonData) && jsonData.length > 1) {
-                    const extractedHeaders = (jsonData[0] as any[]).map(h => h ? String(h).trim() : '').filter(Boolean);
+                    const extractedHeaders = (jsonData[0] as any[]).map(h => h ? String(h).trim() : null).filter(h => h !== null) as string[];
                     const dataRows = jsonData.slice(1);
                     setHeaders(extractedHeaders);
                     setFullData(dataRows as any[][]);
@@ -158,6 +159,15 @@ export default function StudentImportPage() {
         }
     };
     
+    const handleMappingChange = (header: string, newDbField: string | null) => {
+        setMappedData(prev => {
+            if (!prev) return null;
+            const newMap = { ...prev };
+            newMap[header] = newDbField === "null" ? null : newDbField;
+            return newMap;
+        });
+    };
+
     const handleProcessData = () => {
         if (!mappedData || !fullData.length) {
             toast({ variant: "destructive", title: "Cannot Process", description: "Please run AI mapping on a valid file first."});
@@ -283,8 +293,40 @@ export default function StudentImportPage() {
 
                             {isMapping && <div className="mt-4 flex justify-center items-center h-32"><Loader2 className="mr-2 h-6 w-6 animate-spin"/> Mapping columns...</div>}
                             {mappedData && !isMapping && (
-                                <div className="mt-6"><h3 className="font-semibold text-lg mb-2">Review Mapping</h3><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Spreadsheet Column</TableHead><TableHead>Database Field</TableHead></TableRow></TableHeader><TableBody>{Object.entries(mappedData).map(([header, dbField]) => (<TableRow key={header}><TableCell>{header}</TableCell><TableCell className="flex items-center gap-2"><ArrowRight className="h-4 w-4 text-muted-foreground"/>{dbField ? (<span className="font-mono text-primary bg-primary/10 px-2 py-1 rounded-md">{dbField}</span>) : (<span className="italic text-muted-foreground">Will be ignored</span>)}</TableCell></TableRow>))}</TableBody></Table></div>
-                                    <Alert className="mt-4 border-amber-500 text-amber-900 dark:border-amber-600 dark:text-amber-300 [&>svg]:text-amber-500"><AlertCircle className="h-4 w-4" /><AlertTitle>Review Carefully</AlertTitle><AlertDescription>Check the AI mapping. The ability to edit mappings will be added next.</AlertDescription></Alert>
+                                <div className="mt-6">
+                                    <h3 className="font-semibold text-lg mb-2">Review Mapping</h3>
+                                    <div className="overflow-x-auto">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Spreadsheet Column</TableHead>
+                                                    <TableHead>Database Field</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {Object.entries(mappedData).map(([header, dbField]) => (
+                                                    <TableRow key={header}>
+                                                        <TableCell>{header}</TableCell>
+                                                        <TableCell className="flex items-center gap-2">
+                                                            <ArrowRight className="h-4 w-4 text-muted-foreground"/>
+                                                            <Select onValueChange={(value) => handleMappingChange(header, value)} value={dbField || "null"}>
+                                                                <SelectTrigger className="w-[250px]">
+                                                                    <SelectValue placeholder="Select database field..."/>
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="null">-- Ignore this column --</SelectItem>
+                                                                    {dbSchemaFields.map(field => (
+                                                                        <SelectItem key={field} value={field}>{field}</SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                    <Alert className="mt-4 border-amber-500 text-amber-900 dark:border-amber-600 dark:text-amber-300 [&>svg]:text-amber-500"><AlertCircle className="h-4 w-4" /><AlertTitle>Review Carefully</AlertTitle><AlertDescription>Correct any AI mapping errors using the dropdowns before processing the data.</AlertDescription></Alert>
                                 </div>
                             )}
                         </CardContent>

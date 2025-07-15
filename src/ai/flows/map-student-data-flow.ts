@@ -12,12 +12,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import { dbSchemaFields } from '@/types/student-import-schema';
 
-const dbSchemaFields = [
-    'name', 'email', 'password', 'admissionId', 'classId',
-    'fatherName', 'motherName', 'dob', 'section', 'rollNo', 'examNo', 'aadharNo',
-    'phone', 'busRouteLocation', 'busClassCategory', 'academicYear', 'dateOfJoining'
-];
 
 const StudentDataMappingInputSchema = z.object({
   headers: z.array(z.string()).describe('The header row from the uploaded spreadsheet.'),
