@@ -28,6 +28,25 @@ interface ClassOption {
     label: string;
 }
 
+function excelSerialDateToJSDate(serial: number) {
+  if (typeof serial !== 'number' || isNaN(serial)) return null;
+  // Excel's epoch starts on 1900-01-01, but it incorrectly thinks 1900 is a leap year.
+  // The formula is: (serial - 25569) * 86400 * 1000 for UTC.
+  // 25569 is the number of days between 1970-01-01 (JS epoch) and 1900-01-01 (Excel epoch).
+  const date = new Date((serial - 25569) * 86400 * 1000);
+  // Adjust for timezone offset to get the correct local date
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() + tzOffset);
+}
+
+function formatDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+
 export default function StudentImportPage() {
     const { toast } = useToast();
     const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -112,34 +131,51 @@ export default function StudentImportPage() {
                 const workbook = XLSX.read(data, { type: 'array' });
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
-                const jsonData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
-                if (Array.isArray(jsonData) && jsonData.length > 1) {
-                    const originalHeaders = jsonData[0];
-                    const dataRows = jsonData.slice(1);
-                    
-                    const validHeaderIndices: number[] = [];
-                    const finalHeaders: string[] = [];
+                // Get raw data to identify dates
+                const rawJsonData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
 
-                    originalHeaders.forEach((header, index) => {
-                        if (header !== null && String(header).trim() !== '') {
-                            validHeaderIndices.push(index);
-                            finalHeaders.push(String(header).trim());
-                        }
-                    });
-
-                    const alignedDataRows = dataRows.map(row => 
-                        validHeaderIndices.map(validIndex => row[validIndex] ?? null)
-                    );
-
-                    setHeaders(finalHeaders);
-                    setFullData(alignedDataRows);
-                    setMappedData(null);
-                    setProcessedStudents([]);
-                } else {
+                if (!rawJsonData || rawJsonData.length < 2) {
                      toast({ variant: 'destructive', title: 'Empty Sheet', description: 'The selected file sheet is empty or has no data.' });
                      setHeaders([]); setFullData([]);
+                     setIsLoadingFile(false);
+                     return;
                 }
+
+                const originalHeaders = rawJsonData[0];
+                const dataRows = rawJsonData.slice(1);
+                
+                const validHeaderIndices: number[] = [];
+                const finalHeaders: string[] = [];
+                const dateColumns: boolean[] = [];
+
+                originalHeaders.forEach((header, index) => {
+                    if (header !== null && String(header).trim() !== '') {
+                        validHeaderIndices.push(index);
+                        finalHeaders.push(String(header).trim());
+                        
+                        // Heuristic to detect date columns based on header name
+                        const headerStr = String(header).toLowerCase();
+                        dateColumns.push(headerStr.includes('date') || headerStr.includes('dob') || headerStr.includes('doa'));
+                    }
+                });
+
+                const alignedDataRows = dataRows.map(row => 
+                    validHeaderIndices.map((validIndex, colIndex) => {
+                        const cellValue = row[validIndex];
+                        if (dateColumns[colIndex] && typeof cellValue === 'number' && cellValue > 1) {
+                            const jsDate = excelSerialDateToJSDate(cellValue);
+                            return jsDate ? formatDate(jsDate) : cellValue;
+                        }
+                        return cellValue ?? '';
+                    })
+                );
+
+                setHeaders(finalHeaders);
+                setFullData(alignedDataRows);
+                setMappedData(null);
+                setProcessedStudents([]);
+                
             } catch (error) {
                 toast({ variant: 'destructive', title: 'Error Reading File', description: 'There was a problem processing your file.' });
             } finally {
@@ -242,8 +278,7 @@ export default function StudentImportPage() {
         processedStudents.forEach(student => {
             Object.keys(student).forEach(key => headerSet.add(key));
         });
-        // Prioritize common headers
-        const prioritized = ['name', 'admissionId', 'fatherName', 'motherName', 'dob', 'phone'];
+        const prioritized = ['name', 'admissionId', 'dob', 'fatherName', 'motherName', 'phone', 'dateOfJoining'];
         const sortedHeaders = Array.from(headerSet).sort((a, b) => {
             const aIndex = prioritized.indexOf(a);
             const bIndex = prioritized.indexOf(b);
