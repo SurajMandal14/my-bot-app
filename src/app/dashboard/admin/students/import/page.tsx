@@ -65,7 +65,11 @@ export default function StudentImportPage() {
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
                 if (Array.isArray(jsonData) && jsonData.length > 1) {
-                    const extractedHeaders = (jsonData[0] as string[]).map(h => h.trim());
+                    // FIX: Filter out null, undefined, and empty string headers
+                    const extractedHeaders = (jsonData[0] as any[])
+                        .map(h => h ? String(h).trim() : '')
+                        .filter(h => h); 
+
                     const extractedData = jsonData.slice(1, 6); // Get up to 5 sample rows
 
                     setHeaders(extractedHeaders);
