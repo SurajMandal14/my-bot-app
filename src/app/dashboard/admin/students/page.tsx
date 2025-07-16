@@ -184,6 +184,7 @@ export default function AdminStudentManagementPage() {
 
   useEffect(() => {
     if (isFormOpen && editingStudent) {
+      // Ensure all fields are correctly populated from the existing student data.
       currentForm.reset({
         name: editingStudent.name || "",
         email: editingStudent.email || "",
@@ -212,8 +213,8 @@ export default function AdminStudentManagementPage() {
         subcaste: editingStudent.subcaste || "",
         pwd: editingStudent.pwd || 'No',
         identificationMarks: editingStudent.identificationMarks || "",
-        presentAddress: editingStudent.presentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         isPermanentSameAsPresent: false, // Default to false for editing
+        presentAddress: editingStudent.presentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         permanentAddress: editingStudent.permanentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         fatherMobile: editingStudent.fatherMobile || "",
         motherMobile: editingStudent.motherMobile || "",
