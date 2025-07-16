@@ -9,8 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search, ArrowUpDown } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/attendance";
 import type { User as AppUser } from "@/types/user";
@@ -27,7 +27,6 @@ import { format } from "date-fns";
 const getCurrentAcademicYear = (): string => {
   const today = new Date();
   const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
   if (currentMonth >= 5) { 
     return `${currentYear}-${currentYear + 1}`;
   } else { 
@@ -49,6 +48,8 @@ interface StudentFeeDetailsProcessed extends AppUser {
   className?: string; 
   classLabel?: string;
 }
+
+type SortableKeys = 'name' | 'classLabel' | 'totalAnnualTuitionFee' | 'paidAmount' | 'totalConcessions' | 'dueAmount';
 
 export default function FeeManagementPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -73,6 +74,9 @@ export default function FeeManagementPage() {
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const { toast } = useToast();
   const currentAcademicYear = getCurrentAcademicYear();
+  
+  const [feeStatusFilterTerm, setFeeStatusFilterTerm] = useState("");
+  const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -246,6 +250,47 @@ export default function FeeManagementPage() {
     }
   };
   
+  const handleSort = (key: SortableKeys) => {
+    setSortConfig(prevConfig => ({
+      key,
+      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const filteredAndSortedFeeList = useMemo(() => {
+    let processableStudents = [...studentFeeList];
+    
+    // Filtering
+    if (feeStatusFilterTerm) {
+      const lowercasedFilter = feeStatusFilterTerm.toLowerCase();
+      processableStudents = processableStudents.filter(student => 
+        student.name?.toLowerCase().includes(lowercasedFilter) ||
+        student.admissionId?.toLowerCase().includes(lowercasedFilter)
+      );
+    }
+    
+    // Sorting
+    processableStudents.sort((a, b) => {
+      const { key, direction } = sortConfig;
+      
+      const aValue = a[key] ?? (typeof a[key] === 'number' ? 0 : '');
+      const bValue = b[key] ?? (typeof b[key] === 'number' ? 0 : '');
+
+      if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return processableStudents;
+  }, [studentFeeList, feeStatusFilterTerm, sortConfig]);
+
+  const renderSortIcon = (columnKey: SortableKeys) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="ml-2 h-4 w-4" />;
+    }
+    return sortConfig.direction === 'asc' ? '▲' : '▼';
+  };
+  
   if (isLoading && !authUser) return <div className="flex flex-1 items-center justify-center py-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-3 text-lg">Loading session...</p></div>;
   if (!authUser && !isLoading) return <Card><CardHeader><CardTitle>Access Denied</CardTitle></CardHeader><CardContent><p>Please log in as a school administrator to manage fees.</p><Button onClick={() => window.location.href = '/'} className="mt-4">Go to Login</Button></CardContent></Card>;
   if (isLoading && authUser) return <div className="flex flex-1 items-center justify-center py-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-3 text-lg">Loading fee management data...</p></div>;
@@ -281,7 +326,7 @@ export default function FeeManagementPage() {
                 />
               </div>
               {searchTerm && (
-                <div className="mt-2 border rounded-md max-h-60 overflow-y-auto bg-background absolute w-[calc(100%-3rem)] md:w-full max-w-sm">
+                <div className="mt-2 border rounded-md max-h-60 overflow-y-auto bg-background absolute w-[calc(100%-3rem)] md:w-full max-w-sm z-10">
                   {filteredStudents.length > 0 ? (
                     filteredStudents.map(student => (
                       <div 
@@ -351,13 +396,35 @@ export default function FeeManagementPage() {
         </Card>
 
         <Card className="md:col-span-2">
-          <CardHeader><CardTitle>Student Fee Status (Annual Tuition - {currentAcademicYear})</CardTitle><CardDescription>Overview of student tuition fees, payments, concessions, and dues.</CardDescription></CardHeader>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+              <div className="w-full sm:w-auto">
+                <CardTitle>Student Fee Status (Annual Tuition - {currentAcademicYear})</CardTitle>
+                <CardDescription>Overview of student tuition fees, payments, concessions, and dues.</CardDescription>
+              </div>
+              <Input
+                placeholder="Filter by name or admission no..."
+                value={feeStatusFilterTerm}
+                onChange={(e) => setFeeStatusFilterTerm(e.target.value)}
+                className="w-full sm:max-w-xs"
+                disabled={isLoading}
+              />
+            </div>
+          </CardHeader>
           <CardContent>
-            {studentFeeList.length > 0 ? (
+            {filteredAndSortedFeeList.length > 0 ? (
               <Table>
-                <TableHeader><TableRow><TableHead>Student Name</TableHead><TableHead>Class</TableHead><TableHead className="text-right">Total Fee (<span className="font-sans">₹</span>)</TableHead><TableHead className="text-right">Paid (<span className="font-sans">₹</span>)</TableHead><TableHead className="text-right">Concessions (<span className="font-sans">₹</span>)</TableHead><TableHead className="text-right">Due (<span className="font-sans">₹</span>)</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow>
+                    <TableHead><Button variant="ghost" onClick={() => handleSort('name')}>Student Name {renderSortIcon('name')}</Button></TableHead>
+                    <TableHead><Button variant="ghost" onClick={() => handleSort('classLabel')}>Class {renderSortIcon('classLabel')}</Button></TableHead>
+                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalAnnualTuitionFee')}>Total Fee {renderSortIcon('totalAnnualTuitionFee')}</Button></TableHead>
+                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('paidAmount')}>Paid {renderSortIcon('paidAmount')}</Button></TableHead>
+                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalConcessions')}>Concessions {renderSortIcon('totalConcessions')}</Button></TableHead>
+                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('dueAmount')}>Due {renderSortIcon('dueAmount')}</Button></TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
+                </TableRow></TableHeader>
                 <TableBody>
-                  {studentFeeList.map((student) => (
+                  {filteredAndSortedFeeList.map((student) => (
                     <TableRow key={student._id.toString()}>
                       <TableCell>{student.name}</TableCell><TableCell>{student.classLabel || 'N/A'}</TableCell>
                       <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualTuitionFee.toLocaleString()}</TableCell>
