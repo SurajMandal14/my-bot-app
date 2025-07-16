@@ -64,6 +64,7 @@ Please provide a JSON object containing a "mappings" array. Each item in the arr
 - If a spreadsheet column does not correspond to any of the database fields, its "mappedField" value should be null.
 - Be intelligent with the mapping. For example, 'adm_no' or 'Admission Number' should map to 'admissionId'. 'DOB' or 'Date of Birth' should map to 'dob'. 'D.O.A' should map to 'dateOfJoining'.
 - **CRITICAL**: For the 'classId' field, you MUST map the standard class name. If the spreadsheet contains Roman numerals (e.g., I, II, V, X) or words (e.g., One, Two), convert them to their numeric equivalent (e.g., 1, 2, 5, 10). For example, a column named 'Class' with values 'V' should be mapped to the 'classId' field.
+- **ADDRESS FIELDS**: The database stores address components separately (e.g., 'presentAddress_street', 'presentAddress_village'). Map individual address columns from the spreadsheet (like 'Street', 'Village') to their corresponding database fields. Do NOT try to map a single 'Full Address' column to all of them.
 - Do not map columns that are clearly not part of the student schema (e.g., 'Row ID', 'Internal Notes'). Their "mappedField" value should be null.
 - Ensure every header from the input is present in the output array.
 `,
@@ -96,7 +97,7 @@ const mapStudentDataFlow = ai.defineFlow(
 
         return finalMapping;
     } catch (error: any) {
-        if (error.message && error.message.includes('503 Service Unavailable')) {
+        if (error.message && (error.message.includes('503') || error.message.includes('overloaded'))) {
             throw new Error("The AI mapping service is currently overloaded. Please try again in a few moments.");
         }
         // Re-throw other errors
