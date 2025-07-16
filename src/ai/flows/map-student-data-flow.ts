@@ -81,17 +81,26 @@ const mapStudentDataFlow = ai.defineFlow(
       console.log("mapStudentDataFlow: Received empty headers, returning empty map.");
       return {};
     }
-    const { output } = await prompt(input);
-    if (!output || !output.mappings) {
-        throw new Error("The AI model did not return a valid mapping array.");
-    }
     
-    // Transform the array of objects into the simple key-value record expected by the frontend.
-    const finalMapping: StudentDataMappingOutput = {};
-    for (const mappingItem of output.mappings) {
-        finalMapping[mappingItem.originalHeader] = mappingItem.mappedField;
-    }
+    try {
+        const { output } = await prompt(input);
+        if (!output || !output.mappings) {
+            throw new Error("The AI model did not return a valid mapping array.");
+        }
+        
+        // Transform the array of objects into the simple key-value record expected by the frontend.
+        const finalMapping: StudentDataMappingOutput = {};
+        for (const mappingItem of output.mappings) {
+            finalMapping[mappingItem.originalHeader] = mappingItem.mappedField;
+        }
 
-    return finalMapping;
+        return finalMapping;
+    } catch (error: any) {
+        if (error.message && error.message.includes('503 Service Unavailable')) {
+            throw new Error("The AI mapping service is currently overloaded. Please try again in a few moments.");
+        }
+        // Re-throw other errors
+        throw error;
+    }
   }
 );
