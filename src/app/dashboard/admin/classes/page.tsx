@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookCopy, PlusCircle, Edit3, Trash2, Loader2, UserCheck, FilePlus, XCircle, Info, Users, Languages, School as SchoolIcon, CalendarFold } from "lucide-react";
+import { BookCopy, PlusCircle, Edit3, Trash2, Loader2, UserCheck, FilePlus, XCircle, Info, Users, Languages, School as SchoolIcon, CalendarFold, ArrowUpDown } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import {
@@ -48,6 +48,8 @@ const NONE_TEACHER_VALUE = "__NONE_TEACHER_OPTION__";
 const NONE_SUBJECT_VALUE = "__NONE_SUBJECT_OPTION__";
 const NONE_CLASS_NAME_VALUE = "__NONE_CLASS_NAME_OPTION__";
 
+type SortableKeys = 'name' | 'classTeacherName' | 'studentCount';
+
 export default function AdminClassManagementPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -66,6 +68,10 @@ export default function AdminClassManagementPage() {
   const [classToDelete, setClassToDelete] = useState<SchoolClass | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  
+  const [filterText, setFilterText] = useState("");
+  const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+
 
   const form = useForm<CreateClassFormData>({
     resolver: zodResolver(createClassFormSchema),
@@ -160,7 +166,7 @@ export default function AdminClassManagementPage() {
       form.reset({
         name: editingClass.name,
         section: editingClass.section || "",
-        academicYear: editingClass.academicYear || selectedAcademicYear, // Lock to selected year
+        academicYear: editingClass.academicYear || selectedAcademicYear,
         classTeacherId: editingClass.classTeacherId?.toString() || "",
         subjects: editingClass.subjects && editingClass.subjects.length > 0 
           ? editingClass.subjects.map(s => ({ name: s.name, teacherId: s.teacherId?.toString() || "" })) 
@@ -174,7 +180,6 @@ export default function AdminClassManagementPage() {
     if (!authUser?.schoolId) return;
     setIsSubmitting(true);
     
-    // Ensure the payload has the correct academic year from the filter
     const payload = { ...values, academicYear: selectedAcademicYear };
     
     const result = editingClass
@@ -229,11 +234,40 @@ export default function AdminClassManagementPage() {
     }
     setClassToDelete(null);
   };
+
+  const handleSort = (key: SortableKeys) => {
+    setSortConfig(prevConfig => ({
+      key,
+      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
   
-  const filteredClasses = useMemo(() => {
+  const processedClasses = useMemo(() => {
     if (!selectedAcademicYear) return [];
-    return allSchoolClasses.filter(cls => cls.academicYear === selectedAcademicYear);
-  }, [allSchoolClasses, selectedAcademicYear]);
+    
+    return allSchoolClasses
+      .filter(cls => {
+        if (cls.academicYear !== selectedAcademicYear) return false;
+        if (!filterText) return true;
+        const searchTerm = filterText.toLowerCase();
+        return (
+          cls.name.toLowerCase().includes(searchTerm) ||
+          (cls.section && cls.section.toLowerCase().includes(searchTerm)) ||
+          (cls.classTeacherName && cls.classTeacherName.toLowerCase().includes(searchTerm))
+        );
+      })
+      .sort((a, b) => {
+        const { key, direction } = sortConfig;
+        if (!key) return 0;
+        
+        const aValue = a[key] ?? (key === 'studentCount' ? 0 : '');
+        const bValue = b[key] ?? (key === 'studentCount' ? 0 : '');
+
+        if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+  }, [allSchoolClasses, selectedAcademicYear, filterText, sortConfig]);
 
 
   if (!authUser && !isLoadingData) { 
@@ -243,6 +277,13 @@ export default function AdminClassManagementPage() {
   }
 
   const classDisplayName = (cls: SchoolClass) => `${cls.name}${cls.section ? ` - ${cls.section}` : ''}`;
+  
+  const renderSortIcon = (columnKey: SortableKeys) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="ml-2 h-4 w-4" />;
+    }
+    return sortConfig.direction === 'asc' ? '▲' : '▼';
+  };
 
   return (
     <div className="space-y-6">
@@ -455,8 +496,11 @@ export default function AdminClassManagementPage() {
 
           <Card>
             <CardHeader>
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <CardTitle>Existing Classes for {selectedAcademicYear}</CardTitle>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+                <div className="w-full sm:w-auto">
+                    <CardTitle>Existing Classes for {selectedAcademicYear}</CardTitle>
+                    <Input placeholder="Filter by class name, section, teacher..." value={filterText} onChange={e => setFilterText(e.target.value)} className="mt-2" />
+                </div>
                 <Button onClick={handleAddClick} disabled={(isFormOpen && !editingClass) || !selectedAcademicYear}>
                     <PlusCircle className="mr-2 h-4 w-4"/> Add New Class
                 </Button>
@@ -465,20 +509,26 @@ export default function AdminClassManagementPage() {
             <CardContent>
               {isLoadingData ? (
                  <div className="flex items-center justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading classes...</p></div>
-              ) : filteredClasses.length > 0 ? (
+              ) : processedClasses.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Class (Name - Section)</TableHead>
-                    <TableHead>Class Teacher</TableHead>
-                    <TableHead>No. of Students</TableHead>
+                    <TableHead>
+                        <Button variant="ghost" onClick={() => handleSort('name')}>Class {renderSortIcon('name')}</Button>
+                    </TableHead>
+                    <TableHead>
+                        <Button variant="ghost" onClick={() => handleSort('classTeacherName')}>Class Teacher {renderSortIcon('classTeacherName')}</Button>
+                    </TableHead>
+                    <TableHead>
+                        <Button variant="ghost" onClick={() => handleSort('studentCount')}>Students {renderSortIcon('studentCount')}</Button>
+                    </TableHead>
                     <TableHead>Subjects (Teachers)</TableHead>
                     <TableHead>2nd Lang</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredClasses.map((cls) => (
+                  {processedClasses.map((cls) => (
                     <TableRow key={cls._id.toString()}>
                       <TableCell className="font-medium">{classDisplayName(cls)}</TableCell>
                       <TableCell>{cls.classTeacherName || (cls.classTeacherId ? 'N/A' : 'Not Assigned')}</TableCell>
@@ -519,8 +569,8 @@ export default function AdminClassManagementPage() {
               ) : (
                 <div className="text-center py-6">
                     <Info className="mx-auto h-10 w-10 text-muted-foreground" />
-                    <p className="mt-3 text-muted-foreground">No classes found for the academic year {selectedAcademicYear}.</p>
-                    <p className="text-xs text-muted-foreground">Use the "Add New Class" button to create one.</p>
+                    <p className="mt-3 text-muted-foreground">{filterText ? `No classes found for "${filterText}"` : `No classes found for the academic year ${selectedAcademicYear}.`}</p>
+                    {!filterText && <p className="text-xs text-muted-foreground">Use the "Add New Class" button to create one.</p>}
                 </div>
               )}
             </CardContent>
