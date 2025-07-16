@@ -284,7 +284,9 @@ export default function AdminStudentManagementPage() {
       setUserToUpdate(null);
   };
   
-  const getClassNameFromId = (classId: string | undefined): string => classOptions.find(cls => cls.value === classId)?.label || 'N/A';
+  const getClassNameFromId = useCallback((classId: string | undefined): string => {
+    return classOptions.find(cls => cls.value === classId)?.label || 'N/A';
+  }, [classOptions]);
   
   const handleSort = (key: SortableKeys) => {
     setSortConfig(prevConfig => ({
