@@ -29,7 +29,7 @@ export type StudentDataMappingOutput = Record<string, string | null>;
 // This is required because the structured output API prefers explicitly defined object properties.
 const MappingItemSchema = z.object({
   originalHeader: z.string().describe("The exact column header from the user's spreadsheet."),
-  mappedField: z.enum(dbSchemaFields as [string, ...string[]]).nullable().describe("The corresponding database field. If no match is found, this should be null."),
+  mappedField: z.string().nullable().describe("The corresponding database field. If no match is found, this should be null."),
 });
 
 const AIOutputSchema = z.object({
