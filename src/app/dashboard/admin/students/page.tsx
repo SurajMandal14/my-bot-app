@@ -188,7 +188,7 @@ export default function AdminStudentManagementPage() {
       currentForm.reset({
         name: restOfStudent.name || "",
         email: restOfStudent.email || "",
-        password: "", // Always clear password on edit form
+        password: "",
         role: 'student',
         admissionId: restOfStudent.admissionId || "",
         classId: restOfStudent.classId || "",
@@ -406,7 +406,7 @@ export default function AdminStudentManagementPage() {
         </CardContent>
       </Card>
       
-      <Card><CardHeader><CardTitle className="flex items-center text-xl"><ShieldQuestion className="mr-2 h-6 w-6 text-primary"/>Academic & Other Details</CardTitle></CardHeader>
+      <Card><CardHeader><CardTitle className="flex items-center text-xl"><ShieldQuestion className="mr-2 h-6 w-6 text-primary"/>Academic &amp; Other Details</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <FormField control={currentForm.control} name="classId" render={({ field }) => (<FormItem><FormLabel>Class in which admitted</FormLabel><Select onValueChange={handleClassChange} value={field.value} disabled={classOptions.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={classOptions.length > 0 ? "Select class" : "No classes available"} /></SelectTrigger></FormControl><SelectContent>{classOptions.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
             <FormField
@@ -440,7 +440,7 @@ export default function AdminStudentManagementPage() {
         </CardContent>
       </Card>
 
-       <Card><CardHeader><CardTitle className="flex items-center text-xl"><Contact className="mr-2 h-6 w-6 text-primary"/>System & Account Details</CardTitle></CardHeader>
+       <Card><CardHeader><CardTitle className="flex items-center text-xl"><Contact className="mr-2 h-6 w-6 text-primary"/>System &amp; Account Details</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField control={currentForm.control} name="admissionId" render={({ field }) => (<FormItem><FormLabel>Admission ID (for Login)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
             <FormField control={currentForm.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage/></FormItem>)}/>
@@ -467,12 +467,40 @@ export default function AdminStudentManagementPage() {
 
   return (
     <div className="space-y-6">
-      <Card><CardHeader><CardTitle className="text-2xl font-headline flex items-center"><BookUser className="mr-2 h-6 w-6" /> Student Management</CardTitle><CardDescription>Manage student accounts for {schoolDetails?.schoolName || "your school"}.</CardDescription></CardHeader></Card>
+      <Card>
+        <CardHeader>
+            <CardTitle className="text-2xl font-headline flex items-center">
+                <BookUser className="mr-2 h-6 w-6" /> Student Management
+            </CardTitle>
+            <CardDescription>Manage student accounts for {schoolDetails?.schoolName || "your school"}.</CardDescription>
+        </CardHeader>
+      </Card>
 
       {isFormOpen ? (
-        <Card><CardHeader><CardTitle className="flex items-center">{editingStudent ? <><Edit3 className="mr-2 h-5 w-5"/>Edit Student: {editingStudent.name}</> : <><UserPlus className="mr-2 h-5 w-5"/>Add New Student</>}</CardTitle><CardDescription>{editingStudent ? `Update the details for ${editingStudent.name}.` : "Fill out the form below to add a new student."}</CardDescription></CardHeader>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              {editingStudent ? <><Edit3 className="mr-2 h-5 w-5"/>Edit Student: {editingStudent.name}</> : <><UserPlus className="mr-2 h-5 w-5"/>Add New Student</>}
+            </CardTitle>
+            <CardDescription>
+              {editingStudent ? `Update the details for ${editingStudent.name}.` : "Fill out the form below to add a new student."}
+            </CardDescription>
+          </CardHeader>
           <CardContent>
-            <Form {...currentForm}><form onSubmit={currentForm.handleSubmit(handleStudentSubmit)} className="space-y-6">{FormFields}<div className="flex gap-2 pt-4"><Button type="submit" disabled={isSubmitting}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : editingStudent ? <Edit3 className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}{editingStudent ? "Update Student" : "Add Student"}</Button><Button type="button" variant="outline" onClick={handleCancelClick} disabled={isSubmitting}><XCircle className="mr-2 h-4 w-4" />Cancel</Button></div></form></Form>
+            <Form {...currentForm}>
+              <form onSubmit={currentForm.handleSubmit(handleStudentSubmit)} className="space-y-6">
+                {FormFields}
+                <div className="flex gap-2 pt-4">
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : editingStudent ? <Edit3 className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                    {editingStudent ? "Update Student" : "Add Student"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={handleCancelClick} disabled={isSubmitting}>
+                    <XCircle className="mr-2 h-4 w-4" />Cancel
+                  </Button>
+                </div>
+              </form>
+            </Form>
           </CardContent>
         </Card>
       ) : (
@@ -519,7 +547,10 @@ export default function AdminStudentManagementPage() {
                   <TableCell>{getClassNameFromId(student.classId)}</TableCell>
                   <TableCell><span className={`px-2 py-1 text-xs font-semibold rounded-full capitalize ${student.status === 'active' ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-gray-100 text-gray-800 border border-gray-300'}`}>{student.status || 'active'}</span></TableCell>
                   <TableCell>{student.dateOfJoining ? format(new Date(student.dateOfJoining), "PP") : 'N/A'}</TableCell>
-                  <TableCell className="space-x-1"><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditClick(student)} disabled={isStatusUpdateLoading}><Edit3 className="h-4 w-4" /></Button><Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleActionClick(student)} disabled={isStatusUpdateLoading}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                  <TableCell className="space-x-1">
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditClick(student)} disabled={isStatusUpdateLoading}><Edit3 className="h-4 w-4" /></Button>
+                    <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleActionClick(student)} disabled={isStatusUpdateLoading}><Trash2 className="h-4 w-4" /></Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -529,15 +560,44 @@ export default function AdminStudentManagementPage() {
       </Card>
       )}
       
-      <AlertDialog open={isActionDialogOpen} onOpenChange={setIsActionDialogOpen}><AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>{userToUpdate?.status === 'discontinued' ? `Reactivate ${userToUpdate?.name}?` : `Update status for ${userToUpdate?.name}?`}</AlertDialogTitle><AlertDialogDescription>{userToUpdate?.status === 'discontinued' ? "This will set the user's status back to 'active'." : "Mark user as 'Discontinued' to deactivate their account, or 'Delete Permanently' to remove all data."}</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel onClick={() => setUserToUpdate(null)}>Cancel</AlertDialogCancel>{userToUpdate?.status === 'discontinued' ? (<Button variant="outline" onClick={() => handleStatusAction('active')} disabled={isStatusUpdateLoading}>{isStatusUpdateLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UserCheck className="mr-2 h-4 w-4"/>} Reactivate</Button>) : (<Button variant="outline" onClick={() => handleStatusAction('discontinued')} disabled={isStatusUpdateLoading}>{isStatusUpdateLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UserMinus className="mr-2 h-4 w-4"/>} Discontinue</Button>)}<Button variant="destructive" onClick={() => { setIsActionDialogOpen(false); setIsConfirmDeleteDialogOpen(true); }} disabled={isStatusUpdateLoading}><Trash2 className="mr-2 h-4 w-4"/> Delete Permanently</Button></AlertDialogFooter>
-      </AlertDialogContent></AlertDialog>
+      <AlertDialog open={isActionDialogOpen} onOpenChange={setIsActionDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{userToUpdate?.status === 'discontinued' ? `Reactivate ${userToUpdate?.name}?` : `Update status for ${userToUpdate?.name}?`}</AlertDialogTitle>
+              <AlertDialogDescription>{userToUpdate?.status === 'discontinued' ? "This will set the user's status back to 'active'." : "Mark user as 'Discontinued' to deactivate their account, or 'Delete Permanently' to remove all data."}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setUserToUpdate(null)}>Cancel</AlertDialogCancel>
+              {userToUpdate?.status === 'discontinued' ? (
+                <Button variant="outline" onClick={() => handleStatusAction('active')} disabled={isStatusUpdateLoading}>
+                  {isStatusUpdateLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UserCheck className="mr-2 h-4 w-4"/>} Reactivate
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={() => handleStatusAction('discontinued')} disabled={isStatusUpdateLoading}>
+                  {isStatusUpdateLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <UserMinus className="mr-2 h-4 w-4"/>} Discontinue
+                </Button>
+              )}
+              <Button variant="destructive" onClick={() => { setIsActionDialogOpen(false); setIsConfirmDeleteDialogOpen(true); }} disabled={isStatusUpdateLoading}>
+                <Trash2 className="mr-2 h-4 w-4"/> Delete Permanently
+              </Button>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}><AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete {userToUpdate?.name}. This action is irreversible.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel onClick={() => setUserToUpdate(null)}>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleStatusAction('delete')} disabled={isStatusUpdateLoading} className="bg-destructive hover:bg-destructive/90">{isStatusUpdateLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Confirm Delete</AlertDialogAction></AlertDialogFooter>
-      </AlertDialogContent></AlertDialog>
+      <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>This will permanently delete {userToUpdate?.name}. This action is irreversible.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setUserToUpdate(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handleStatusAction('delete')} disabled={isStatusUpdateLoading} className="bg-destructive hover:bg-destructive/90">
+                {isStatusUpdateLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Confirm Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
