@@ -594,15 +594,34 @@ export async function bulkCreateSchoolUsers(
       const userEmail = user.email || `${user.admissionId}@gmail.com`;
       
       let passwordSource = 'password123'; // Default password
-      if (user.dob && /^\d{2}\/\d{2}\/\d{4}$/.test(user.dob)) {
-        // DOB is in MM/DD/YYYY format, convert to MMDDYYYY for password
-        const dobAsPassword = user.dob.replace(/\//g, '');
+      // Date can come as MM/DD/YYYY or YYYY-MM-DD
+      if (user.dob) {
+        const dobAsPassword = user.dob.replace(/[\/\-]/g, '');
         if (dobAsPassword.length === 8) {
           passwordSource = dobAsPassword;
         }
       }
       
       const hashedPassword = await bcrypt.hash(passwordSource, 10);
+      
+      // Reconstruct nested address objects
+      const presentAddress: Address = {
+        houseNo: (user as any).presentAddress_houseNo,
+        street: (user as any).presentAddress_street,
+        village: (user as any).presentAddress_village,
+        mandal: (user as any).presentAddress_mandal,
+        district: (user as any).presentAddress_district,
+        state: (user as any).presentAddress_state,
+      };
+
+      const permanentAddress: Address = {
+        houseNo: (user as any).permanentAddress_houseNo,
+        street: (user as any).permanentAddress_street,
+        village: (user as any).permanentAddress_village,
+        mandal: (user as any).permanentAddress_mandal,
+        district: (user as any).permanentAddress_district,
+        state: (user as any).permanentAddress_state,
+      };
       
       const newUser: Omit<User, '_id'> = {
         name: user.name,
@@ -611,7 +630,7 @@ export async function bulkCreateSchoolUsers(
         role: 'student',
         status: 'active',
         schoolId: schoolObjectId,
-        classId: targetClassId, // Use the actual Class ObjectId string
+        classId: targetClassId,
         admissionId: user.admissionId,
         fatherName: user.fatherName,
         motherName: user.motherName,
@@ -625,6 +644,22 @@ export async function bulkCreateSchoolUsers(
         caste: user.caste,
         subcaste: user.subcaste,
         aadharNo: user.aadharNo,
+        identificationMarks: user.identificationMarks,
+        presentAddress,
+        permanentAddress,
+        fatherMobile: user.fatherMobile,
+        motherMobile: user.motherMobile,
+        fatherAadhar: user.fatherAadhar,
+        motherAadhar: user.motherAadhar,
+        fatherQualification: user.fatherQualification,
+        motherQualification: user.motherQualification,
+        fatherOccupation: user.fatherOccupation,
+        motherOccupation: user.motherOccupation,
+        rationCardNumber: user.rationCardNumber,
+        isTcAttached: user.isTcAttached,
+        previousSchool: user.previousSchool,
+        childIdNumber: user.childIdNumber,
+        motherTongue: user.motherTongue,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
