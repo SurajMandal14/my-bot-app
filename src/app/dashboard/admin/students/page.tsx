@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UserMinus, UserCheck, UserCircle2, ChevronsUpDown, Contact, GraduationCap, Home, Heart, ShieldQuestion, CalendarClock, Upload } from "lucide-react";
+import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UserMinus, UserCheck, UserCircle2, ChevronsUpDown, Contact, GraduationCap, Home, Heart, ShieldQuestion, CalendarClock, Upload, ArrowUpDown } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import {
@@ -50,6 +50,8 @@ import type { AuthUser } from "@/types/attendance";
 import Link from "next/link";
 
 type SchoolStudent = Partial<AppUser>; 
+type SortableKeys = 'name' | 'admissionId' | 'classId' | 'status';
+
 
 interface ClassOption {
   value: string; 
@@ -78,7 +80,6 @@ export default function AdminStudentManagementPage() {
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   
   const [editingStudent, setEditingStudent] = useState<SchoolStudent | null>(null);
   const [userToUpdate, setUserToUpdate] = useState<SchoolStudent | null>(null);
@@ -86,6 +87,10 @@ export default function AdminStudentManagementPage() {
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
   const [isStatusUpdateLoading, setIsStatusUpdateLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+
 
   const currentForm = useForm<CreateSchoolUserFormData>({
     resolver: async (data, context, options) => {
@@ -191,36 +196,22 @@ export default function AdminStudentManagementPage() {
         busClassCategory: editingStudent.busClassCategory || "",
         fatherName: editingStudent.fatherName || "",
         motherName: editingStudent.motherName || "",
-        dob: editingStudent.dob ? format(new Date(editingStudent.dob), 'yyyy-MM-dd') : "",
+        dob: editingStudent.dob || "",
         section: editingStudent.section || "",
         rollNo: editingStudent.rollNo || "",
         examNo: editingStudent.examNo || "",
         aadharNo: editingStudent.aadharNo || "",
-        dateOfJoining: editingStudent.dateOfJoining ? format(new Date(editingStudent.dateOfJoining), 'yyyy-MM-dd') : "",
-        dateOfLeaving: editingStudent.dateOfLeaving ? format(new Date(editingStudent.dateOfLeaving), 'yyyy-MM-dd') : "",
+        dateOfJoining: editingStudent.dateOfJoining || "",
+        dateOfLeaving: editingStudent.dateOfLeaving || "",
         bloodGroup: editingStudent.bloodGroup || "",
         nationality: editingStudent.nationality || "Indian",
         religion: editingStudent.religion || "",
         caste: editingStudent.caste || "",
         subcaste: editingStudent.subcaste || "",
         identificationMarks: editingStudent.identificationMarks || "",
-        presentAddress: {
-          houseNo: editingStudent.presentAddress?.houseNo || "",
-          street: editingStudent.presentAddress?.street || "",
-          village: editingStudent.presentAddress?.village || "",
-          mandal: editingStudent.presentAddress?.mandal || "",
-          district: editingStudent.presentAddress?.district || "",
-          state: editingStudent.presentAddress?.state || "",
-        },
+        presentAddress: editingStudent.presentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         isPermanentSameAsPresent: false, // Default to false for editing
-        permanentAddress: {
-          houseNo: editingStudent.permanentAddress?.houseNo || "",
-          street: editingStudent.permanentAddress?.street || "",
-          village: editingStudent.permanentAddress?.village || "",
-          mandal: editingStudent.permanentAddress?.mandal || "",
-          district: editingStudent.permanentAddress?.district || "",
-          state: editingStudent.permanentAddress?.state || "",
-        },
+        permanentAddress: editingStudent.permanentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         fatherMobile: editingStudent.fatherMobile || "",
         motherMobile: editingStudent.motherMobile || "",
         fatherAadhar: editingStudent.fatherAadhar || "",
@@ -290,12 +281,48 @@ export default function AdminStudentManagementPage() {
       setUserToUpdate(null);
   };
   
-  const filteredStudents = useMemo(() => allSchoolStudents.filter(user => 
-    user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.admissionId?.toLowerCase().includes(searchTerm.toLowerCase())
-  ), [allSchoolStudents, searchTerm]);
-
   const getClassNameFromId = (classId: string | undefined): string => classOptions.find(cls => cls.value === classId)?.label || 'N/A';
+  
+  const handleSort = (key: SortableKeys) => {
+    setSortConfig(prevConfig => ({
+      key,
+      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+  
+  const filteredAndSortedStudents = useMemo(() => {
+    let processableStudents = [...allSchoolStudents];
+    
+    // Filtering
+    if (searchTerm) {
+      const lowercasedFilter = searchTerm.toLowerCase();
+      processableStudents = processableStudents.filter(student => 
+        student.name?.toLowerCase().includes(lowercasedFilter) ||
+        student.admissionId?.toLowerCase().includes(lowercasedFilter)
+      );
+    }
+    
+    // Sorting
+    processableStudents.sort((a, b) => {
+      const { key, direction } = sortConfig;
+      
+      const aValue = (key === 'classId' ? getClassNameFromId(a[key]) : a[key]) || '';
+      const bValue = (key === 'classId' ? getClassNameFromId(b[key]) : b[key]) || '';
+
+      if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return processableStudents;
+  }, [allSchoolStudents, searchTerm, sortConfig, getClassNameFromId]);
+  
+  const renderSortIcon = (columnKey: SortableKeys) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="ml-2 h-4 w-4" />;
+    }
+    return sortConfig.direction === 'asc' ? '▲' : '▼';
+  };
 
   const FormFields = (
     <div className="space-y-8">
@@ -432,7 +459,7 @@ export default function AdminStudentManagementPage() {
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <CardTitle>Student List</CardTitle>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Input placeholder="Search students..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolStudents.length}/>
+              <Input placeholder="Filter by Name or Adm. No..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolStudents.length}/>
               <Button asChild variant="outline">
                   <Link href="/dashboard/admin/students/import"><Upload className="mr-2 h-4 w-4" /> Import Students</Link>
               </Button>
@@ -442,11 +469,28 @@ export default function AdminStudentManagementPage() {
         </CardHeader>
         <CardContent>
           {isLoadingData ? (<div className="flex items-center justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading students...</p></div>
-          ) : filteredStudents.length > 0 ? (
+          ) : filteredAndSortedStudents.length > 0 ? (
           <Table>
-            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Admission ID</TableHead><TableHead>Class</TableHead><TableHead>Status</TableHead><TableHead>Joining Date</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <Button variant="ghost" onClick={() => handleSort('name')}>Name {renderSortIcon('name')}</Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" onClick={() => handleSort('admissionId')}>Admission ID {renderSortIcon('admissionId')}</Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" onClick={() => handleSort('classId')}>Class {renderSortIcon('classId')}</Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" onClick={() => handleSort('status')}>Status {renderSortIcon('status')}</Button>
+                </TableHead>
+                <TableHead>Joining Date</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
-              {filteredStudents.map((student) => (
+              {filteredAndSortedStudents.map((student) => (
                 <TableRow key={student._id?.toString()} className={student.status === 'discontinued' ? 'opacity-50' : ''}>
                   <TableCell>{student.name}</TableCell>
                   <TableCell>{student.admissionId || 'N/A'}</TableCell>
@@ -475,3 +519,5 @@ export default function AdminStudentManagementPage() {
     </div>
   );
 }
+
+    
