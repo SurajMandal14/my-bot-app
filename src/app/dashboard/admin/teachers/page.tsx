@@ -158,9 +158,9 @@ export default function AdminTeacherManagementPage() {
         name: editingTeacher.name || "",
         email: editingTeacher.email || "",
         password: "",
-        dateOfJoining: editingTeacher.dateOfJoining || "",
-        dateOfLeaving: editingTeacher.dateOfLeaving || "",
-        dob: editingTeacher.dob || "",
+        dateOfJoining: editingTeacher.dateOfJoining ? format(new Date(editingTeacher.dateOfJoining), 'yyyy-MM-dd') : "",
+        dateOfLeaving: editingTeacher.dateOfLeaving ? format(new Date(editingTeacher.dateOfLeaving), 'yyyy-MM-dd') : "",
+        dob: editingTeacher.dob ? format(new Date(editingTeacher.dob), 'yyyy-MM-dd') : "",
         phone: editingTeacher.phone || "",
         aadharNo: editingTeacher.aadharNo || "",
         qualification: editingTeacher.qualification || "",
@@ -169,6 +169,7 @@ export default function AdminTeacherManagementPage() {
         presentAddress: editingTeacher.presentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         isPermanentSameAsPresent: false,
         permanentAddress: editingTeacher.permanentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
+        bloodGroup: editingTeacher.bloodGroup || "",
       });
     }
   }, [editingTeacher, isFormOpen, form]);

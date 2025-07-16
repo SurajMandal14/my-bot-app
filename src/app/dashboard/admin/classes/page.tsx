@@ -158,10 +158,11 @@ export default function AdminClassManagementPage() {
   useEffect(() => {
     if (isFormOpen && editingClass) {
       form.reset({
-        name: editingClass.name, section: editingClass.section || "",
+        name: editingClass.name,
+        section: editingClass.section || "",
         academicYear: editingClass.academicYear || selectedAcademicYear, // Lock to selected year
         classTeacherId: editingClass.classTeacherId?.toString() || "",
-        subjects: editingClass.subjects.length > 0 
+        subjects: editingClass.subjects && editingClass.subjects.length > 0 
           ? editingClass.subjects.map(s => ({ name: s.name, teacherId: s.teacherId?.toString() || "" })) 
           : [{ name: "", teacherId: "" }],
         secondLanguageSubjectName: editingClass.secondLanguageSubjectName || "",
@@ -482,8 +483,8 @@ export default function AdminClassManagementPage() {
                       <TableCell>
                         {cls.subjects.length > 0 ? (
                             <ul className="list-disc pl-4 text-xs">
-                                {cls.subjects.map(s => (
-                                    <li key={s.name}>{s.name} <span className="text-muted-foreground">({s.teacherName || (s.teacherId ? 'Teacher N/A' : 'Unassigned')})</span></li>
+                                {cls.subjects.map((s, index) => (
+                                    <li key={`${s.name}-${index}`}>{s.name} <span className="text-muted-foreground">({s.teacherName || (s.teacherId ? 'Teacher N/A' : 'Unassigned')})</span></li>
                                 ))}
                             </ul>
                         ) : 'None'}
