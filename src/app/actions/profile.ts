@@ -12,7 +12,7 @@ export interface UpdateProfileResult {
   success: boolean;
   message: string;
   error?: string;
-  user?: Partial<Pick<User, 'name' | 'phone' | 'avatarUrl' | '_id' | 'email' | 'role' | 'schoolId' | 'classId'>>;
+  user?: Partial<User>; 
 }
 
 export async function updateUserProfile(userId: string, values: z.infer<typeof updateProfileFormSchema>): Promise<UpdateProfileResult> {
@@ -61,28 +61,23 @@ export async function updateUserProfile(userId: string, values: z.infer<typeof u
     revalidatePath('/dashboard/teacher/profile');
 
 
-    const updatedUser = await usersCollection.findOne({ _id: new ObjectId(userId) as any });
-    if (!updatedUser) {
+    const updatedUserDoc = await usersCollection.findOne({ _id: new ObjectId(userId) as any });
+    if (!updatedUserDoc) {
         return { success: false, message: 'Failed to retrieve updated user information.', error: 'Could not fetch user after update.' };
     }
     
-    // Return only the fields relevant to AuthUser plus updated fields
-    const responseUser: Partial<Pick<User, 'name' | 'phone' | 'avatarUrl' | '_id' | 'email' | 'role' | 'schoolId' | 'classId'>> = {
-        _id: updatedUser._id.toString(),
-        name: updatedUser.name,
-        email: updatedUser.email,
-        role: updatedUser.role,
-        schoolId: updatedUser.schoolId?.toString(),
-        classId: updatedUser.classId,
-        phone: updatedUser.phone,
-        avatarUrl: updatedUser.avatarUrl,
-    };
-
+    // Return the full user object so localStorage can be updated
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password, ...userWithoutPassword } = updatedUserDoc;
 
     return {
       success: true,
       message: 'Profile updated successfully!',
-      user: responseUser,
+      user: {
+          ...userWithoutPassword,
+          _id: userWithoutPassword._id.toString(),
+          schoolId: userWithoutPassword.schoolId?.toString(),
+      },
     };
 
   } catch (error) {

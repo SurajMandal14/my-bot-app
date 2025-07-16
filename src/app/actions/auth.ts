@@ -15,7 +15,7 @@ export interface LoginResult {
   success: boolean;
   error?: string;
   message?: string;
-  user?: Pick<User, 'email' | 'name' | 'role' | '_id' | 'schoolId' | 'classId' | 'admissionId' | 'avatarUrl'>;
+  user?: Partial<User>;
 }
 
 export async function loginUser(values: z.infer<typeof loginSchema>): Promise<LoginResult> {
@@ -30,48 +30,45 @@ export async function loginUser(values: z.infer<typeof loginSchema>): Promise<Lo
 
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<User>('users');
-    let user: User | null = null;
+    let userDoc: User | null = null;
 
     if (identifier.includes('@')) { // Treat as email
-      // MongoDB findOne with a string query is case-sensitive by default.
-      user = await usersCollection.findOne({ email: identifier });
+      userDoc = await usersCollection.findOne({ email: identifier });
     } else { // Treat as admission number (only for students)
-      // MongoDB findOne with a string query is case-sensitive by default.
-      user = await usersCollection.findOne({ admissionId: identifier, role: 'student' });
+      userDoc = await usersCollection.findOne({ admissionId: identifier, role: 'student' });
     }
 
-    if (!user) {
+    if (!userDoc) {
       return { error: 'User not found. Please check your credentials.', success: false };
     }
 
-    if (!user.password) {
+    if (!userDoc.password) {
       return { error: 'Password not set for this user. Please contact support.', success: false };
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, userDoc.password);
 
     if (!isPasswordValid) {
-      // Fallback for plain text password (e.g., initial superadmin)
-      if (user.password === password) {
-        // Plain text password matches
+      if (userDoc.password === password) {
+        // Plain text password matches (legacy)
       } else {
         return { error: 'Invalid password. Please try again.', success: false };
       }
     }
     
+    // Convert to client-safe object, ensuring all necessary fields for localStorage are present
+    const { password: _, ...user } = userDoc;
+    const clientUser: Partial<User> = {
+        ...user,
+        _id: user._id.toString(),
+        schoolId: user.schoolId?.toString(),
+    };
+
+
     return {
       success: true,
       message: 'Login successful! Redirecting...',
-      user: { 
-        _id: user._id.toString(),
-        email: user.email, 
-        name: user.name, 
-        role: user.role,
-        schoolId: user.schoolId?.toString(),
-        classId: user.classId || undefined,
-        admissionId: user.admissionId || undefined,
-        avatarUrl: user.avatarUrl || undefined,
-      }
+      user: clientUser,
     };
 
   } catch (error) {
