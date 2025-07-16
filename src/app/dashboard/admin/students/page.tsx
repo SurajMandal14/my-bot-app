@@ -102,7 +102,7 @@ export default function AdminStudentManagementPage() {
         name: "", email: "", password: "", admissionId: "", classId: "", role: 'student',
         academicYear: getCurrentAcademicYear(),
         enableBusTransport: false, busRouteLocation: "", busClassCategory: "",
-        fatherName: "", motherName: "", dob: "", section: "", rollNo: "", examNo: "", aadharNo: "",
+        fatherName: "", motherName: "", dob: "", gender: undefined, section: "", rollNo: "", examNo: "", aadharNo: "",
         dateOfJoining: "",
         dateOfLeaving: "",
         // New detailed fields
@@ -196,13 +196,14 @@ export default function AdminStudentManagementPage() {
         busClassCategory: editingStudent.busClassCategory || "",
         fatherName: editingStudent.fatherName || "",
         motherName: editingStudent.motherName || "",
-        dob: editingStudent.dob || "",
+        dob: editingStudent.dob ? format(new Date(editingStudent.dob), 'yyyy-MM-dd') : "",
+        gender: editingStudent.gender || undefined,
         section: editingStudent.section || "",
         rollNo: editingStudent.rollNo || "",
         examNo: editingStudent.examNo || "",
         aadharNo: editingStudent.aadharNo || "",
-        dateOfJoining: editingStudent.dateOfJoining || "",
-        dateOfLeaving: editingStudent.dateOfLeaving || "",
+        dateOfJoining: editingStudent.dateOfJoining ? format(new Date(editingStudent.dateOfJoining), 'yyyy-MM-dd') : "",
+        dateOfLeaving: editingStudent.dateOfLeaving ? format(new Date(editingStudent.dateOfLeaving), 'yyyy-MM-dd') : "",
         bloodGroup: editingStudent.bloodGroup || "",
         nationality: editingStudent.nationality || "Indian",
         religion: editingStudent.religion || "",
@@ -330,6 +331,7 @@ export default function AdminStudentManagementPage() {
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <FormField control={currentForm.control} name="name" render={({ field }) => (<FormItem className="lg:col-span-2"><FormLabel>Full Name of the Student</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
           <FormField control={currentForm.control} name="dob" render={({ field }) => (<FormItem><FormLabel>Date of Birth</FormLabel><FormControl><Input type="date" {...field}/></FormControl><FormMessage/></FormItem>)}/>
+          <FormField control={currentForm.control} name="gender" render={({ field }) => (<FormItem><FormLabel>Gender</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Male">Male</SelectItem><SelectItem value="Female">Female</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
           <FormField control={currentForm.control} name="bloodGroup" render={({ field }) => (<FormItem><FormLabel>Blood Group</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent><SelectItem value="A+">A+</SelectItem><SelectItem value="A-">A-</SelectItem><SelectItem value="B+">B+</SelectItem><SelectItem value="B-">B-</SelectItem><SelectItem value="AB+">AB+</SelectItem><SelectItem value="AB-">AB-</SelectItem><SelectItem value="O+">O+</SelectItem><SelectItem value="O-">O-</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
           <FormField control={currentForm.control} name="nationality" render={({ field }) => (<FormItem><FormLabel>Nationality</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
           <FormField control={currentForm.control} name="religion" render={({ field }) => (<FormItem><FormLabel>Religion</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Hinduism">Hinduism</SelectItem><SelectItem value="Islam">Islam</SelectItem><SelectItem value="Christianity">Christianity</SelectItem><SelectItem value="Sikhism">Sikhism</SelectItem><SelectItem value="Buddhism">Buddhism</SelectItem><SelectItem value="Jainism">Jainism</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
@@ -519,5 +521,3 @@ export default function AdminStudentManagementPage() {
     </div>
   );
 }
-
-    

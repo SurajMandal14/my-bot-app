@@ -151,6 +151,7 @@ export default function StudentProfilePage() {
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4 border rounded-md">
                         <ProfileDetailItem label="Full Name" value={authUser.name} />
                         <ProfileDetailItem label="Date of Birth" value={authUser.dob ? format(new Date(authUser.dob), 'PPP') : 'N/A'} />
+                        <ProfileDetailItem label="Gender" value={authUser.gender} />
                         <ProfileDetailItem label="Blood Group" value={authUser.bloodGroup} />
                         <ProfileDetailItem label="Nationality" value={authUser.nationality} />
                         <ProfileDetailItem label="Religion" value={authUser.religion} />

@@ -35,6 +35,7 @@ export interface User {
   fatherName?: string;
   motherName?: string;
   dob?: string; 
+  gender?: 'Male' | 'Female' | 'Other';
   section?: string; 
   rollNo?: string;
   examNo?: string;
@@ -101,6 +102,7 @@ const baseSchoolUserFormSchema = z.object({
   // Personal Details
   name: z.string().min(2, { message: "Full Name is required." }),
   dob: z.string().optional(),
+  gender: z.enum(['Male', 'Female', 'Other']).optional(),
   bloodGroup: z.string().optional(),
   nationality: z.string().optional(),
   religion: z.string().optional(),

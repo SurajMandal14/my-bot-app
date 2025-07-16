@@ -1,7 +1,9 @@
+
 export const dbSchemaFields = [
     // Admission Details
     'name', 
     'dob', 
+    'gender',
     'bloodGroup',
     'nationality',
     'religion',
