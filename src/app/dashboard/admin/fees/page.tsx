@@ -27,6 +27,7 @@ import { format } from "date-fns";
 const getCurrentAcademicYear = (): string => {
   const today = new Date();
   const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
   if (currentMonth >= 5) { 
     return `${currentYear}-${currentYear + 1}`;
   } else { 
