@@ -48,5 +48,7 @@ export const dbSchemaFields = [
     
     // System & Account Details
     'admissionId',
+    'email',
+    'password',
     'phone', // General contact phone
 ];

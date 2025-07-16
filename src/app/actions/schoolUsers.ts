@@ -576,32 +576,32 @@ export async function bulkCreateSchoolUsers(
       }
 
 
-      // Check for existing users
-      const orConditions = [];
-      // If email is provided in sheet, check it
-      if (user.email) orConditions.push({ email: user.email });
-      // Always check admissionId for the given school
-      if (user.admissionId) orConditions.push({ admissionId: user.admissionId, schoolId: schoolObjectId });
-
-      if (orConditions.length > 0) {
-        const existingUser = await usersCollection.findOne({ $or: orConditions });
-        if (existingUser) {
-          skippedCount++;
-          continue;
-        }
+      // Check for existing users by admission ID (for the given school) or by email (globally)
+      const orConditions = [{ admissionId: user.admissionId, schoolId: schoolObjectId }];
+      if (user.email) {
+        orConditions.push({ email: user.email } as any);
       }
-
+      
+      const existingUser = await usersCollection.findOne({ $or: orConditions });
+      if (existingUser) {
+        skippedCount++;
+        continue;
+      }
+      
+      // Use provided email or generate one
       const userEmail = user.email || `${user.admissionId}@gmail.com`;
       
+      // Use provided password or generate one from DOB
       let passwordSource = 'password123'; // Default password
-      // Date can come as MM/DD/YYYY or YYYY-MM-DD
-      if (user.dob) {
+      if (user.password) {
+        passwordSource = String(user.password);
+      } else if (user.dob) {
+        // Date can come as MM/DD/YYYY from our import processing
         const dobAsPassword = user.dob.replace(/[\/\-]/g, '');
-        if (dobAsPassword.length === 8) {
+        if (dobAsPassword.length >= 6) { // Basic check
           passwordSource = dobAsPassword;
         }
       }
-      
       const hashedPassword = await bcrypt.hash(passwordSource, 10);
       
       // Reconstruct nested address objects
