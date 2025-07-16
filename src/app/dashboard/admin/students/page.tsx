@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -184,11 +185,10 @@ export default function AdminStudentManagementPage() {
 
   useEffect(() => {
     if (isFormOpen && editingStudent) {
-      // Ensure all fields are correctly populated from the existing student data.
       currentForm.reset({
         name: editingStudent.name || "",
         email: editingStudent.email || "",
-        password: "", // Always clear password for edit form
+        password: "",
         role: 'student',
         admissionId: editingStudent.admissionId || "",
         classId: editingStudent.classId || "",
@@ -213,7 +213,7 @@ export default function AdminStudentManagementPage() {
         subcaste: editingStudent.subcaste || "",
         pwd: editingStudent.pwd || 'No',
         identificationMarks: editingStudent.identificationMarks || "",
-        isPermanentSameAsPresent: false, // Default to false for editing
+        isPermanentSameAsPresent: false,
         presentAddress: editingStudent.presentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         permanentAddress: editingStudent.permanentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         fatherMobile: editingStudent.fatherMobile || "",
