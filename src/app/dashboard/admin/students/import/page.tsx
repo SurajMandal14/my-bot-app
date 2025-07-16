@@ -14,27 +14,15 @@ import { UploadCloud, File, Loader2, ArrowRight, Wand2, Info, CheckCircle, Alert
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 import { mapStudentData, type StudentDataMappingOutput } from '@/ai/flows/map-student-data-flow';
-import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
 import { bulkCreateSchoolUsers } from '@/app/actions/schoolUsers';
-import { getAcademicYears } from '@/app/actions/academicYears';
-import type { AcademicYear } from "@/types/academicYear";
 import type { AuthUser, User } from '@/types/user';
 import { dbSchemaFields } from '@/types/student-import-schema';
 
 type ProcessedStudent = Partial<User>;
 
-interface ClassOption {
-    value: string;
-    label: string;
-}
-
 function excelSerialDateToJSDate(serial: number) {
   if (typeof serial !== 'number' || isNaN(serial)) return null;
-  // Excel's epoch starts on 1900-01-01, but it incorrectly thinks 1900 is a leap year.
-  // The formula is: (serial - 25569) * 86400 * 1000 for UTC.
-  // 25569 is the number of days between 1970-01-01 (JS epoch) and 1900-01-01 (Excel epoch).
   const date = new Date((serial - 25569) * 86400 * 1000);
-  // Adjust for timezone offset to get the correct local date
   const tzOffset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() + tzOffset);
 }
@@ -50,11 +38,7 @@ function formatDateToMMDDYYYY(date: Date) {
 export default function StudentImportPage() {
     const { toast } = useToast();
     const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-    const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
-    const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
-    const [selectedClassId, setSelectedClassId] = useState("");
-    const [selectedAcademicYear, setSelectedAcademicYear] = useState("");
-
+    
     const [file, setFile] = useState<File | null>(null);
     const [fileName, setFileName] = useState<string>('');
     const [headers, setHeaders] = useState<string[]>([]);
@@ -82,25 +66,6 @@ export default function StudentImportPage() {
             } catch (e) { console.error(e); }
         }
     }, []);
-
-    useEffect(() => {
-        async function fetchOptions() {
-            if (!authUser?.schoolId) return;
-            const [classes, years] = await Promise.all([
-                getClassesForSchoolAsOptions(authUser.schoolId),
-                getAcademicYears()
-            ]);
-            setClassOptions(classes);
-            if (years.success && years.academicYears) {
-                setAcademicYears(years.academicYears);
-                const defaultYear = years.academicYears.find(y => y.isDefault);
-                if (defaultYear) {
-                    setSelectedAcademicYear(defaultYear.year);
-                }
-            }
-        }
-        if (authUser) fetchOptions();
-    }, [authUser]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         setIsLoadingFile(true);
@@ -132,7 +97,6 @@ export default function StudentImportPage() {
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
                 
-                // Get raw data to identify dates
                 const rawJsonData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
 
                 if (!rawJsonData || rawJsonData.length < 2) {
@@ -142,7 +106,7 @@ export default function StudentImportPage() {
                      return;
                 }
 
-                const originalHeaders = rawJsonData[0];
+                const originalHeaders = rawJsonData[0].map(h => String(h || '').trim());
                 const dataRows = rawJsonData.slice(1);
                 
                 const validHeaderIndices: number[] = [];
@@ -150,12 +114,11 @@ export default function StudentImportPage() {
                 const dateColumns: boolean[] = [];
 
                 originalHeaders.forEach((header, index) => {
-                    if (header !== null && header !== undefined && String(header).trim() !== '') {
+                    if (header !== '') {
                         validHeaderIndices.push(index);
-                        finalHeaders.push(String(header).trim());
+                        finalHeaders.push(header);
                         
-                        // Heuristic to detect date columns based on header name
-                        const headerStr = String(header).toLowerCase();
+                        const headerStr = header.toLowerCase();
                         dateColumns.push(headerStr.includes('date') || headerStr.includes('dob') || headerStr.includes('d.o.b') || headerStr.includes('d.o.a'));
                     }
                 });
@@ -250,8 +213,8 @@ export default function StudentImportPage() {
     };
     
     const handleImportData = async () => {
-        if (!authUser?.schoolId || !selectedClassId || !selectedAcademicYear) {
-            toast({ variant: 'destructive', title: 'Selection Missing', description: "Please select a class and academic year for the import." });
+        if (!authUser?.schoolId) {
+            toast({ variant: 'destructive', title: 'Authentication Error', description: "Could not identify your school. Please re-login." });
             return;
         }
         if (processedStudents.length === 0) {
@@ -261,7 +224,7 @@ export default function StudentImportPage() {
         setIsImporting(true);
         setImportResult(null);
 
-        const result = await bulkCreateSchoolUsers(processedStudents, authUser.schoolId, selectedClassId, selectedAcademicYear);
+        const result = await bulkCreateSchoolUsers(processedStudents, authUser.schoolId);
 
         if(result.success) {
             toast({ title: "Import Complete", description: result.message, duration: 8000 });
@@ -278,7 +241,7 @@ export default function StudentImportPage() {
         processedStudents.forEach(student => {
             Object.keys(student).forEach(key => headerSet.add(key));
         });
-        const prioritized = ['name', 'admissionId', 'dob', 'fatherName', 'motherName', 'phone', 'dateOfJoining'];
+        const prioritized = ['name', 'admissionId', 'classId', 'academicYear', 'dob', 'fatherName', 'motherName', 'phone', 'dateOfJoining'];
         const sortedHeaders = Array.from(headerSet).sort((a, b) => {
             const aIndex = prioritized.indexOf(a);
             const bIndex = prioritized.indexOf(b);
@@ -295,29 +258,15 @@ export default function StudentImportPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="text-2xl font-headline flex items-center"><UploadCloud className="mr-2 h-6 w-6" /> Import Students from File</CardTitle>
-                    <CardDescription>Upload an Excel/CSV file, map columns using AI, and import student data into a selected class and academic year.</CardDescription>
+                    <CardDescription>Upload an Excel/CSV file, map columns using AI, and import student data. Class and Academic Year will be detected from the file.</CardDescription>
                 </CardHeader>
             </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 space-y-6">
                     <Card>
-                        <CardHeader><CardTitle>Step 1: Upload File & Select Target</CardTitle></CardHeader>
+                        <CardHeader><CardTitle>Step 1: Upload File</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
-                             <div>
-                                <Label htmlFor="class-select">Target Class</Label>
-                                <Select value={selectedClassId} onValueChange={setSelectedClassId}>
-                                    <SelectTrigger id="class-select"><SelectValue placeholder="Select a class"/></SelectTrigger>
-                                    <SelectContent>{classOptions.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-                                </Select>
-                            </div>
-                             <div>
-                                <Label htmlFor="year-select">Academic Year</Label>
-                                <Select value={selectedAcademicYear} onValueChange={setSelectedAcademicYear}>
-                                    <SelectTrigger id="year-select"><SelectValue placeholder="Select a year"/></SelectTrigger>
-                                    <SelectContent>{academicYears.map(y => <SelectItem key={y._id} value={y.year}>{y.year}</SelectItem>)}</SelectContent>
-                                </Select>
-                            </div>
                             <div className="space-y-2">
                                 <Label htmlFor="file-upload">Select Excel or CSV File</Label>
                                 <Input id="file-upload" type="file" onChange={handleFileChange} accept=".xlsx, .xls, .csv" disabled={isLoadingFile || isMapping}/>
@@ -342,7 +291,7 @@ export default function StudentImportPage() {
                     <Card>
                         <CardHeader><CardTitle>Step 3: Final Import</CardTitle></CardHeader>
                         <CardContent>
-                             <Button onClick={handleImportData} disabled={isImporting || processedStudents.length === 0 || !selectedClassId || !selectedAcademicYear} className="w-full">
+                             <Button onClick={handleImportData} disabled={isImporting || processedStudents.length === 0} className="w-full">
                                 {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>} Import {processedStudents.length > 0 ? `(${processedStudents.length})` : ''} Students
                             </Button>
                         </CardContent>

@@ -536,15 +536,10 @@ export interface BulkCreateSchoolUsersResult {
 
 export async function bulkCreateSchoolUsers(
   users: Partial<User>[], 
-  schoolId: string,
-  classId: string,
-  academicYear: string
+  schoolId: string
 ): Promise<BulkCreateSchoolUsersResult> {
-  if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
-    return { success: false, message: 'Invalid School or Class ID.' };
-  }
-  if (!academicYear) {
-    return { success: false, message: 'Academic Year must be provided for import.' };
+  if (!ObjectId.isValid(schoolId)) {
+    return { success: false, message: 'Invalid School ID.' };
   }
 
   try {
@@ -557,7 +552,7 @@ export async function bulkCreateSchoolUsers(
     
     for (const user of users) {
       // Basic validation for each user
-      if (!user.name || !user.admissionId) {
+      if (!user.name || !user.admissionId || !user.classId || !user.academicYear) {
         skippedCount++;
         continue;
       }
@@ -597,13 +592,13 @@ export async function bulkCreateSchoolUsers(
         role: 'student',
         status: 'active',
         schoolId: schoolObjectId,
-        classId: classId,
+        classId: user.classId,
         admissionId: user.admissionId,
         fatherName: user.fatherName,
         motherName: user.motherName,
         dob: user.dob,
         phone: user.phone,
-        academicYear: academicYear,
+        academicYear: user.academicYear,
         dateOfJoining: user.dateOfJoining,
         bloodGroup: user.bloodGroup,
         nationality: user.nationality,

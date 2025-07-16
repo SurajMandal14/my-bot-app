@@ -1,6 +1,8 @@
 export const dbSchemaFields = [
     'name', 
-    'admissionId', 
+    'admissionId',
+    'classId', // Added for auto-detection
+    'academicYear', // Added for auto-detection
     'dob', 
     'dateOfJoining',
     'fatherName', 
@@ -12,6 +14,4 @@ export const dbSchemaFields = [
     'religion',
     'caste',
     'subcaste',
-    // We intentionally exclude complex fields like address
-    // and fields that are assigned by the system like classId and academicYear.
 ];
