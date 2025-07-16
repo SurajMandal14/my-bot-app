@@ -112,7 +112,7 @@ const baseSchoolUserFormSchema = z.object({
   caste: z.enum(CasteOptions).optional(),
   subcaste: z.string().optional(),
   pwd: z.enum(['Yes', 'No']).optional(),
-  aadharNo: z.string().optional().refine(val => !val || /^\d{12}$/.test(val), { message: "Aadhar must be 12 digits." }),
+  aadharNo: z.string().transform(val => val.replace(/\s/g, '')).optional().refine(val => !val || /^\d{12}$/.test(val), { message: "Aadhar must be 12 digits." }),
   identificationMarks: z.string().optional(),
   phone: z.string().optional(),
   

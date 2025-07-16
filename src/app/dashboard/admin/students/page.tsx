@@ -212,23 +212,9 @@ export default function AdminStudentManagementPage() {
         subcaste: editingStudent.subcaste || "",
         pwd: editingStudent.pwd || 'No',
         identificationMarks: editingStudent.identificationMarks || "",
-        isPermanentSameAsPresent: false, // Default to false, user can re-check
-        presentAddress: {
-            houseNo: editingStudent.presentAddress?.houseNo || "",
-            street: editingStudent.presentAddress?.street || "",
-            village: editingStudent.presentAddress?.village || "",
-            mandal: editingStudent.presentAddress?.mandal || "",
-            district: editingStudent.presentAddress?.district || "",
-            state: editingStudent.presentAddress?.state || "",
-        },
-        permanentAddress: {
-            houseNo: editingStudent.permanentAddress?.houseNo || "",
-            street: editingStudent.permanentAddress?.street || "",
-            village: editingStudent.permanentAddress?.village || "",
-            mandal: editingStudent.permanentAddress?.mandal || "",
-            district: editingStudent.permanentAddress?.district || "",
-            state: editingStudent.permanentAddress?.state || "",
-        },
+        isPermanentSameAsPresent: false,
+        presentAddress: editingStudent.presentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
+        permanentAddress: editingStudent.permanentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         fatherMobile: editingStudent.fatherMobile || "",
         motherMobile: editingStudent.motherMobile || "",
         fatherAadhar: editingStudent.fatherAadhar || "",
@@ -540,5 +526,3 @@ export default function AdminStudentManagementPage() {
     </div>
   );
 }
-
-    
