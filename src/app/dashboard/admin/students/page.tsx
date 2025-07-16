@@ -187,7 +187,7 @@ export default function AdminStudentManagementPage() {
       currentForm.reset({
         name: editingStudent.name || "",
         email: editingStudent.email || "",
-        password: "", // Always clear password on edit
+        password: "",
         role: 'student',
         admissionId: editingStudent.admissionId || "",
         classId: editingStudent.classId || "",
@@ -198,7 +198,7 @@ export default function AdminStudentManagementPage() {
         fatherName: editingStudent.fatherName || "",
         motherName: editingStudent.motherName || "",
         dob: editingStudent.dob ? format(new Date(editingStudent.dob), 'yyyy-MM-dd') : "",
-        gender: editingStudent.gender || undefined,
+        gender: editingStudent.gender || "",
         section: editingStudent.section || "",
         rollNo: editingStudent.rollNo || "",
         examNo: editingStudent.examNo || "",
@@ -208,11 +208,11 @@ export default function AdminStudentManagementPage() {
         bloodGroup: editingStudent.bloodGroup || "",
         nationality: editingStudent.nationality || "Indian",
         religion: editingStudent.religion || "",
-        caste: editingStudent.caste || undefined,
+        caste: editingStudent.caste || "",
         subcaste: editingStudent.subcaste || "",
         pwd: editingStudent.pwd || 'No',
         identificationMarks: editingStudent.identificationMarks || "",
-        isPermanentSameAsPresent: false,
+        isPermanentSameAsPresent: false, // Default to false, let user check it
         presentAddress: editingStudent.presentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         permanentAddress: editingStudent.permanentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         fatherMobile: editingStudent.fatherMobile || "",
