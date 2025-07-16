@@ -198,7 +198,10 @@ export default function AdminClassManagementPage() {
   };
 
   const handleAddClick = () => {
-    if (!selectedAcademicYear) return;
+    if (!selectedAcademicYear) {
+        toast({variant: "destructive", title: "No Academic Year Selected", description: "Please select an academic year before adding a class."});
+        return;
+    }
     setEditingClass(null);
     form.reset({ name: "", section: "", academicYear: selectedAcademicYear, classTeacherId: "", subjects: [{ name: "", teacherId: "" }], secondLanguageSubjectName: "" });
     setIsFormOpen(true);
@@ -454,7 +457,7 @@ export default function AdminClassManagementPage() {
             <CardHeader>
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <CardTitle>Existing Classes for {selectedAcademicYear}</CardTitle>
-                <Button onClick={handleAddClick} disabled={isFormOpen && !editingClass}>
+                <Button onClick={handleAddClick} disabled={(isFormOpen && !editingClass) || !selectedAcademicYear}>
                     <PlusCircle className="mr-2 h-4 w-4"/> Add New Class
                 </Button>
               </div>
