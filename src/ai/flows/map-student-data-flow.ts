@@ -62,7 +62,8 @@ Please provide a JSON object containing a "mappings" array. Each item in the arr
 2. "mappedField": The most appropriate database field name from the provided list.
 
 - If a spreadsheet column does not correspond to any of the database fields, its "mappedField" value should be null.
-- Be intelligent with the mapping. For example, 'adm_no' or 'Admission Number' should map to 'admissionId'. 'DOB' or 'Date of Birth' should map to 'dob'.
+- Be intelligent with the mapping. For example, 'adm_no' or 'Admission Number' should map to 'admissionId'. 'DOB' or 'Date of Birth' should map to 'dob'. 'D.O.A' should map to 'dateOfJoining'.
+- **CRITICAL**: For the 'classId' field, you MUST map the standard class name. If the spreadsheet contains Roman numerals (e.g., I, II, V, X) or words (e.g., One, Two), convert them to their numeric equivalent (e.g., 1, 2, 5, 10). For example, a column named 'Class' with values 'V' should be mapped to the 'classId' field.
 - Do not map columns that are clearly not part of the student schema (e.g., 'Row ID', 'Internal Notes'). Their "mappedField" value should be null.
 - Ensure every header from the input is present in the output array.
 `,

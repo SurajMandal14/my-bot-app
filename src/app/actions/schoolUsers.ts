@@ -9,6 +9,7 @@ import type { User, UserRole, Address } from '@/types/user';
 import { createSchoolUserFormSchema, type CreateSchoolUserFormData, updateSchoolUserFormSchema, type UpdateSchoolUserFormData } from '@/types/user';
 import { revalidatePath } from 'next/cache';
 import { ObjectId } from 'mongodb';
+import type { SchoolClass } from '@/types/classes';
 
 
 export interface CreateSchoolUserResult {
@@ -547,6 +548,16 @@ export async function bulkCreateSchoolUsers(
     const usersCollection = db.collection('users');
     const schoolObjectId = new ObjectId(schoolId);
     
+    // Fetch all classes for the school once to avoid repeated DB calls
+    const existingClasses = await db.collection<SchoolClass>('school_classes')
+        .find({ schoolId: schoolObjectId })
+        .toArray();
+    
+    const classNameToIdMap = new Map<string, string>();
+    existingClasses.forEach(cls => {
+        classNameToIdMap.set(cls.name, cls._id.toString());
+    });
+    
     const usersToInsert: Omit<User, '_id'>[] = [];
     let skippedCount = 0;
     
@@ -556,6 +567,14 @@ export async function bulkCreateSchoolUsers(
         skippedCount++;
         continue;
       }
+      
+      // Class validation
+      const targetClassId = classNameToIdMap.get(user.classId);
+      if (!targetClassId) {
+        skippedCount++; // Skip if class does not exist
+        continue;
+      }
+
 
       // Check for existing users
       const orConditions = [];
@@ -592,7 +611,7 @@ export async function bulkCreateSchoolUsers(
         role: 'student',
         status: 'active',
         schoolId: schoolObjectId,
-        classId: user.classId,
+        classId: targetClassId, // Use the actual Class ObjectId string
         admissionId: user.admissionId,
         fatherName: user.fatherName,
         motherName: user.motherName,
@@ -620,7 +639,7 @@ export async function bulkCreateSchoolUsers(
 
     return {
       success: true,
-      message: `Import complete. ${usersToInsert.length} students were successfully imported. ${skippedCount} students were skipped due to missing data or existing accounts.`,
+      message: `Import complete. ${usersToInsert.length} students were successfully imported. ${skippedCount} students were skipped due to missing data, existing accounts, or non-existent classes.`,
       importedCount: usersToInsert.length,
       skippedCount: skippedCount,
     };
