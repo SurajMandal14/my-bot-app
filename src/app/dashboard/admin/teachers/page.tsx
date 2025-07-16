@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, Briefcase, XCircle, UserMinus, UserCheck, CalendarIcon, Heart, Contact, Home, GraduationCap, ShieldQuestion, Building } from "lucide-react";
+import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, Briefcase, XCircle, UserMinus, UserCheck, CalendarIcon, Heart, Contact, Home, GraduationCap, ShieldQuestion, Building, ArrowUpDown } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -47,6 +47,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type SchoolTeacher = Partial<AppUser>; 
+type SortableKeys = 'name' | 'email' | 'classTeacherFor' | 'dateOfJoining';
+
 
 const getCurrentAcademicYear = (): string => {
   const today = new Date();
@@ -66,14 +68,16 @@ export default function AdminTeacherManagementPage() {
   const [allSchoolTeachers, setAllSchoolTeachers] = useState<SchoolTeacher[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-
+  
   const [editingTeacher, setEditingTeacher] = useState<SchoolTeacher | null>(null);
   const [userToUpdate, setUserToUpdate] = useState<SchoolTeacher | null>(null);
   const [isActionDialogOpen, setIsActionDialogOpen] = useState(false);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
   const [isStatusUpdateLoading, setIsStatusUpdateLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
 
   const form = useForm<CreateSchoolUserFormData>({
     resolver: async (data, context, options) => {
@@ -251,16 +255,65 @@ export default function AdminTeacherManagementPage() {
       setUserToUpdate(null);
   };
   
-  const filteredTeachers = useMemo(() => allSchoolTeachers.filter(user => 
-    user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  ), [allSchoolTeachers, searchTerm]);
-
-
-  const getClassNameFromId = (teacherId: string | undefined): string => {
+  const getClassNameFromId = useCallback((teacherId: string | undefined): string => {
     if (!teacherId) return 'N/A';
     const foundClass = managedClasses.find(cls => cls.classTeacherId === teacherId);
     return foundClass ? `${foundClass.name} - ${foundClass.section}` : 'N/A';
+  }, [managedClasses]);
+  
+  const handleSort = (key: SortableKeys) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const filteredAndSortedTeachers = useMemo(() => {
+    let processableTeachers = [...allSchoolTeachers];
+
+    if (searchTerm) {
+        const lowercasedFilter = searchTerm.toLowerCase();
+        processableTeachers = processableTeachers.filter(teacher => 
+            teacher.name?.toLowerCase().includes(lowercasedFilter) ||
+            teacher.email?.toLowerCase().includes(lowercasedFilter)
+        );
+    }
+    
+    processableTeachers.sort((a, b) => {
+      const { key, direction } = sortConfig;
+      let aValue: string | number = '';
+      let bValue: string | number = '';
+
+      if (key === 'classTeacherFor') {
+        aValue = getClassNameFromId(a._id);
+        bValue = getClassNameFromId(b._id);
+      } else {
+        aValue = a[key] ?? '';
+        bValue = b[key] ?? '';
+      }
+      
+      if (key === 'dateOfJoining') {
+        // Handle date sorting correctly, nulls/undefined last
+        const dateA = aValue ? new Date(aValue as string).getTime() : 0;
+        const dateB = bValue ? new Date(bValue as string).getTime() : 0;
+        if(dateA < dateB) return direction === 'asc' ? -1 : 1;
+        if(dateA > dateB) return direction === 'asc' ? 1 : -1;
+        return 0;
+      }
+      
+      if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return processableTeachers;
+  }, [allSchoolTeachers, searchTerm, sortConfig, getClassNameFromId]);
+  
+  const renderSortIcon = (columnKey: SortableKeys) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="ml-2 h-4 w-4" />;
+    }
+    return sortConfig.direction === 'asc' ? '▲' : '▼';
   };
   
   const TeacherFormFields = (
@@ -346,20 +399,35 @@ export default function AdminTeacherManagementPage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <CardTitle>Teacher List ({schoolDetails?.schoolName || "Your School"})</CardTitle>
+            <CardTitle>Teacher List</CardTitle>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Input placeholder="Search teachers..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolTeachers.length}/>
+              <Input placeholder="Filter by Name or Email..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolTeachers.length}/>
               <Button onClick={handleAddClick}><UserPlus className="mr-2 h-4 w-4"/>Add New Teacher</Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {isLoadingData ? (<div className="flex items-center justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading teachers...</p></div>
-          ) : filteredTeachers.length > 0 ? (
+          ) : filteredAndSortedTeachers.length > 0 ? (
           <Table>
-            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Class Teacher For</TableHead><TableHead>Joining Date</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow>
+                <TableHead>
+                    <Button variant="ghost" onClick={() => handleSort('name')}>Name {renderSortIcon('name')}</Button>
+                </TableHead>
+                <TableHead>
+                    <Button variant="ghost" onClick={() => handleSort('email')}>Email {renderSortIcon('email')}</Button>
+                </TableHead>
+                <TableHead>
+                    <Button variant="ghost" onClick={() => handleSort('classTeacherFor')}>Class Teacher For {renderSortIcon('classTeacherFor')}</Button>
+                </TableHead>
+                <TableHead>
+                    <Button variant="ghost" onClick={() => handleSort('dateOfJoining')}>Joining Date {renderSortIcon('dateOfJoining')}</Button>
+                </TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+            </TableRow></TableHeader>
             <TableBody>
-              {filteredTeachers.map((teacher) => (
+              {filteredAndSortedTeachers.map((teacher) => (
                 <TableRow key={teacher._id?.toString()} className={teacher.status === 'discontinued' ? 'opacity-50' : ''}>
                   <TableCell>{teacher.name}</TableCell>
                   <TableCell>{teacher.email}</TableCell>
