@@ -36,7 +36,8 @@ import { useToast } from "@/hooks/use-toast";
 import { createSchoolUser, getSchoolUsers, updateSchoolUser, deleteSchoolUser, updateUserStatus } from "@/app/actions/schoolUsers";
 import { 
     createSchoolUserFormSchema, type CreateSchoolUserFormData,
-    updateSchoolUserFormSchema, type UpdateSchoolUserFormData
+    updateSchoolUserFormSchema, type UpdateSchoolUserFormData,
+    CasteOptions
 } from '@/types/user';
 import { getSchoolById } from "@/app/actions/schools";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
@@ -106,7 +107,7 @@ export default function AdminStudentManagementPage() {
         dateOfJoining: "",
         dateOfLeaving: "",
         // New detailed fields
-        bloodGroup: "", nationality: "Indian", religion: "", caste: "", subcaste: "",
+        bloodGroup: "", nationality: "Indian", religion: "", caste: undefined, subcaste: "", pwd: 'No',
         identificationMarks: "", isPermanentSameAsPresent: false,
         presentAddress: { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         permanentAddress: { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
@@ -207,8 +208,9 @@ export default function AdminStudentManagementPage() {
         bloodGroup: editingStudent.bloodGroup || "",
         nationality: editingStudent.nationality || "Indian",
         religion: editingStudent.religion || "",
-        caste: editingStudent.caste || "",
+        caste: editingStudent.caste || undefined,
         subcaste: editingStudent.subcaste || "",
+        pwd: editingStudent.pwd || 'No',
         identificationMarks: editingStudent.identificationMarks || "",
         presentAddress: editingStudent.presentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         isPermanentSameAsPresent: false, // Default to false for editing
@@ -335,8 +337,9 @@ export default function AdminStudentManagementPage() {
           <FormField control={currentForm.control} name="bloodGroup" render={({ field }) => (<FormItem><FormLabel>Blood Group</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent><SelectItem value="A+">A+</SelectItem><SelectItem value="A-">A-</SelectItem><SelectItem value="B+">B+</SelectItem><SelectItem value="B-">B-</SelectItem><SelectItem value="AB+">AB+</SelectItem><SelectItem value="AB-">AB-</SelectItem><SelectItem value="O+">O+</SelectItem><SelectItem value="O-">O-</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
           <FormField control={currentForm.control} name="nationality" render={({ field }) => (<FormItem><FormLabel>Nationality</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
           <FormField control={currentForm.control} name="religion" render={({ field }) => (<FormItem><FormLabel>Religion</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Hinduism">Hinduism</SelectItem><SelectItem value="Islam">Islam</SelectItem><SelectItem value="Christianity">Christianity</SelectItem><SelectItem value="Sikhism">Sikhism</SelectItem><SelectItem value="Buddhism">Buddhism</SelectItem><SelectItem value="Jainism">Jainism</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
-          <FormField control={currentForm.control} name="caste" render={({ field }) => (<FormItem><FormLabel>Caste</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
+          <FormField control={currentForm.control} name="caste" render={({ field }) => (<FormItem><FormLabel>Caste</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Caste" /></SelectTrigger></FormControl><SelectContent>{CasteOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select><FormMessage/></FormItem>)}/>
           <FormField control={currentForm.control} name="subcaste" render={({ field }) => (<FormItem><FormLabel>Subcaste</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
+          <FormField control={currentForm.control} name="pwd" render={({ field }) => (<FormItem><FormLabel>PwD (Persons with Disabilities)</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent><SelectItem value="No">No</SelectItem><SelectItem value="Yes">Yes</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
           <FormField control={currentForm.control} name="aadharNo" render={({ field }) => (<FormItem><FormLabel>Aadhar Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
           <FormField control={currentForm.control} name="identificationMarks" render={({ field }) => (<FormItem className="lg:col-span-2"><FormLabel>Identification Marks</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage/></FormItem>)}/>
         </CardContent>

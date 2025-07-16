@@ -9,6 +9,7 @@ export const dbSchemaFields = [
     'religion',
     'caste',
     'subcaste',
+    'pwd',
     'aadharNo',
     'identificationMarks',
     

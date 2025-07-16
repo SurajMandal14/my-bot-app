@@ -36,7 +36,7 @@ export async function createSchoolUser(values: CreateSchoolUserFormData, schoolI
         busRouteLocation, busClassCategory,
         fatherName, motherName, dob, section, rollNo, examNo, aadharNo, dateOfJoining, academicYear,
         // New detailed fields
-        gender, bloodGroup, nationality, religion, caste, subcaste, identificationMarks,
+        gender, bloodGroup, nationality, religion, caste, subcaste, pwd, identificationMarks,
         presentAddress, permanentAddress, fatherMobile, motherMobile, fatherAadhar, motherAadhar,
         fatherQualification, motherQualification, fatherOccupation, motherOccupation,
         rationCardNumber, isTcAttached, previousSchool, childIdNumber, motherTongue, qualification
@@ -82,7 +82,7 @@ export async function createSchoolUser(values: CreateSchoolUserFormData, schoolI
       academicYear: academicYear,
       qualification: role === 'teacher' ? qualification : undefined,
       // New fields
-      gender, bloodGroup, nationality, religion, caste, subcaste, identificationMarks,
+      gender, bloodGroup, nationality, religion, caste, subcaste, pwd, identificationMarks,
       presentAddress, permanentAddress, fatherMobile, motherMobile, fatherAadhar, motherAadhar,
       fatherQualification, motherQualification, fatherOccupation, motherOccupation,
       rationCardNumber, isTcAttached, previousSchool, childIdNumber, motherTongue,
@@ -183,7 +183,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         enableBusTransport, busRouteLocation, busClassCategory,
         fatherName, motherName, dob, section, rollNo, examNo, aadharNo, dateOfJoining, dateOfLeaving, academicYear,
         // New detailed fields
-        gender, bloodGroup, nationality, religion, caste, subcaste, identificationMarks,
+        gender, bloodGroup, nationality, religion, caste, subcaste, pwd, identificationMarks,
         presentAddress, permanentAddress, fatherMobile, motherMobile, fatherAadhar, motherAadhar,
         fatherQualification, motherQualification, fatherOccupation, motherOccupation,
         rationCardNumber, isTcAttached, previousSchool, childIdNumber, motherTongue, qualification
@@ -227,7 +227,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
       busRouteLocation: (role === 'student' && enableBusTransport && busRouteLocation && busRouteLocation.trim() !== "") ? busRouteLocation.trim() : undefined,
       busClassCategory: (role === 'student' && enableBusTransport && busClassCategory && busClassCategory.trim() !== "") ? busClassCategory.trim() : undefined,
       fatherName, motherName, dob, section, rollNo, examNo, aadharNo,
-      gender, bloodGroup, nationality, religion, caste, subcaste, identificationMarks,
+      gender, bloodGroup, nationality, religion, caste, subcaste, pwd, identificationMarks,
       presentAddress, permanentAddress, fatherMobile, motherMobile, fatherAadhar, motherAadhar,
       fatherQualification, motherQualification, fatherOccupation, motherOccupation,
       rationCardNumber, isTcAttached, previousSchool, childIdNumber, motherTongue,
@@ -643,6 +643,7 @@ export async function bulkCreateSchoolUsers(
         nationality: user.nationality,
         religion: user.religion,
         caste: user.caste,
+        pwd: user.pwd,
         subcaste: user.subcaste,
         aadharNo: user.aadharNo,
         identificationMarks: user.identificationMarks,

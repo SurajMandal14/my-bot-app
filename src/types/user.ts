@@ -14,6 +14,8 @@ export interface Address {
   state?: string;
 }
 
+export const CasteOptions = ["OC", "BC", "BC-A", "BC-B", "BC-C", "BC-D", "BC-E", "SC", "ST", "EWS"] as const;
+
 export interface User {
   _id: ObjectId | string;
   email: string;
@@ -49,8 +51,9 @@ export interface User {
   bloodGroup?: string;
   nationality?: string;
   religion?: string;
-  caste?: string;
+  caste?: (typeof CasteOptions)[number]; // Use the defined enum
   subcaste?: string;
+  pwd?: 'Yes' | 'No'; // New PwD field
   identificationMarks?: string;
   presentAddress?: Address;
   permanentAddress?: Address;
@@ -106,8 +109,9 @@ const baseSchoolUserFormSchema = z.object({
   bloodGroup: z.string().optional(),
   nationality: z.string().optional(),
   religion: z.string().optional(),
-  caste: z.string().optional(),
+  caste: z.enum(CasteOptions).optional(),
   subcaste: z.string().optional(),
+  pwd: z.enum(['Yes', 'No']).optional(),
   aadharNo: z.string().optional().refine(val => !val || /^\d{12}$/.test(val), { message: "Aadhar must be 12 digits." }),
   identificationMarks: z.string().optional(),
   phone: z.string().optional(),

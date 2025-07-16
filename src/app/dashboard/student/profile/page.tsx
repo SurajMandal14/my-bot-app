@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { UserCircle, Save, Loader2, School as SchoolIcon, BookUser, Image as ImageIcon, Contact, Calendar, Heart, Home, Users } from "lucide-react";
+import { UserCircle, Save, Loader2, School as SchoolIcon, BookUser, Image as ImageIcon, Contact, Calendar, Heart, Home, Users, ShieldHalf } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
@@ -157,6 +157,7 @@ export default function StudentProfilePage() {
                         <ProfileDetailItem label="Religion" value={authUser.religion} />
                         <ProfileDetailItem label="Caste" value={authUser.caste} />
                         <ProfileDetailItem label="Subcaste" value={authUser.subcaste} />
+                        <ProfileDetailItem label="PwD" value={authUser.pwd} />
                         <ProfileDetailItem label="Aadhar Number" value={authUser.aadharNo} />
                         <ProfileDetailItem label="Mother Tongue" value={authUser.motherTongue} />
                         <ProfileDetailItem label="Identification Marks" value={authUser.identificationMarks} />
