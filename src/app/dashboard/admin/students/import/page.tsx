@@ -39,11 +39,11 @@ function excelSerialDateToJSDate(serial: number) {
   return new Date(date.getTime() + tzOffset);
 }
 
-function formatDate(date: Date) {
-  const year = date.getFullYear();
+function formatDateToMMDDYYYY(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const year = date.getFullYear();
+  return `${month}/${day}/${year}`;
 }
 
 
@@ -150,13 +150,13 @@ export default function StudentImportPage() {
                 const dateColumns: boolean[] = [];
 
                 originalHeaders.forEach((header, index) => {
-                    if (header !== null && String(header).trim() !== '') {
+                    if (header !== null && header !== undefined && String(header).trim() !== '') {
                         validHeaderIndices.push(index);
                         finalHeaders.push(String(header).trim());
                         
                         // Heuristic to detect date columns based on header name
                         const headerStr = String(header).toLowerCase();
-                        dateColumns.push(headerStr.includes('date') || headerStr.includes('dob') || headerStr.includes('doa'));
+                        dateColumns.push(headerStr.includes('date') || headerStr.includes('dob') || headerStr.includes('d.o.b') || headerStr.includes('d.o.a'));
                     }
                 });
 
@@ -165,7 +165,7 @@ export default function StudentImportPage() {
                         const cellValue = row[validIndex];
                         if (dateColumns[colIndex] && typeof cellValue === 'number' && cellValue > 1) {
                             const jsDate = excelSerialDateToJSDate(cellValue);
-                            return jsDate ? formatDate(jsDate) : cellValue;
+                            return jsDate ? formatDateToMMDDYYYY(jsDate) : cellValue;
                         }
                         return cellValue ?? '';
                     })
@@ -445,4 +445,3 @@ export default function StudentImportPage() {
         </div>
     );
 }
-

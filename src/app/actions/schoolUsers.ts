@@ -580,10 +580,10 @@ export async function bulkCreateSchoolUsers(
       const userEmail = user.email || `${user.admissionId}@gmail.com`;
       
       let passwordSource = 'password123'; // Default password
-      if (user.dob) {
-        // Remove any non-digit characters from the DOB string
-        const dobAsPassword = user.dob.replace(/\D/g, '');
-        if (dobAsPassword.length >= 6) { // Basic check for a valid DOB format
+      if (user.dob && /^\d{2}\/\d{2}\/\d{4}$/.test(user.dob)) {
+        // DOB is in MM/DD/YYYY format, convert to MMDDYYYY for password
+        const dobAsPassword = user.dob.replace(/\//g, '');
+        if (dobAsPassword.length === 8) {
           passwordSource = dobAsPassword;
         }
       }
@@ -604,6 +604,13 @@ export async function bulkCreateSchoolUsers(
         dob: user.dob,
         phone: user.phone,
         academicYear: academicYear,
+        dateOfJoining: user.dateOfJoining,
+        bloodGroup: user.bloodGroup,
+        nationality: user.nationality,
+        religion: user.religion,
+        caste: user.caste,
+        subcaste: user.subcaste,
+        aadharNo: user.aadharNo,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -611,7 +618,7 @@ export async function bulkCreateSchoolUsers(
     }
 
     if (usersToInsert.length > 0) {
-      await usersCollection.insertMany(usersToInsert);
+      await usersCollection.insertMany(usersToInsert as any[]);
     }
     
     revalidatePath('/dashboard/admin/students');
