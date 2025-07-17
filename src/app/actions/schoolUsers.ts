@@ -50,10 +50,19 @@ export async function createSchoolUser(values: CreateSchoolUserFormData, schoolI
       return { success: false, message: 'User with this email already exists.', error: 'Email already in use.' };
     }
 
-    if (role === 'student' && admissionId) {
-        const existingUserByAdmissionId = await usersCollection.findOne({ admissionId, schoolId: new ObjectId(schoolId), role: 'student' });
+    if (role === 'student' && admissionId && admissionId.trim() !== "") {
+        const trimmedAdmissionId = admissionId.trim();
+        const existingUserByAdmissionId = await usersCollection.findOne({ 
+            admissionId: trimmedAdmissionId, 
+            schoolId: new ObjectId(schoolId), 
+            role: 'student' 
+        });
         if (existingUserByAdmissionId) {
-            return { success: false, message: `Admission ID '${admissionId}' is already in use for another student in this school.`, error: 'Admission ID already taken.' };
+            return { 
+                success: false, 
+                message: `Admission ID '${trimmedAdmissionId}' is already in use for another student in this school.`, 
+                error: 'Admission ID already taken.' 
+            };
         }
     }
 
@@ -203,14 +212,19 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
     }
 
     if (role === 'student' && admissionId && admissionId.trim() !== "") {
+        const trimmedAdmissionId = admissionId.trim();
         const existingUserByAdmissionId = await usersCollection.findOne({
-            admissionId,
+            admissionId: trimmedAdmissionId,
             schoolId: new ObjectId(schoolId),
             role: 'student',
-            _id: { $ne: new ObjectId(userId) as any }
+            _id: { $ne: new ObjectId(userId) }
         });
         if (existingUserByAdmissionId) {
-            return { success: false, message: `Admission ID '${admissionId}' is already in use for another student in this school.`, error: 'Admission ID already taken.' };
+            return { 
+                success: false, 
+                message: `Admission ID '${trimmedAdmissionId}' is already in use for another student in this school.`, 
+                error: 'Admission ID already taken.' 
+            };
         }
     }
 
