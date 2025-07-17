@@ -183,12 +183,13 @@ export default function AdminStudentManagementPage() {
   };
 
   useEffect(() => {
-    if (isFormOpen && editingStudent) {
+    // Wait for options to be loaded before resetting the form
+    if (isFormOpen && editingStudent && classOptions.length > 0) {
       const { presentAddress, permanentAddress, ...restOfStudent } = editingStudent;
       currentForm.reset({
         name: restOfStudent.name || "",
         email: restOfStudent.email || "",
-        password: "",
+        password: "", // Always clear password for security
         role: 'student',
         admissionId: restOfStudent.admissionId || "",
         classId: restOfStudent.classId || "",
@@ -246,7 +247,7 @@ export default function AdminStudentManagementPage() {
         phone: restOfStudent.phone || "",
       });
     }
-  }, [editingStudent, isFormOpen, currentForm]);
+  }, [editingStudent, isFormOpen, currentForm, classOptions]);
 
   async function handleStudentSubmit(values: CreateSchoolUserFormData) {
     if (!authUser?.schoolId) return;
