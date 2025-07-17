@@ -1,5 +1,4 @@
 
-
 import type { ObjectId } from 'mongodb';
 import { z } from 'zod';
 
@@ -37,7 +36,7 @@ export interface User {
   fatherName?: string;
   motherName?: string;
   dob?: string; 
-  gender?: 'Male' | 'Female' | 'Other';
+  gender?: 'Male' | 'Female' | 'Other' | string;
   section?: string; 
   rollNo?: string;
   examNo?: string;
@@ -51,9 +50,9 @@ export interface User {
   bloodGroup?: string;
   nationality?: string;
   religion?: string;
-  caste?: (typeof CasteOptions)[number]; // Use the defined enum
+  caste?: (typeof CasteOptions)[number] | string;
   subcaste?: string;
-  pwd?: 'Yes' | 'No'; // New PwD field
+  pwd?: 'Yes' | 'No' | string;
   identificationMarks?: string;
   presentAddress?: Address;
   permanentAddress?: Address;
@@ -105,13 +104,13 @@ const baseSchoolUserFormSchema = z.object({
   // Personal Details
   name: z.string().min(2, { message: "Full Name is required." }),
   dob: z.string().optional(),
-  gender: z.enum(['Male', 'Female', 'Other']).optional(),
+  gender: z.string().optional(),
   bloodGroup: z.string().optional(),
   nationality: z.string().optional(),
   religion: z.string().optional(),
-  caste: z.enum(CasteOptions).optional(),
+  caste: z.string().optional(),
   subcaste: z.string().optional(),
-  pwd: z.enum(['Yes', 'No']).optional(),
+  pwd: z.string().optional(),
   aadharNo: z.string().transform(val => val.replace(/\s/g, '')).optional().refine(val => !val || /^\d{12}$/.test(val), { message: "Aadhar must be 12 digits." }),
   identificationMarks: z.string().optional(),
   phone: z.string().optional(),

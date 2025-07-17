@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -45,7 +44,7 @@ import type { AuthUser } from "@/types/attendance";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ControlledListbox } from "@/components/ui/ControlledListbox";
 
 type SchoolTeacher = Partial<AppUser>; 
 type SortableKeys = 'name' | 'email' | 'classTeacherFor' | 'dateOfJoining';
@@ -60,6 +59,13 @@ const getCurrentAcademicYear = (): string => {
     return `${today.getFullYear() - 1}-${today.getFullYear()}`;
   }
 };
+
+const bloodGroupOptions = [
+    { value: 'A+', label: 'A+' }, { value: 'A-', label: 'A-' },
+    { value: 'B+', label: 'B+' }, { value: 'B-', label: 'B-' },
+    { value: 'AB+', label: 'AB+' }, { value: 'AB-', label: 'AB-' },
+    { value: 'O+', label: 'O+' }, { value: 'O-', label: 'O-' },
+];
 
 export default function AdminTeacherManagementPage() {
   const { toast } = useToast();
@@ -323,7 +329,7 @@ export default function AdminTeacherManagementPage() {
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <FormField control={form.control} name="name" render={({ field }) => (<FormItem className="lg:col-span-2"><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
           <FormField control={form.control} name="dob" render={({ field }) => (<FormItem><FormLabel>Date of Birth</FormLabel><FormControl><Input type="date" {...field}/></FormControl><FormMessage/></FormItem>)}/>
-          <FormField control={form.control} name="bloodGroup" render={({ field }) => (<FormItem><FormLabel>Blood Group</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent><SelectItem value="A+">A+</SelectItem><SelectItem value="A-">A-</SelectItem><SelectItem value="B+">B+</SelectItem><SelectItem value="B-">B-</SelectItem><SelectItem value="AB+">AB+</SelectItem><SelectItem value="AB-">AB-</SelectItem><SelectItem value="O+">O+</SelectItem><SelectItem value="O-">O-</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
+          <ControlledListbox control={form.control} name="bloodGroup" label="Blood Group" options={bloodGroupOptions} placeholder="Select" />
         </CardContent>
       </Card>
 

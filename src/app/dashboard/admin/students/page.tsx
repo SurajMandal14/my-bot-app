@@ -1,11 +1,9 @@
 
-
 "use client";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -50,6 +48,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { format } from 'date-fns';
 import type { AuthUser } from "@/types/attendance";
 import Link from "next/link";
+import { ControlledListbox } from "@/components/ui/ControlledListbox";
 
 type SchoolStudent = Partial<AppUser>; 
 type SortableKeys = 'name' | 'admissionId' | 'classId' | 'status';
@@ -72,6 +71,34 @@ const getCurrentAcademicYear = (): string => {
     return `${today.getFullYear() - 1}-${today.getFullYear()}`;
   }
 };
+
+const genderOptions = [
+    { value: 'Male', label: 'Male' },
+    { value: 'Female', label: 'Female' },
+    { value: 'Other', label: 'Other' },
+];
+
+const bloodGroupOptions = [
+    { value: 'A+', label: 'A+' }, { value: 'A-', label: 'A-' },
+    { value: 'B+', label: 'B+' }, { value: 'B-', label: 'B-' },
+    { value: 'AB+', label: 'AB+' }, { value: 'AB-', label: 'AB-' },
+    { value: 'O+', label: 'O+' }, { value: 'O-', label: 'O-' },
+];
+
+const religionOptions = [
+    { value: 'Hinduism', label: 'Hinduism' }, { value: 'Islam', label: 'Islam' },
+    { value: 'Christianity', label: 'Christianity' }, { value: 'Sikhism', label: 'Sikhism' },
+    { value: 'Buddhism', label: 'Buddhism' }, { value: 'Jainism', label: 'Jainism' },
+    { value: 'Other', label: 'Other' },
+];
+
+const casteOptions = CasteOptions.map(c => ({ value: c, label: c }));
+
+const pwdOptions = [
+    { value: 'No', label: 'No' },
+    { value: 'Yes', label: 'Yes' },
+];
+
 
 export default function AdminStudentManagementPage() {
   const { toast } = useToast();
@@ -176,10 +203,10 @@ export default function AdminStudentManagementPage() {
     else { setIsLoadingData(false); }
   }, [authUser, fetchInitialData]);
 
-  const handleClassChange = (classIdValue: string) => {
-    const NONE_CLASS_VALUE = "__NONE_CLASS_ID__"; 
-    currentForm.setValue('classId', classIdValue === NONE_CLASS_VALUE ? "" : classIdValue);
-    const selectedClass = classOptions.find(opt => opt.value === classIdValue);
+  const handleClassChange = (classIdValue: string | null) => {
+    const valueToSet = classIdValue || "";
+    currentForm.setValue('classId', valueToSet);
+    const selectedClass = classOptions.find(opt => opt.value === valueToSet);
     currentForm.setValue('section', selectedClass?.section || '');
   };
 
@@ -352,13 +379,13 @@ export default function AdminStudentManagementPage() {
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <FormField control={currentForm.control} name="name" render={({ field }) => (<FormItem className="lg:col-span-2"><FormLabel>Full Name of the Student</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
           <FormField control={currentForm.control} name="dob" render={({ field }) => (<FormItem><FormLabel>Date of Birth</FormLabel><FormControl><Input type="date" {...field}/></FormControl><FormMessage/></FormItem>)}/>
-          <FormField control={currentForm.control} name="gender" render={({ field }) => (<FormItem><FormLabel>Gender</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Gender" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Male">Male</SelectItem><SelectItem value="Female">Female</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
-          <FormField control={currentForm.control} name="bloodGroup" render={({ field }) => (<FormItem><FormLabel>Blood Group</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent><SelectItem value="A+">A+</SelectItem><SelectItem value="A-">A-</SelectItem><SelectItem value="B+">B+</SelectItem><SelectItem value="B-">B-</SelectItem><SelectItem value="AB+">AB+</SelectItem><SelectItem value="AB-">AB-</SelectItem><SelectItem value="O+">O+</SelectItem><SelectItem value="O-">O-</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
+          <ControlledListbox control={currentForm.control} name="gender" label="Gender" options={genderOptions} placeholder="Select Gender" />
+          <ControlledListbox control={currentForm.control} name="bloodGroup" label="Blood Group" options={bloodGroupOptions} placeholder="Select" />
           <FormField control={currentForm.control} name="nationality" render={({ field }) => (<FormItem><FormLabel>Nationality</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
-          <FormField control={currentForm.control} name="religion" render={({ field }) => (<FormItem><FormLabel>Religion</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Hinduism">Hinduism</SelectItem><SelectItem value="Islam">Islam</SelectItem><SelectItem value="Christianity">Christianity</SelectItem><SelectItem value="Sikhism">Sikhism</SelectItem><SelectItem value="Buddhism">Buddhism</SelectItem><SelectItem value="Jainism">Jainism</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
-          <FormField control={currentForm.control} name="caste" render={({ field }) => (<FormItem><FormLabel>Caste</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Caste" /></SelectTrigger></FormControl><SelectContent>{CasteOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select><FormMessage/></FormItem>)}/>
+          <ControlledListbox control={currentForm.control} name="religion" label="Religion" options={religionOptions} placeholder="Select" />
+          <ControlledListbox control={currentForm.control} name="caste" label="Caste" options={casteOptions} placeholder="Select Caste" />
           <FormField control={currentForm.control} name="subcaste" render={({ field }) => (<FormItem><FormLabel>Subcaste</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
-          <FormField control={currentForm.control} name="pwd" render={({ field }) => (<FormItem><FormLabel>PwD (Persons with Disabilities)</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl><SelectContent><SelectItem value="No">No</SelectItem><SelectItem value="Yes">Yes</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
+          <ControlledListbox control={currentForm.control} name="pwd" label="PwD (Persons with Disabilities)" options={pwdOptions} placeholder="Select" />
           <FormField control={currentForm.control} name="aadharNo" render={({ field }) => (<FormItem><FormLabel>Aadhar Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
           <FormField control={currentForm.control} name="identificationMarks" render={({ field }) => (<FormItem className="lg:col-span-2"><FormLabel>Identification Marks</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage/></FormItem>)}/>
         </CardContent>
@@ -410,29 +437,8 @@ export default function AdminStudentManagementPage() {
       
       <Card><CardHeader><CardTitle className="flex items-center text-xl"><ShieldQuestion className="mr-2 h-6 w-6 text-primary"/>Academic &amp; Other Details</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <FormField control={currentForm.control} name="classId" render={({ field }) => (<FormItem><FormLabel>Class in which admitted</FormLabel><Select onValueChange={handleClassChange} value={field.value} disabled={classOptions.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={classOptions.length > 0 ? "Select class" : "No classes available"} /></SelectTrigger></FormControl><SelectContent>{classOptions.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent></Select><FormMessage/></FormItem>)}/>
-            <FormField
-              control={currentForm.control}
-              name="academicYear"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Academic Year of Admission</FormLabel>
-                   <Select onValueChange={field.onChange} value={field.value} disabled={academicYears.length === 0}>
-                        <FormControl>
-                            <SelectTrigger>
-                                <SelectValue placeholder={academicYears.length > 0 ? "Select year" : "No years available"} />
-                            </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                            {academicYears.map((year) => (
-                                <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <ControlledListbox control={currentForm.control} name="classId" label="Class in which admitted" options={classOptions} placeholder="Select class" onChangeCallback={handleClassChange}/>
+            <ControlledListbox control={currentForm.control} name="academicYear" label="Academic Year of Admission" options={academicYears.map(y => ({ value: y.year, label: y.year }))} placeholder="Select year"/>
             <FormField control={currentForm.control} name="previousSchool" render={({ field }) => (<FormItem className="lg:col-span-1"><FormLabel>Details of school last admitted to</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)}/>
             <FormField control={currentForm.control} name="childIdNumber" render={({ field }) => (<FormItem><FormLabel>Child ID Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)}/>
             <FormField control={currentForm.control} name="motherTongue" render={({ field }) => (<FormItem><FormLabel>Mother Tongue of Pupil</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)}/>
