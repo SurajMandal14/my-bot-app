@@ -10,13 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UploadCloud, File, Loader2, ArrowRight, Wand2, Info, CheckCircle, AlertCircle, Database, Send } from 'lucide-react';
+import { UploadCloud, File, Loader2, ArrowRight, Wand2, Info, CheckCircle, AlertCircle, Database, Send, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 import { mapStudentData, type StudentDataMappingOutput } from '@/ai/flows/map-student-data-flow';
 import { bulkCreateSchoolUsers } from '@/app/actions/schoolUsers';
 import type { AuthUser, User } from '@/types/user';
 import { dbSchemaFields } from '@/types/student-import-schema';
+import Link from 'next/link';
 
 type ProcessedStudent = Partial<User>;
 
@@ -265,10 +266,15 @@ export default function StudentImportPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 space-y-6">
                     <Card>
-                        <CardHeader><CardTitle>Step 1: Upload File</CardTitle></CardHeader>
+                        <CardHeader><CardTitle>Step 1: Get Template & Upload</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="file-upload">Select Excel or CSV File</Label>
+                            <a href="https://docs.google.com/spreadsheets/d/1pH31I5Nbsj2Xqf5h7Mn0Asn8OiGT0vJ6YKEq4fr9a_s/export?format=xlsx" download="student_import_template.xlsx">
+                                <Button variant="outline" className="w-full">
+                                    <Download className="mr-2 h-4 w-4"/> Download Template
+                                </Button>
+                            </a>
+                            <div className="space-y-2 pt-2">
+                                <Label htmlFor="file-upload">Upload Completed File</Label>
                                 <Input id="file-upload" type="file" onChange={handleFileChange} accept=".xlsx, .xls, .csv" disabled={isLoadingFile || isMapping}/>
                             </div>
                             {isLoadingFile && <div className="mt-2 flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Processing file...</div>}
