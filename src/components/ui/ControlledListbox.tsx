@@ -39,16 +39,16 @@ export function ControlledListbox({
       name={name}
       control={control}
       render={({ field }) => (
-        <div className="w-full">
-          <Listbox
-            value={field.value || null}
-            onChange={(value) => {
-              field.onChange(value);
-              if (onChangeCallback) {
-                onChangeCallback(value);
-              }
-            }}
-          >
+        <Listbox
+          value={field.value || null}
+          onChange={(value) => {
+            field.onChange(value);
+            if (onChangeCallback) {
+              onChangeCallback(value);
+            }
+          }}
+        >
+          <div className="w-full">
             {({ open }) => (
               <>
                 <FormLabel>{label}</FormLabel>
@@ -120,8 +120,8 @@ export function ControlledListbox({
                 <FormMessage />
               </>
             )}
-          </Listbox>
-        </div>
+          </div>
+        </Listbox>
       )}
     />
   );
