@@ -1,6 +1,12 @@
 pipeline {
     agent any
 
+    triggers {
+        // This enables the "GitHub hook trigger for GITScm polling" 
+        // and starts a build whenever a change is pushed to your repository.
+        githubPush() 
+    }
+
     stages {
         stage('Checkout Code') {
             steps {
@@ -12,15 +18,13 @@ pipeline {
         stage('Build Podman Image') {
             steps {
                 // Builds the image inside your project directory
-                dir('my-bot-app') { // Assumes code is in a subdirectory, adjust if needed
-                    sh 'sudo podman build -t my-bot-app-image .'
-                }
+                sh 'sudo podman build -t my-bot-app-image .'
             }
         }
 
         stage('Stop & Remove Old Container') {
             steps {
-                // Stops and removes the old container. `|| true` prevents failure if it doesn't exist.
+                // Stops and removes the old container. || true prevents failure if it doesn't exist.
                 sh 'sudo podman stop my-bot-app || true'
                 sh 'sudo podman rm my-bot-app || true'
             }
