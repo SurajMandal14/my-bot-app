@@ -30,13 +30,24 @@ pipeline {
             }
         }
 
-        stage('Deploy New Container') {
+       stage('Deploy New Container') {
             steps {
-                // Runs your new container with the specified settings
-                sh 'sudo podman run -d --restart=always --name my-bot-app --network mongo-net -p 3000:3000 my-bot-app-image'
+                // This block now securely loads BOTH credentials from Jenkins.
+                withCredentials([
+                    string(credentialsId: 'mongodb-uri-credential', variable: 'MONGODB_URI_VALUE'),
+                    string(credentialsId: 'gemini-api-key-credential', variable: 'GEMINI_API_KEY_VALUE')
+                ]) {
+                    // We now pass both secrets to the container using two -e flags.
+                    sh '''
+                        sudo podman run -d --restart=always --name my-bot-app \
+                        --network mongo-net -p 3000:3000 \
+                        -e MONGODB_URI="${MONGODB_URI_VALUE}" \
+                        -e GEMINI_API_KEY="${GEMINI_API_KEY_VALUE}" \
+                        my-bot-app-image
+                    '''
+                }
             }
         }
-    }
 
     post {
         always {
