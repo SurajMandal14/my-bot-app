@@ -4,8 +4,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'SCHOLR',
-  description: 'SCHOLR - Smart School Management',
+  title: 'scholr',
+  description: 'scholr - Smart School Management',
 };
 
 export default function RootLayout({

@@ -71,7 +71,7 @@ export default function SuperAdminDashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-headline">Super Admin Dashboard</CardTitle>
-          <CardDescription>Oversee and manage the entire SCHOLR platform.</CardDescription>
+          <CardDescription>Oversee and manage the entire scholr platform.</CardDescription>
         </CardHeader>
         <CardContent>
           <p>Welcome, Super Administrator. From here you can manage schools, master admins, and view platform analytics.</p>
