@@ -91,7 +91,7 @@ export function LoginForm() {
         <div className="mx-auto mb-4 flex items-center justify-center w-16 h-16 rounded-full bg-primary text-primary-foreground">
           <School size={32} />
         </div>
-        <CardTitle className="text-3xl font-bold">SCHOLR</CardTitle>
+        <CardTitle className="text-3xl font-bold">scholr</CardTitle>
         <CardDescription>Login to your account</CardDescription>
       </CardHeader>
       <CardContent>
