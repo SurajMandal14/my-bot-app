@@ -234,13 +234,13 @@ export function Header() {
             </span>
           )}
            {!displaySchoolLogoUrl && !displaySchoolName && authUser?.role !== 'superadmin' && (
-             <span className="ml-2 font-headline text-primary">Scholr</span>
+             <span className="ml-2 font-headline text-primary">SCHOLR</span>
            )}
         </>
       ) : (
         <>
           <ScholrIcon className="h-7 w-7 text-primary" />
-          <span className="ml-2 font-headline text-primary">Scholr</span>
+          <span className="ml-2 font-headline text-primary">SCHOLR</span>
         </>
       )}
     </>
@@ -366,7 +366,3 @@ export function Header() {
     </header>
   );
 }
-
-    
-
-    

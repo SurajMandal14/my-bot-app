@@ -109,7 +109,7 @@ export default function DashboardPage() {
       <Card className="mb-8 shadow-lg">
         <CardHeader>
           <CardTitle className="text-3xl font-headline flex items-center">
-            <Home className="mr-3 h-8 w-8 text-primary" /> Welcome to Scholr, {authUser.name}!
+            <Home className="mr-3 h-8 w-8 text-primary" /> Welcome to SCHOLR, {authUser.name}!
           </CardTitle>
           <CardDescription className="text-lg">Your central hub for campus management. You are logged in as a <span className="font-semibold capitalize">{authUser.role}</span>.
           {authUser.classId && (authUser.role === 'teacher' || authUser.role === 'student') && ` Assigned to: ${authUser.classId}`}
