@@ -242,7 +242,7 @@ export default function StudentImportPage() {
         processedStudents.forEach(student => {
             Object.keys(student).forEach(key => headerSet.add(key));
         });
-        const prioritized = ['name', 'admissionId', 'classId', 'academicYear', 'dob', 'fatherName', 'motherName', 'phone', 'dateOfJoining'];
+        const prioritized = ['name', 'admissionId', 'classId', 'section', 'academicYear', 'dob', 'fatherName', 'motherName', 'phone', 'dateOfJoining'];
         const sortedHeaders = Array.from(headerSet).sort((a, b) => {
             const aIndex = prioritized.indexOf(a);
             const bIndex = prioritized.indexOf(b);
@@ -259,7 +259,7 @@ export default function StudentImportPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="text-2xl font-headline flex items-center"><UploadCloud className="mr-2 h-6 w-6" /> Import Students from File</CardTitle>
-                    <CardDescription>Upload an Excel/CSV file, map columns using AI, and import student data. Class and Academic Year will be detected from the file.</CardDescription>
+                    <CardDescription>Upload an Excel/CSV file, map columns using AI, and import student data. Class, Section, and Academic Year will be detected from the file.</CardDescription>
                 </CardHeader>
             </Card>
 
@@ -268,7 +268,7 @@ export default function StudentImportPage() {
                     <Card>
                         <CardHeader><CardTitle>Step 1: Get Template & Upload</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
-                            <a href="https://docs.google.com/spreadsheets/d/1pH31I5Nbsj2Xqf5h7Mn0Asn8OiGT0vJ6YKEq4fr9a_s/export?format=xlsx" download="student_import_template.xlsx">
+                            <a href="https://docs.google.com/spreadsheets/d/1Xg3_g44L2jqBIMqGETsxGzV0kIlW4E-XoYJjY8Vb7rI/export?format=xlsx" download="student_import_template_v2.xlsx">
                                 <Button variant="outline" className="w-full">
                                     <Download className="mr-2 h-4 w-4"/> Download Template
                                 </Button>

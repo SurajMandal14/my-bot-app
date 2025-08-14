@@ -41,7 +41,8 @@ export const dbSchemaFields = [
     'rationCardNumber',
 
     // Academic & Other Details
-    'classId', // Will be class name from sheet
+    'classId', // This will be the class name (e.g., '10', 'LKG')
+    'section', // This will be the section (e.g., 'A', 'B')
     'academicYear',
     'previousSchool',
     'isTcAttached',

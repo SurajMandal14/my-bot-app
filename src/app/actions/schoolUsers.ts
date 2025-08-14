@@ -567,9 +567,11 @@ export async function bulkCreateSchoolUsers(
         .find({ schoolId: schoolObjectId })
         .toArray();
     
+    // Create a map for quick lookup: "ClassName-Section" -> classId
     const classNameToIdMap = new Map<string, string>();
     existingClasses.forEach(cls => {
-        classNameToIdMap.set(cls.name, cls._id.toString());
+        const key = `${cls.name}-${cls.section || ''}`;
+        classNameToIdMap.set(key, cls._id.toString());
     });
     
     const usersToInsert: Omit<User, '_id'>[] = [];
@@ -577,13 +579,15 @@ export async function bulkCreateSchoolUsers(
     
     for (const user of users) {
       // Basic validation for each user
-      if (!user.name || !user.admissionId || !user.classId || !user.academicYear) {
+      if (!user.name || !user.admissionId || !user.classId || !user.academicYear || !user.section) {
         skippedCount++;
         continue;
       }
       
       // Class validation
-      const targetClassId = classNameToIdMap.get(user.classId);
+      const classKey = `${user.classId}-${user.section}`;
+      const targetClassId = classNameToIdMap.get(classKey);
+
       if (!targetClassId) {
         skippedCount++; // Skip if class does not exist
         continue;
@@ -645,6 +649,7 @@ export async function bulkCreateSchoolUsers(
         status: 'active',
         schoolId: schoolObjectId,
         classId: targetClassId,
+        section: user.section,
         admissionId: user.admissionId,
         fatherName: user.fatherName,
         motherName: user.motherName,
