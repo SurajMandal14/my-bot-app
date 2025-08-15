@@ -268,7 +268,7 @@ export default function StudentImportPage() {
                     <Card>
                         <CardHeader><CardTitle>Step 1: Get Template & Upload</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
-                            <a href="https://docs.google.com/spreadsheets/d/1Xg3_g44L2jqBIMqGETsxGzV0kIlW4E-XoYJjY8Vb7rI/export?format=xlsx" download="student_import_template_v2.xlsx">
+                            <a href="https://docs.google.com/spreadsheets/d/1pH31I5Nbsj2Xqf5h7Mn0Asn8OiGT0vJ6YKEq4fr9a_s/export?format=xlsx" download="student_import_template_v3.xlsx">
                                 <Button variant="outline" className="w-full">
                                     <Download className="mr-2 h-4 w-4"/> Download Template
                                 </Button>
