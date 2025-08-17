@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UserMinus, UserCheck, UserCircle2, ChevronsUpDown, Contact, GraduationCap, Home, Heart, ShieldQuestion, CalendarClock, Upload, ArrowUpDown } from "lucide-react";
+import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UserMinus, UserCheck, UserCircle2, ChevronsUpDown, Contact, GraduationCap, Home, Heart, ShieldQuestion, CalendarClock, Upload, ArrowUpDown, Download } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import {
@@ -49,6 +49,7 @@ import { format } from 'date-fns';
 import type { AuthUser } from "@/types/attendance";
 import Link from "next/link";
 import { ControlledListbox } from "@/components/ui/ControlledListbox";
+import * as XLSX from 'xlsx';
 
 type SchoolStudent = Partial<AppUser>; 
 type SortableKeys = 'name' | 'admissionId' | 'classId' | 'status';
@@ -382,6 +383,40 @@ export default function AdminStudentManagementPage() {
   const uniqueBusLocations = useMemo(() => schoolDetails?.busFeeStructures ? [...new Set(schoolDetails.busFeeStructures.map(s => s.location))] : [], [schoolDetails]);
   const uniqueBusCategories = useMemo(() => schoolDetails?.busFeeStructures ? [...new Set(schoolDetails.busFeeStructures.map(s => s.classCategory))] : [], [schoolDetails]);
 
+  const handleDownloadStudentData = () => {
+    if (filteredAndSortedStudents.length === 0) {
+      toast({ title: 'No Data', description: 'There is no student data to download.' });
+      return;
+    }
+
+    const dataToExport = filteredAndSortedStudents.map(student => ({
+      'Name': student.name,
+      'Admission ID': student.admissionId,
+      'Email': student.email,
+      'Class': getClassNameFromId(student.classId),
+      'Academic Year': student.academicYear,
+      'Status': student.status,
+      'Date of Birth': student.dob ? format(new Date(student.dob), 'dd-MM-yyyy') : 'N/A',
+      'Date of Joining': student.dateOfJoining ? format(new Date(student.dateOfJoining), 'dd-MM-yyyy') : 'N/A',
+      'Gender': student.gender,
+      "Father's Name": student.fatherName,
+      "Mother's Name": student.motherName,
+      "Father's Mobile": student.fatherMobile,
+      "Mother's Mobile": student.motherMobile,
+      'Aadhar Number': student.aadharNo,
+      'Present Address': `${student.presentAddress?.houseNo || ''}, ${student.presentAddress?.street || ''}, ${student.presentAddress?.village || ''}, ${student.presentAddress?.mandal || ''}, ${student.presentAddress?.district || ''}, ${student.presentAddress?.state || ''}`,
+      'Permanent Address': `${student.permanentAddress?.houseNo || ''}, ${student.permanentAddress?.street || ''}, ${student.permanentAddress?.village || ''}, ${student.permanentAddress?.mandal || ''}, ${student.permanentAddress?.district || ''}, ${student.permanentAddress?.state || ''}`,
+      'Bus Service': student.busRouteLocation ? 'Yes' : 'No',
+      'Bus Route': student.busRouteLocation,
+      'Bus Category': student.busClassCategory,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
+    XLSX.writeFile(workbook, `student_data_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
 
   const FormFields = (
     <div className="space-y-8">
@@ -549,6 +584,7 @@ export default function AdminStudentManagementPage() {
             <CardTitle>Student List</CardTitle>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Input placeholder="Filter by Name or Adm. No..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolStudents.length}/>
+              <Button onClick={handleDownloadStudentData} variant="outline"><Download className="mr-2 h-4 w-4"/>Download Excel</Button>
               <Button asChild variant="outline">
                   <Link href="/dashboard/admin/students/import"><Upload className="mr-2 h-4 w-4" /> Import Students</Link>
               </Button>

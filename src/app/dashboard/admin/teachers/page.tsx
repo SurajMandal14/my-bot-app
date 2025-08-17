@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, Briefcase, XCircle, UserMinus, UserCheck, CalendarIcon, Heart, Contact, Home, GraduationCap, ShieldQuestion, Building, ArrowUpDown } from "lucide-react";
+import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, Briefcase, XCircle, UserMinus, UserCheck, CalendarIcon, Heart, Contact, Home, GraduationCap, ShieldQuestion, Building, ArrowUpDown, Download } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -45,6 +45,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { ControlledListbox } from "@/components/ui/ControlledListbox";
+import * as XLSX from 'xlsx';
 
 type SchoolTeacher = Partial<AppUser>; 
 type SortableKeys = 'name' | 'email' | 'classTeacherFor' | 'dateOfJoining';
@@ -322,6 +323,32 @@ export default function AdminTeacherManagementPage() {
     }
     return sortConfig.direction === 'asc' ? '▲' : '▼';
   };
+
+  const handleDownloadTeacherData = () => {
+    if (filteredAndSortedTeachers.length === 0) {
+      toast({ title: 'No Data', description: 'There is no teacher data to download.' });
+      return;
+    }
+
+    const dataToExport = filteredAndSortedTeachers.map(teacher => ({
+      'Name': teacher.name,
+      'Email': teacher.email,
+      'Phone': teacher.phone,
+      'Qualification': teacher.qualification,
+      'Class Teacher For': getClassNameFromId(teacher._id),
+      'Date of Joining': teacher.dateOfJoining ? format(new Date(teacher.dateOfJoining), 'dd-MM-yyyy') : 'N/A',
+      'Status': teacher.status || 'active',
+      "Father's Name": teacher.fatherName,
+      'Date of Birth': teacher.dob ? format(new Date(teacher.dob), 'dd-MM-yyyy') : 'N/A',
+      'Aadhar Number': teacher.aadharNo,
+      'Address': `${teacher.presentAddress?.houseNo || ''}, ${teacher.presentAddress?.street || ''}, ${teacher.presentAddress?.village || ''}, ${teacher.presentAddress?.mandal || ''}, ${teacher.presentAddress?.district || ''}, ${teacher.presentAddress?.state || ''}`,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Teachers');
+    XLSX.writeFile(workbook, `teacher_data_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
   
   const TeacherFormFields = (
      <div className="space-y-8">
@@ -409,6 +436,7 @@ export default function AdminTeacherManagementPage() {
             <CardTitle>Teacher List</CardTitle>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Input placeholder="Filter by Name or Email..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolTeachers.length}/>
+              <Button onClick={handleDownloadTeacherData} variant="outline"><Download className="mr-2 h-4 w-4"/>Download Excel</Button>
               <Button onClick={handleAddClick}><UserPlus className="mr-2 h-4 w-4"/>Add New Teacher</Button>
             </div>
           </div>
