@@ -33,7 +33,7 @@ export async function createSchoolUser(values: CreateSchoolUserFormData, schoolI
 
     const { 
         name, email, password, role, classId, admissionId, 
-        busRouteLocation, busClassCategory,
+        enableBusTransport, busRouteLocation, busClassCategory,
         fatherName, motherName, dob, section, rollNo, examNo, aadharNo, dateOfJoining, academicYear,
         // New detailed fields
         gender, bloodGroup, nationality, religion, caste, subcaste, pwd, identificationMarks,
@@ -78,8 +78,8 @@ export async function createSchoolUser(values: CreateSchoolUserFormData, schoolI
       schoolId: userSchoolId,
       classId: (classId && classId.trim() !== "" && ObjectId.isValid(classId)) ? classId.trim() : undefined,
       admissionId: role === 'student' ? (admissionId && admissionId.trim() !== "" ? admissionId.trim() : undefined) : undefined,
-      busRouteLocation: role === 'student' ? (busRouteLocation && busRouteLocation.trim() !== "" ? busRouteLocation.trim() : undefined) : undefined,
-      busClassCategory: role === 'student' ? (busClassCategory && busClassCategory.trim() !== "" ? busClassCategory.trim() : undefined) : undefined,
+      busRouteLocation: (role === 'student' && enableBusTransport && busRouteLocation && busRouteLocation.trim() !== "") ? busRouteLocation.trim() : undefined,
+      busClassCategory: (role === 'student' && enableBusTransport && busClassCategory && busClassCategory.trim() !== "") ? busClassCategory.trim() : undefined,
       fatherName: fatherName,
       motherName: motherName,
       dob: dob,

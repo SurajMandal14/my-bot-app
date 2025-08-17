@@ -147,6 +147,7 @@ export default function AdminStudentManagementPage() {
 
   const isPermanentSameAsPresent = currentForm.watch("isPermanentSameAsPresent");
   const presentAddress = currentForm.watch("presentAddress");
+  const enableBusTransport = currentForm.watch("enableBusTransport");
 
   useEffect(() => {
     if (isPermanentSameAsPresent) {
@@ -175,10 +176,11 @@ export default function AdminStudentManagementPage() {
     }
     setIsLoadingData(true);
     try {
-      const [usersResult, classesOptionsResult, academicYearsResult] = await Promise.all([
+      const [usersResult, classesOptionsResult, academicYearsResult, schoolDetailsResult] = await Promise.all([
         getSchoolUsers(authUser.schoolId.toString()),
         getClassesForSchoolAsOptions(authUser.schoolId.toString()),
-        getAcademicYears()
+        getAcademicYears(),
+        getSchoolById(authUser.schoolId.toString())
       ]);
       
       if (usersResult.success && usersResult.users) {
@@ -189,6 +191,10 @@ export default function AdminStudentManagementPage() {
       
       if (academicYearsResult.success && academicYearsResult.academicYears) {
         setAcademicYears(academicYearsResult.academicYears);
+      }
+      
+      if (schoolDetailsResult.success && schoolDetailsResult.school) {
+        setSchoolDetails(schoolDetailsResult.school);
       }
 
     } catch (error) {
@@ -372,6 +378,10 @@ export default function AdminStudentManagementPage() {
     }
     return sortConfig.direction === 'asc' ? '▲' : '▼';
   };
+  
+  const uniqueBusLocations = useMemo(() => schoolDetails?.busFeeStructures ? [...new Set(schoolDetails.busFeeStructures.map(s => s.location))] : [], [schoolDetails]);
+  const uniqueBusCategories = useMemo(() => schoolDetails?.busFeeStructures ? [...new Set(schoolDetails.busFeeStructures.map(s => s.classCategory))] : [], [schoolDetails]);
+
 
   const FormFields = (
     <div className="space-y-8">
@@ -447,6 +457,27 @@ export default function AdminStudentManagementPage() {
             <FormField control={currentForm.control} name="isTcAttached" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 lg:col-span-3"><div className="space-y-0.5"><FormLabel>Whether TC or Record Sheet Attached</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem>)}/>
         </CardContent>
       </Card>
+      
+       <Card>
+        <CardHeader><CardTitle className="flex items-center text-xl"><Bus className="mr-2 h-6 w-6 text-primary"/>Transportation Details</CardTitle></CardHeader>
+        <CardContent className="space-y-6">
+          <FormField control={currentForm.control} name="enableBusTransport" render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
+                <div className="space-y-0.5">
+                    <FormLabel className="text-base">Enable Bus Transport</FormLabel>
+                    <FormDescription>Enroll this student for school transportation services.</FormDescription>
+                </div>
+                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+            </FormItem>
+          )}/>
+          {enableBusTransport && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                <ControlledListbox control={currentForm.control} name="busRouteLocation" label="Bus Route / Location" options={uniqueBusLocations.map(l => ({ value: l, label: l}))} placeholder="Select Route"/>
+                <ControlledListbox control={currentForm.control} name="busClassCategory" label="Bus Station" options={uniqueBusCategories.map(c => ({ value: c, label: c}))} placeholder="Select Station"/>
+            </div>
+          )}
+        </CardContent>
+       </Card>
 
        <Card><CardHeader><CardTitle className="flex items-center text-xl"><Contact className="mr-2 h-6 w-6 text-primary"/>System &amp; Account Details</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
