@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/attendance";
 import type { User as AppUser } from "@/types/user";
-import type { School, TermFee } from "@/types/school";
+import type { School, TermFee, BusFeeLocationCategory } from "@/types/school";
 import type { FeePayment, FeePaymentPayload } from "@/types/fees";
 import type { FeeConcession } from "@/types/concessions";
 import { getSchoolUsers } from "@/app/actions/schoolUsers";
@@ -27,7 +27,6 @@ import { format } from "date-fns";
 const getCurrentAcademicYear = (): string => {
   const today = new Date();
   const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
   if (currentMonth >= 5) { 
     return `${currentYear}-${currentYear + 1}`;
   } else { 
@@ -43,6 +42,8 @@ interface ClassOption {
 
 interface StudentFeeDetailsProcessed extends AppUser {
   totalAnnualTuitionFee: number;
+  totalAnnualBusFee: number;
+  totalAnnualFee: number;
   paidAmount: number;
   totalConcessions: number;
   dueAmount: number;
@@ -50,7 +51,7 @@ interface StudentFeeDetailsProcessed extends AppUser {
   classLabel?: string;
 }
 
-type SortableKeys = 'name' | 'classLabel' | 'totalAnnualTuitionFee' | 'paidAmount' | 'totalConcessions' | 'dueAmount';
+type SortableKeys = 'name' | 'classLabel' | 'totalAnnualFee' | 'paidAmount' | 'totalConcessions' | 'dueAmount';
 
 export default function FeeManagementPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -104,6 +105,13 @@ export default function FeeManagementPage() {
     const classFeeConfig = schoolConfig.tuitionFees.find(cf => cf.className === className);
     if (!classFeeConfig || !classFeeConfig.terms) return 0;
     return classFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
+  }, []);
+
+  const calculateAnnualBusFee = useCallback((student: AppUser, schoolConfig: School | null): number => {
+    if (!student.busRouteLocation || !student.busClassCategory || !schoolConfig || !schoolConfig.busFeeStructures) return 0;
+    const busFeeConfig = schoolConfig.busFeeStructures.find(bfs => bfs.location === student.busRouteLocation && bfs.classCategory === student.busClassCategory);
+    if (!busFeeConfig || !busFeeConfig.terms) return 0;
+    return busFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
   }, []);
 
   const fetchSchoolDataAndRelated = useCallback(async () => {
@@ -161,15 +169,18 @@ export default function FeeManagementPage() {
       const studentClassLabel = classInfo?.label || student.classId || 'N/A';
       
       const totalAnnualTuitionFee = calculateAnnualTuitionFee(studentClassName, schoolDetails);
+      const totalAnnualBusFee = calculateAnnualBusFee(student, schoolDetails);
+      const totalAnnualFee = totalAnnualTuitionFee + totalAnnualBusFee;
+
       const paidAmount = allSchoolPayments.filter(p => p.studentId.toString() === student._id.toString()).reduce((sum, p) => sum + p.amountPaid, 0);
       const totalConcessions = allSchoolConcessions.filter(c => c.studentId.toString() === student._id.toString() && c.academicYear === currentAcademicYear).reduce((sum, c) => sum + c.amount, 0);
-      const dueAmount = Math.max(0, totalAnnualTuitionFee - paidAmount - totalConcessions);
+      const dueAmount = Math.max(0, totalAnnualFee - paidAmount - totalConcessions);
 
-      return { ...student, className: studentClassName, classLabel: studentClassLabel, totalAnnualTuitionFee, paidAmount, totalConcessions, dueAmount };
+      return { ...student, className: studentClassName, classLabel: studentClassLabel, totalAnnualTuitionFee, totalAnnualBusFee, totalAnnualFee, paidAmount, totalConcessions, dueAmount };
     }) as StudentFeeDetailsProcessed[];
     setStudentFeeList(processedList);
 
-  }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, calculateAnnualTuitionFee, currentAcademicYear, classOptions]);
+  }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, calculateAnnualTuitionFee, calculateAnnualBusFee, currentAcademicYear, classOptions]);
 
   useEffect(() => {
      processStudentFeeDetails();
@@ -353,7 +364,7 @@ export default function FeeManagementPage() {
               <>
                 <p className="text-sm font-semibold pt-2">Selected: <span className="text-primary">{selectedStudentFullData.name}</span></p>
                 <p className="text-sm">Class: {selectedStudentFullData.classLabel || 'N/A'}</p>
-                <p className="text-sm">Total Annual Tuition Fee: <span className="font-sans">₹</span>{selectedStudentFullData.totalAnnualTuitionFee.toLocaleString()}</p>
+                <p className="text-sm">Total Annual Fee: <span className="font-sans">₹</span>{selectedStudentFullData.totalAnnualFee.toLocaleString()}</p>
                 <p className="text-sm">Amount Paid: <span className="font-sans">₹</span>{selectedStudentFullData.paidAmount.toLocaleString()}</p>
                 <p className="text-sm text-blue-600">Total Concessions ({currentAcademicYear}): <span className="font-sans">₹</span>{selectedStudentFullData.totalConcessions.toLocaleString()}</p>
                 <p className="text-sm font-semibold">Amount Due: <span className="font-sans">₹</span>{selectedStudentFullData.dueAmount.toLocaleString()}</p>
@@ -400,8 +411,8 @@ export default function FeeManagementPage() {
           <CardHeader>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
               <div className="w-full sm:w-auto">
-                <CardTitle>Student Fee Status (Annual Tuition - {currentAcademicYear})</CardTitle>
-                <CardDescription>Overview of student tuition fees, payments, concessions, and dues.</CardDescription>
+                <CardTitle>Student Fee Status (Tuition & Bus - {currentAcademicYear})</CardTitle>
+                <CardDescription>Overview of student fees, payments, concessions, and dues.</CardDescription>
               </div>
               <Input
                 placeholder="Filter by name or admission no..."
@@ -418,7 +429,7 @@ export default function FeeManagementPage() {
                 <TableHeader><TableRow>
                     <TableHead><Button variant="ghost" onClick={() => handleSort('name')}>Student Name {renderSortIcon('name')}</Button></TableHead>
                     <TableHead><Button variant="ghost" onClick={() => handleSort('classLabel')}>Class {renderSortIcon('classLabel')}</Button></TableHead>
-                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalAnnualTuitionFee')}>Total Fee {renderSortIcon('totalAnnualTuitionFee')}</Button></TableHead>
+                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalAnnualFee')}>Total Fee {renderSortIcon('totalAnnualFee')}</Button></TableHead>
                     <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('paidAmount')}>Paid {renderSortIcon('paidAmount')}</Button></TableHead>
                     <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalConcessions')}>Concessions {renderSortIcon('totalConcessions')}</Button></TableHead>
                     <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('dueAmount')}>Due {renderSortIcon('dueAmount')}</Button></TableHead>
@@ -428,7 +439,7 @@ export default function FeeManagementPage() {
                   {filteredAndSortedFeeList.map((student) => (
                     <TableRow key={student._id.toString()}>
                       <TableCell>{student.name}</TableCell><TableCell>{student.classLabel || 'N/A'}</TableCell>
-                      <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualTuitionFee.toLocaleString()}</TableCell>
+                      <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualFee.toLocaleString()}</TableCell>
                       <TableCell className="text-right"><span className="font-sans">₹</span>{student.paidAmount.toLocaleString()}</TableCell>
                       <TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{student.totalConcessions.toLocaleString()}</TableCell>
                       <TableCell className={`text-right font-semibold ${student.dueAmount > 0 ? "text-destructive" : "text-green-600"}`}><span className="font-sans">₹</span>{student.dueAmount.toLocaleString()}</TableCell>
