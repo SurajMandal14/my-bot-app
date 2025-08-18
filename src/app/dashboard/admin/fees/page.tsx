@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search, ArrowUpDown } from "lucide-react";
+import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search, ArrowUpDown, Bus } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/attendance";
@@ -52,7 +52,7 @@ interface StudentFeeDetailsProcessed extends AppUser {
   classLabel?: string;
 }
 
-type SortableKeys = 'name' | 'classLabel' | 'totalAnnualFee' | 'paidAmount' | 'totalConcessions' | 'dueAmount';
+type SortableKeys = 'name' | 'classLabel' | 'totalAnnualTuitionFee' | 'totalAnnualBusFee' | 'totalAnnualFee' | 'paidAmount' | 'totalConcessions' | 'dueAmount';
 
 export default function FeeManagementPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -365,7 +365,9 @@ export default function FeeManagementPage() {
               <>
                 <p className="text-sm font-semibold pt-2">Selected: <span className="text-primary">{selectedStudentFullData.name}</span></p>
                 <p className="text-sm">Class: {selectedStudentFullData.classLabel || 'N/A'}</p>
-                <p className="text-sm">Total Annual Fee: <span className="font-sans">₹</span>{selectedStudentFullData.totalAnnualFee.toLocaleString()}</p>
+                <p className="text-sm">Tuition Fee: <span className="font-sans">₹</span>{selectedStudentFullData.totalAnnualTuitionFee.toLocaleString()}</p>
+                <p className="text-sm">Bus Fee: <span className="font-sans">₹</span>{selectedStudentFullData.totalAnnualBusFee.toLocaleString()}</p>
+                <p className="text-sm font-semibold">Total Annual Fee: <span className="font-sans">₹</span>{selectedStudentFullData.totalAnnualFee.toLocaleString()}</p>
                 <p className="text-sm">Amount Paid: <span className="font-sans">₹</span>{selectedStudentFullData.paidAmount.toLocaleString()}</p>
                 <p className="text-sm text-blue-600">Total Concessions ({currentAcademicYear}): <span className="font-sans">₹</span>{selectedStudentFullData.totalConcessions.toLocaleString()}</p>
                 <p className="text-sm font-semibold">Amount Due: <span className="font-sans">₹</span>{selectedStudentFullData.dueAmount.toLocaleString()}</p>
@@ -412,7 +414,7 @@ export default function FeeManagementPage() {
           <CardHeader>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
               <div className="w-full sm:w-auto">
-                <CardTitle>Student Fee Status (Tuition & Bus - {currentAcademicYear})</CardTitle>
+                <CardTitle>Student Fee Status ({currentAcademicYear})</CardTitle>
                 <CardDescription>Overview of student fees, payments, concessions, and dues.</CardDescription>
               </div>
               <Input
@@ -430,6 +432,8 @@ export default function FeeManagementPage() {
                 <TableHeader><TableRow>
                     <TableHead><Button variant="ghost" onClick={() => handleSort('name')}>Student Name {renderSortIcon('name')}</Button></TableHead>
                     <TableHead><Button variant="ghost" onClick={() => handleSort('classLabel')}>Class {renderSortIcon('classLabel')}</Button></TableHead>
+                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalAnnualTuitionFee')}>Tuition Fee {renderSortIcon('totalAnnualTuitionFee')}</Button></TableHead>
+                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalAnnualBusFee')}>Bus Fee {renderSortIcon('totalAnnualBusFee')}</Button></TableHead>
                     <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalAnnualFee')}>Total Fee {renderSortIcon('totalAnnualFee')}</Button></TableHead>
                     <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('paidAmount')}>Paid {renderSortIcon('paidAmount')}</Button></TableHead>
                     <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalConcessions')}>Concessions {renderSortIcon('totalConcessions')}</Button></TableHead>
@@ -439,8 +443,11 @@ export default function FeeManagementPage() {
                 <TableBody>
                   {filteredAndSortedFeeList.map((student) => (
                     <TableRow key={student._id.toString()}>
-                      <TableCell>{student.name}</TableCell><TableCell>{student.classLabel || 'N/A'}</TableCell>
-                      <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualFee.toLocaleString()}</TableCell>
+                      <TableCell>{student.name}</TableCell>
+                      <TableCell>{student.classLabel || 'N/A'}</TableCell>
+                      <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualTuitionFee.toLocaleString()}</TableCell>
+                      <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualBusFee.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-semibold"><span className="font-sans">₹</span>{student.totalAnnualFee.toLocaleString()}</TableCell>
                       <TableCell className="text-right"><span className="font-sans">₹</span>{student.paidAmount.toLocaleString()}</TableCell>
                       <TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{student.totalConcessions.toLocaleString()}</TableCell>
                       <TableCell className={`text-right font-semibold ${student.dueAmount > 0 ? "text-destructive" : "text-green-600"}`}><span className="font-sans">₹</span>{student.dueAmount.toLocaleString()}</TableCell>
