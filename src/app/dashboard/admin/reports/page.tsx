@@ -358,7 +358,7 @@ export default function AdminReportsPage() {
     if (result.success && result.reports) {
       setReportsForBulkPublish(result.reports);
       if (result.reports.length === 0) {
-        toast({title: "No Reports Found", description: "No existing report cards found for this class and academic year to publish."});
+        toast({title: "No Students Found", description: "No students found in this class for the selected academic year."});
       }
     } else {
       toast({variant: "destructive", title: "Error Loading Reports", description: result.message || "Could not load reports."});
