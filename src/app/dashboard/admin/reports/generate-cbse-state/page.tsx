@@ -655,6 +655,10 @@ export default function GenerateCBSEStateReportPage() {
             </p>
           )}
           <div className="flex flex-wrap gap-2">
+            <Button onClick={()=>handleSaveReportCard(false)} disabled={isSaving || !loadedStudent}>
+              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
+              {isSaving ? 'Saving...' : 'Save Report'}
+            </Button>
             {currentUserRole === 'admin' && (
                 <AlertDialog open={!!actionToConfirm} onOpenChange={(open) => !open && setActionToConfirm(null)}>
                   <AlertDialogTrigger asChild>
@@ -719,7 +723,7 @@ export default function GenerateCBSEStateReportPage() {
                 />
             </div>
           
-            <div className="hidden print:block page-break"></div>
+            <div className="page-break no-print"></div>
 
             <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden print:!block' : 'block'}`}>
                 <CBSEStateBack
