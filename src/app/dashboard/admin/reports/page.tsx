@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChartBig, Loader2, Info, Download, DollarSign, FileText, BadgePercent, Users, ShieldCheck, ShieldOff, BookOpenCheck, CheckCircle2, XCircleIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { BarChartBig, Loader2, Info, Download, DollarSign, FileText, BadgePercent, Users, ShieldCheck, ShieldOff, BookOpenCheck, CheckCircle2, XCircleIcon, ChevronLeft, ChevronRight, AlertTriangle, FileSignature } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -25,7 +25,7 @@ import type { User as AppUser } from "@/types/user";
 import type { School } from "@/types/school";
 import type { FeePayment } from "@/types/fees";
 import type { FeeConcession } from "@/types/concessions";
-import { getReportCardsForClass, setReportPublicationStatusForClass } from "@/app/actions/reports"; 
+import { getReportCardsForClass, setReportPublicationStatusForClass, generateAllReportsForClass } from "@/app/actions/reports"; 
 import type { BulkPublishReportInfo } from "@/types/report"; 
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes"; 
 import { getSchoolUsers } from "@/app/actions/schoolUsers";
@@ -93,7 +93,8 @@ export default function AdminReportsPage() {
   const [reportsForBulkPublish, setReportsForBulkPublish] = useState<BulkPublishReportInfo[]>([]);
   const [isLoadingBulkReports, setIsLoadingBulkReports] = useState(false);
   const [isBulkPublishing, setIsBulkPublishing] = useState(false);
-  const [bulkActionToConfirm, setBulkActionToConfirm] = useState<'publish' | 'unpublish' | null>(null);
+  const [bulkActionToConfirm, setBulkActionToConfirm] = useState<'publish' | 'unpublish' | 'generate' | null>(null);
+  const [isGeneratingReports, setIsGeneratingReports] = useState(false);
 
 
   useEffect(() => {
@@ -382,10 +383,34 @@ export default function AdminReportsPage() {
     }
     setIsBulkPublishing(false);
   };
+
+  const handleGenerateAllReports = async () => {
+    if (!authUser?.schoolId || !selectedClassForBulkPublish || !academicYearForBulkPublish) return;
+    setIsGeneratingReports(true);
+    const result = await generateAllReportsForClass(
+      authUser.schoolId.toString(),
+      selectedClassForBulkPublish,
+      academicYearForBulkPublish,
+      authUser._id.toString()
+    );
+     if (result.success) {
+      toast({ title: "Report Generation Complete", description: result.message, duration: 8000 });
+      handleLoadReportsForBulkPublish(); // Refresh the list
+    } else {
+      toast({ variant: "destructive", title: "Generation Failed", description: result.error || result.message, duration: 8000 });
+    }
+    setIsGeneratingReports(false);
+    setBulkActionToConfirm(null);
+  }
   
-  const handleConfirmBulkPublish = async () => {
-    if (bulkActionToConfirm === null) return;
-    await handleBulkPublishAction(bulkActionToConfirm === 'publish');
+  const handleConfirmBulkAction = async () => {
+    if (bulkActionToConfirm === 'publish') {
+        await handleBulkPublishAction(true);
+    } else if (bulkActionToConfirm === 'unpublish') {
+        await handleBulkPublishAction(false);
+    } else if (bulkActionToConfirm === 'generate') {
+        await handleGenerateAllReports();
+    }
     setBulkActionToConfirm(null);
   };
 
@@ -474,7 +499,15 @@ export default function AdminReportsPage() {
 
           {reportsForBulkPublish.length > 0 && !isLoadingBulkReports && (
             <div className="space-y-3 mt-4">
-              <div className="flex gap-2">
+               <div className="flex flex-wrap gap-2">
+                 <Button
+                    onClick={() => setBulkActionToConfirm('generate')}
+                    disabled={isGeneratingReports}
+                    variant="outline"
+                  >
+                    {isGeneratingReports ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FileSignature className="mr-2 h-4 w-4"/>} 
+                    Generate All Reports ({reportsForBulkPublish.length})
+                  </Button>
                 <Button
                   onClick={() => setBulkActionToConfirm('publish')}
                   disabled={isBulkPublishing || reportsThatExistCount === 0}
@@ -534,17 +567,21 @@ export default function AdminReportsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              You are about to <strong>{bulkActionToConfirm === 'publish' ? 'publish' : 'unpublish'}</strong> all {reportsThatExistCount} generated reports for this class. 
-              This will make them {bulkActionToConfirm === 'publish' ? 'visible' : 'hidden'} to students. Proceed?
+              {bulkActionToConfirm === 'generate' ? (
+                <>You are about to generate/regenerate all {reportsForBulkPublish.length} reports for this class. This will overwrite any existing reports for these students for this academic year. This process may take a few moments. Proceed?</>
+              ) : (
+                <>You are about to <strong>{bulkActionToConfirm === 'publish' ? 'publish' : 'unpublish'}</strong> all {reportsThatExistCount} generated reports for this class. This will make them {bulkActionToConfirm === 'publish' ? 'visible' : 'hidden'} to students. Proceed?</>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleConfirmBulkPublish}
-              className={bulkActionToConfirm === 'unpublish' ? 'bg-destructive hover:bg-destructive/90' : 'bg-green-600 hover:bg-green-700'}
+              onClick={handleConfirmBulkAction}
+              className={bulkActionToConfirm === 'unpublish' ? 'bg-destructive hover:bg-destructive/90' : (bulkActionToConfirm === 'generate' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700')}
             >
-              Confirm {bulkActionToConfirm === 'publish' ? 'Publish' : 'Unpublish'}
+              {isGeneratingReports || isBulkPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+              Confirm {bulkActionToConfirm === 'publish' ? 'Publish' : (bulkActionToConfirm === 'unpublish' ? 'Unpublish' : 'Generate')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

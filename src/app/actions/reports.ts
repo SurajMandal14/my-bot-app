@@ -3,12 +3,15 @@
 
 import { z } from 'zod';
 import { connectToDatabase } from '@/lib/mongodb';
-import type { ReportCardData, SaveReportCardResult, SetReportCardPublicationStatusResult, GetStudentReportCardResult, BulkPublishReportInfo } from '@/types/report';
+import type { ReportCardData, SaveReportCardResult, SetReportCardPublicationStatusResult, GetStudentReportCardResult, BulkPublishReportInfo, ReportCardSASubjectEntry, FormativeAssessmentEntryForStorage } from '@/types/report';
 import { reportCardDataSchemaForSave } from '@/types/report'; // Import the new schema from types/report
 import { ObjectId } from 'mongodb';
 import type { User } from '@/types/user'; 
 import { getSchoolById } from './schools'; 
 import { revalidatePath } from 'next/cache';
+import { getStudentsByClass, getStudentDetailsForReportCard } from './schoolUsers';
+import { getStudentMarksForReportCard } from './marks';
+import { getClassDetailsById } from './classes';
 
 export async function saveReportCard(data: Omit<ReportCardData, '_id' | 'createdAt' | 'updatedAt' | 'isPublished'>): Promise<SaveReportCardResult> {
   try {
@@ -328,4 +331,116 @@ export async function setReportPublicationStatusForClass(schoolId: string, class
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
     return { success: false, updatedCount: 0, message: 'An unexpected error occurred.', error: errorMessage };
   }
+}
+
+export interface GenerateAllReportsResult {
+  success: boolean;
+  message: string;
+  generatedCount: number;
+  failedCount: number;
+  error?: string;
+}
+
+export async function generateAllReportsForClass(schoolId: string, classId: string, academicYear: string, adminId: string): Promise<GenerateAllReportsResult> {
+    if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId) || !ObjectId.isValid(adminId)) {
+        return { success: false, message: 'Invalid ID format.', generatedCount: 0, failedCount: 0 };
+    }
+    if (!academicYear) {
+        return { success: false, message: 'Academic Year is required.', generatedCount: 0, failedCount: 0 };
+    }
+
+    const studentsResult = await getStudentsByClass(schoolId, classId, academicYear);
+    if (!studentsResult.success || !studentsResult.users) {
+        return { success: false, message: studentsResult.message || 'Failed to fetch students.', generatedCount: 0, failedCount: 0 };
+    }
+    
+    const students = studentsResult.users;
+    let generatedCount = 0;
+    let failedCount = 0;
+
+    const classDetailsResult = await getClassDetailsById(classId, schoolId);
+    if (!classDetailsResult.success || !classDetailsResult.classDetails) {
+        return { success: false, message: 'Failed to fetch class details.', generatedCount: 0, failedCount: 0 };
+    }
+    const classDetails = classDetailsResult.classDetails;
+
+    for (const student of students) {
+        try {
+            const studentId = student._id!.toString();
+            const studentDetailsRes = await getStudentDetailsForReportCard(student.admissionId!, schoolId, academicYear);
+            if (!studentDetailsRes.success || !studentDetailsRes.student) continue;
+            
+            const studentDetails = studentDetailsRes.student;
+            const marksResult = await getStudentMarksForReportCard(studentId, schoolId, academicYear);
+            const allMarks = marksResult.success && marksResult.marks ? marksResult.marks : [];
+
+            const faMarks: Record<string, any> = {};
+            (classDetails.subjects || []).forEach(s => faMarks[s.name] = { fa1:{}, fa2:{}, fa3:{}, fa4:{} });
+            const saData: ReportCardSASubjectEntry[] = [];
+
+            // This logic is a simplified version of what's on the client.
+            // A more robust implementation would share this logic.
+             allMarks.forEach(mark => {
+                if (mark.assessmentName.startsWith("FA")) {
+                    const [, tool] = mark.assessmentName.split('-');
+                    const faPeriod = mark.assessmentName.substring(0, 3).toLowerCase();
+                    if (faMarks[mark.subjectName] && faMarks[mark.subjectName][faPeriod] && tool) {
+                        faMarks[mark.subjectName][faPeriod][tool.toLowerCase().replace('tool', 'tool')] = mark.marksObtained;
+                    }
+                }
+            });
+
+            const formativeAssessmentsForStorage: FormativeAssessmentEntryForStorage[] = Object.entries(faMarks)
+                .map(([subjectName, marksData]) => ({ subjectName, ...marksData }));
+
+            const reportPayload: Omit<ReportCardData, '_id' | 'createdAt' | 'updatedAt' | 'isPublished'> = {
+                studentId: studentId,
+                schoolId: schoolId,
+                academicYear: academicYear,
+                reportCardTemplateKey: 'cbse_state',
+                studentInfo: {
+                    udiseCodeSchoolName: classDetails.schoolId, // Placeholder, needs school name
+                    studentName: studentDetails.name,
+                    fatherName: studentDetails.fatherName,
+                    motherName: studentDetails.motherName,
+                    class: classDetails.name,
+                    section: studentDetails.section,
+                    studentIdNo: studentId,
+                    rollNo: studentDetails.rollNo,
+                    medium: 'English',
+                    dob: studentDetails.dob,
+                    admissionNo: studentDetails.admissionId,
+                    examNo: studentDetails.examNo,
+                    aadharNo: studentDetails.aadharNo,
+                },
+                formativeAssessments: formativeAssessmentsForStorage,
+                coCurricularAssessments: [], // Default empty
+                secondLanguage: classDetails.secondLanguageSubjectName === "Telugu" ? "Telugu" : "Hindi",
+                summativeAssessments: saData, // Simplified for now
+                attendance: [], // Default empty
+                finalOverallGrade: null, // Default null
+                generatedByAdminId: adminId,
+                term: "Annual",
+            };
+            
+            const saveResult = await saveReportCard(reportPayload);
+            if(saveResult.success) {
+                generatedCount++;
+            } else {
+                failedCount++;
+            }
+        } catch (e) {
+            failedCount++;
+            console.error(`Failed to generate report for student ${student.name}:`, e);
+        }
+    }
+
+    revalidatePath('/dashboard/admin/reports');
+
+    return {
+        success: true,
+        message: `Report generation complete. Generated: ${generatedCount}, Failed: ${failedCount}.`,
+        generatedCount,
+        failedCount,
+    };
 }
