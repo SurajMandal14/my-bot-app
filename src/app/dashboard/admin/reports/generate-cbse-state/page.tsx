@@ -595,10 +595,8 @@ export default function GenerateCBSEStateReportPage() {
             -webkit-print-color-adjust: exact; 
             print-color-adjust: exact;
           }
-          .printable-report-card-container {
-            display: block !important;
-          }
           .printable-report-card {
+            display: block !important; /* Ensure both are visible for print */
             width: 100%;
             height: auto;
             box-shadow: none !important;
@@ -726,8 +724,8 @@ export default function GenerateCBSEStateReportPage() {
 
       {/* Report Card Display Area */}
       {!isLoadingStudentAndClassData && loadedStudent && authUser && (
-        <div className="printable-report-card-container space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4">
-            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md lg:block ${showBackSide ? 'hidden' : 'block'}`}>
+        <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4">
+            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md lg:block ${showBackSide && 'hidden'}`}>
                 <CBSEStateFront
                   studentData={studentData} onStudentDataChange={handleStudentDataChange}
                   academicSubjects={loadedClassSubjects} 
@@ -740,7 +738,7 @@ export default function GenerateCBSEStateReportPage() {
                 />
             </div>
           
-            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md lg:block ${!showBackSide ? 'hidden' : 'block'}`}>
+            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md lg:block ${!showBackSide && 'hidden'}`}>
                 <CBSEStateBack
                   saData={saData}
                   onSaDataChange={handleSaDataChange}

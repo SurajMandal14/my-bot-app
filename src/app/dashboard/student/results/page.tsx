@@ -16,8 +16,8 @@ import CBSEStateFront, {
     type CoCurricularSAData as FrontCoCurricularSAData,
 } from '@/components/report-cards/CBSEStateFront';
 import CBSEStateBack, {
-    type SARowData as BackSARowData,
-    type AttendanceMonthData as BackAttendanceMonthData,
+    type ReportCardSASubjectEntry,
+    type ReportCardAttendanceMonth,
 } from '@/components/report-cards/CBSEStateBack';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -170,10 +170,15 @@ export default function StudentResultsPage() {
   return (
     <div className="space-y-6">
        <style jsx global>{`
+        @page {
+            size: landscape;
+            margin: 0.5cm;
+        }
         @media print {
           body * { visibility: hidden; }
           .printable-report-card, .printable-report-card * { visibility: visible !important; }
           .printable-report-card { 
+            display: block !important;
             position: absolute !important; 
             left: 0 !important; 
             top: 0 !important; 
@@ -182,9 +187,12 @@ export default function StudentResultsPage() {
             padding: 0 !important; 
             transform: scale(0.95); 
             transform-origin: top left;
+            page-break-after: always;
+          }
+          .printable-report-card:last-child {
+            page-break-after: avoid;
           }
           .no-print { display: none !important; }
-           .page-break { page-break-after: always; }
         }
       `}</style>
       <Card className="no-print">
@@ -260,13 +268,11 @@ export default function StudentResultsPage() {
             </Button>
             <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print Report Card</Button>
           </div>
-          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide ? 'hidden print:!block' : ''}`}>
+          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide && 'hidden'}`}>
             <CBSEStateFront {...frontProps} />
           </div>
           
-          <div className="page-break no-print"></div>
-
-          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden print:!block' : 'block'}`}>
+          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide && 'hidden'}`}>
             <CBSEStateBack {...backProps} />
           </div>
         </>
