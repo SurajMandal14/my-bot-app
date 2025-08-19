@@ -590,11 +590,17 @@ export default function GenerateCBSEStateReportPage() {
           body * { visibility: hidden; }
           .printable-report-card, .printable-report-card * { visibility: visible !important; }
           .printable-report-card { 
-            position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; 
-            margin: 0 !important; padding: 0 !important; transform: scale(0.95); transform-origin: top left;
+            position: absolute !important; 
+            left: 0 !important; 
+            top: 0 !important; 
+            width: 100% !important; 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            transform: scale(0.95); 
+            transform-origin: top left;
           }
           .no-print { display: none !important; }
-          .page-break { page-break-after: always !important; }
+          .page-break-after { page-break-after: always !important; }
         }
       `}</style>
       <Card className="no-print">
@@ -723,7 +729,7 @@ export default function GenerateCBSEStateReportPage() {
                 />
             </div>
           
-            <div className="page-break no-print"></div>
+            <div className="page-break-after no-print"></div>
 
             <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden print:!block' : 'block'}`}>
                 <CBSEStateBack

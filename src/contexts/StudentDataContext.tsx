@@ -3,7 +3,7 @@
 
 import type { ReactNode } from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { AuthUser } from '@/types/user';
+import type { AuthUser, User } from '@/types/user';
 import type { MonthlyAttendanceRecord } from '@/types/attendance';
 import type { FeePayment } from '@/types/fees';
 import type { School, TermFee } from '@/types/school';
@@ -57,6 +57,7 @@ interface StudentDataContextType {
   availableAcademicYears: string[];
   selectedAcademicYear: string;
   setSelectedAcademicYear: (year: string) => void;
+  activeAcademicYear: string; 
 }
 
 const StudentDataContext = createContext<StudentDataContextType | undefined>(undefined);
@@ -83,6 +84,7 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
   const [availableAcademicYears, setAvailableAcademicYears] = useState<string[]>([]);
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
+  const [activeAcademicYear, setActiveAcademicYear] = useState<string>("");
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +118,13 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
     if (!classFeeConfig || !classFeeConfig.terms) return 0;
     return classFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
   }, []);
+
+  const calculateAnnualBusFee = useCallback((student: User, schoolConfig: School | null): number => {
+    if (!student.busRouteLocation || !student.busClassCategory || !schoolConfig || !schoolConfig.busFeeStructures) return 0;
+    const busFeeConfig = schoolConfig.busFeeStructures.find(bfs => bfs.location === student.busRouteLocation && bfs.classCategory === student.busClassCategory);
+    if (!busFeeConfig || !busFeeConfig.terms) return 0;
+    return busFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
+  }, []);
   
   const fetchAllStudentData = useCallback(async () => {
     if (!authUser || !authUser._id || !authUser.schoolId) {
@@ -139,9 +148,11 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
       if (schoolResult.success && schoolResult.school) {
         setSchoolDetails(schoolResult.school);
         schoolActiveYear = schoolResult.school.activeAcademicYear || getCurrentAcademicYear();
+        setActiveAcademicYear(schoolActiveYear);
       } else {
         toast({ variant: "destructive", title: "School Info Error", description: schoolResult.message || "Could not load school details." });
-        schoolActiveYear = getCurrentAcademicYear(); 
+        schoolActiveYear = getCurrentAcademicYear();
+        setActiveAcademicYear(schoolActiveYear);
       }
       
       if(academicYearsResult.success && academicYearsResult.academicYears) {
@@ -171,7 +182,6 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
         toast({ variant: "warning", title: "Attendance Info", description: attendanceResult.message || "Could not fetch attendance data." });
       }
 
-      // Concessions and Fee Summary logic needs to run after academic year is selected
       const targetYear = selectedAcademicYear || schoolActiveYear;
       const concessionsResult = await getFeeConcessionsForStudent(authUser._id.toString(), authUser.schoolId.toString(), targetYear);
       
@@ -186,6 +196,9 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
         const studentPayments = feePaymentsResult.success ? feePaymentsResult.payments || [] : [];
         const studentConcessions = concessionsResult.success ? concessionsResult.concessions || [] : [];
         
+        const fullStudentDataString = localStorage.getItem('loggedInUser');
+        const fullStudentData: User | null = fullStudentDataString ? JSON.parse(fullStudentDataString) : null;
+
         let studentClassNameForFee: string | undefined = undefined;
         if (authUser.classId) {
             const classDetailsResult = await getClassDetailsById(authUser.classId, authUser.schoolId.toString());
@@ -196,16 +209,18 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
             }
         }
         
-        if (studentClassNameForFee) {
+        if (studentClassNameForFee && fullStudentData) {
             const totalAnnualTuitionFee = calculateAnnualTuitionFee(studentClassNameForFee, currentSchoolDetails);
+            const totalAnnualBusFee = calculateAnnualBusFee(fullStudentData, currentSchoolDetails);
+            const totalAnnualFee = totalAnnualTuitionFee + totalAnnualBusFee;
             const totalPaid = studentPayments.reduce((sum, payment) => sum + payment.amountPaid, 0);
             const totalConcessionsAmount = studentConcessions.reduce((sum, concession) => sum + concession.amount, 0);
-            const totalDue = Math.max(0, totalAnnualTuitionFee - totalPaid - totalConcessionsAmount);
+            const totalDue = Math.max(0, totalAnnualFee - totalPaid - totalConcessionsAmount);
             
-            const netPayable = totalAnnualTuitionFee - totalConcessionsAmount;
+            const netPayable = totalAnnualFee - totalConcessionsAmount;
             let percentagePaid = netPayable > 0 ? Math.round((totalPaid / netPayable) * 100) : (totalPaid > 0 ? 100 : 0);
             percentagePaid = Math.min(percentagePaid, 100);
-            setFeeSummary({ totalFee: totalAnnualTuitionFee, totalPaid, totalConcessions: totalConcessionsAmount, totalDue, percentagePaid });
+            setFeeSummary({ totalFee: totalAnnualFee, totalPaid, totalConcessions: totalConcessionsAmount, totalDue, percentagePaid });
         } else {
             setFeeSummary({ totalFee: 0, totalPaid: 0, totalConcessions: 0, totalDue: 0, percentagePaid: 0 });
         }
@@ -219,7 +234,7 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
     } finally {
       setIsLoading(false);
     }
-  }, [authUser, toast, calculateAnnualTuitionFee, selectedAcademicYear]);
+  }, [authUser, toast, calculateAnnualTuitionFee, calculateAnnualBusFee, selectedAcademicYear]);
   
   useEffect(() => {
     if (authUser?._id && authUser?.schoolId) {
@@ -247,7 +262,8 @@ export const StudentDataProvider = ({ children }: StudentDataProviderProps) => {
         schoolDetails,
         availableAcademicYears,
         selectedAcademicYear,
-        setSelectedAcademicYear
+        setSelectedAcademicYear,
+        activeAcademicYear
     }}>
       {children}
     </StudentDataContext.Provider>

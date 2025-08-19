@@ -77,9 +77,11 @@ export default function TeacherAttendancePage() {
         setStudentEntries(studentList);
       } else {
         toast({ variant: "destructive", title: "Error Loading Students", description: studentsResult.message });
+        setStudentEntries([]);
       }
     } else {
       toast({ variant: "destructive", title: "Class Not Found", description: `Your assigned class could not be found.` });
+      setStudentEntries([]);
     }
     setIsLoading(false);
   }, [authUser, toast, selectedMonth, selectedYear]);
