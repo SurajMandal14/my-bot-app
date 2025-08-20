@@ -48,7 +48,8 @@ export default function TeacherAttendancePage() {
   }, []); 
 
   const getAcademicYearForMonth = (month: number, year: number): string => {
-    if (month >= 5) { // June or later
+    // Academic year starts in June (month index 5)
+    if (month >= 5) { 
         return `${year}-${year + 1}`;
     } else { // Jan-May
         return `${year - 1}-${year}`;
