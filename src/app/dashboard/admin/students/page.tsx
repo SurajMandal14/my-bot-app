@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UserMinus, UserCheck, UserCircle2, ChevronsUpDown, Contact, GraduationCap, Home, Heart, ShieldQuestion, CalendarClock, Upload, ArrowUpDown, Download } from "lucide-react";
+import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UserMinus, UserCheck, UserCircle2, ChevronsUpDown, Contact, GraduationCap, Home, Heart, ShieldQuestion, CalendarClock, Upload, ArrowUpDown, Download, CalendarFold } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import {
@@ -31,6 +31,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { createSchoolUser, getSchoolUsers, updateSchoolUser, deleteSchoolUser, updateUserStatus } from "@/app/actions/schoolUsers";
 import { 
@@ -119,6 +126,7 @@ export default function AdminStudentManagementPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterAcademicYear, setFilterAcademicYear] = useState<string>("");
   const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
 
 
@@ -196,6 +204,9 @@ export default function AdminStudentManagementPage() {
       
       if (schoolDetailsResult.success && schoolDetailsResult.school) {
         setSchoolDetails(schoolDetailsResult.school);
+        const activeYear = schoolDetailsResult.school.activeAcademicYear;
+        const defaultYear = academicYearsResult.academicYears?.find(y => y.isDefault)?.year;
+        setFilterAcademicYear(activeYear || defaultYear || getCurrentAcademicYear());
       }
 
     } catch (error) {
@@ -349,7 +360,12 @@ export default function AdminStudentManagementPage() {
   const filteredAndSortedStudents = useMemo(() => {
     let processableStudents = [...allSchoolStudents];
     
-    // Filtering
+    // NEW: Filter by academic year
+    if (filterAcademicYear) {
+        processableStudents = processableStudents.filter(student => student.academicYear === filterAcademicYear);
+    }
+    
+    // Filtering by search term
     if (searchTerm) {
       const lowercasedFilter = searchTerm.toLowerCase();
       processableStudents = processableStudents.filter(student => 
@@ -371,7 +387,7 @@ export default function AdminStudentManagementPage() {
     });
 
     return processableStudents;
-  }, [allSchoolStudents, searchTerm, sortConfig, getClassNameFromId]);
+  }, [allSchoolStudents, searchTerm, sortConfig, getClassNameFromId, filterAcademicYear]);
   
   const renderSortIcon = (columnKey: SortableKeys) => {
     if (sortConfig.key !== columnKey) {
@@ -581,7 +597,20 @@ export default function AdminStudentManagementPage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <CardTitle>Student List</CardTitle>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
+              <CardTitle>Student List</CardTitle>
+               <div className="flex items-center gap-2">
+                <Label htmlFor="academic-year-filter" className="flex items-center text-sm"><CalendarFold className="mr-2 h-4 w-4" />Year:</Label>
+                <Select value={filterAcademicYear} onValueChange={setFilterAcademicYear} disabled={isLoadingData}>
+                    <SelectTrigger id="academic-year-filter" className="w-[150px]">
+                        <SelectValue placeholder="Select Year"/>
+                    </SelectTrigger>
+                    <SelectContent>
+                        {academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+               </div>
+            </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Input placeholder="Filter by Name or Adm. No..." className="w-full sm:max-w-xs" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} disabled={isLoadingData || !allSchoolStudents.length}/>
               <Button onClick={handleDownloadStudentData} variant="outline"><Download className="mr-2 h-4 w-4"/>Download Excel</Button>
@@ -630,7 +659,7 @@ export default function AdminStudentManagementPage() {
               ))}
             </TableBody>
           </Table>
-          ) : (<p className="text-center text-muted-foreground py-4">{searchTerm ? "No students match search." : "No students found."}</p>)}
+          ) : (<p className="text-center text-muted-foreground py-4">{searchTerm ? "No students match search." : `No students found for the ${filterAcademicYear} academic year.`}</p>)}
         </CardContent>
       </Card>
       )}
@@ -676,3 +705,5 @@ export default function AdminStudentManagementPage() {
     </div>
   );
 }
+
+    
