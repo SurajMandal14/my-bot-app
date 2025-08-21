@@ -145,7 +145,7 @@ export default function FeeReceiptPage() {
             </div>
             <div className="flex justify-between">
               <span>Towards:</span>
-              <span>School Fees for Class {studentDisplayClass}</span>
+              <span>{payment.paymentTowards || "School Fees"}</span>
             </div>
             {payment.notes && (
               <div className="flex justify-between">

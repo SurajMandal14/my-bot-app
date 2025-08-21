@@ -6,7 +6,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import type { FeePayment, FeePaymentPayload, GetFeePaymentResult } from '@/types/fees';
 import { ObjectId } from 'mongodb';
 import { revalidatePath } from 'next/cache';
-import { PAYMENT_METHODS } from '@/types/fees';
+import { PAYMENT_METHODS, PAYMENT_TOWARDS_OPTIONS } from '@/types/fees';
 
 const feePaymentPayloadSchema = z.object({
   studentId: z.string().min(1, "Student ID is required."),
@@ -17,6 +17,7 @@ const feePaymentPayloadSchema = z.object({
   paymentDate: z.date(),
   recordedByAdminId: z.string().min(1, "Admin ID is required."),
   paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+  paymentTowards: z.enum(PAYMENT_TOWARDS_OPTIONS).optional(), // New field
   notes: z.string().optional(),
 });
 
@@ -38,7 +39,7 @@ export async function recordFeePayment(payload: FeePaymentPayload): Promise<Reco
     const { 
         studentId, studentName, schoolId, classId, 
         amountPaid, paymentDate, recordedByAdminId,
-        paymentMethod, notes 
+        paymentMethod, paymentTowards, notes 
     } = validatedPayload.data;
 
     if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(recordedByAdminId) || !ObjectId.isValid(studentId)) {
@@ -57,6 +58,7 @@ export async function recordFeePayment(payload: FeePaymentPayload): Promise<Reco
       paymentDate: new Date(paymentDate),
       recordedByAdminId: new ObjectId(recordedByAdminId),
       paymentMethod,
+      paymentTowards,
       notes,
       createdAt: new Date(),
       updatedAt: new Date(),

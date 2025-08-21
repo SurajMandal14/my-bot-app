@@ -4,6 +4,9 @@ import type { ObjectId } from 'mongodb';
 export const PAYMENT_METHODS = ["Cash", "Card", "UPI", "Cheque", "DD", "Others"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+export const PAYMENT_TOWARDS_OPTIONS = ["Academic Fees", "Bus Fees"] as const;
+export type PaymentTowards = (typeof PAYMENT_TOWARDS_OPTIONS)[number];
+
 export interface FeePaymentPayload {
   studentId: string;
   studentName: string; // For easier display on receipts or logs if needed
@@ -13,6 +16,7 @@ export interface FeePaymentPayload {
   paymentDate: Date;
   recordedByAdminId: string;
   paymentMethod?: PaymentMethod; // e.g., 'cash', 'card', 'online'
+  paymentTowards?: PaymentTowards;
   notes?: string;
 }
 
@@ -26,6 +30,7 @@ export interface FeePayment {
   paymentDate: Date;
   recordedByAdminId: ObjectId | string;
   paymentMethod?: PaymentMethod;
+  paymentTowards?: PaymentTowards;
   notes?: string;
   createdAt: Date;
   updatedAt: Date;

@@ -18,8 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/attendance";
 import type { User as AppUser } from "@/types/user";
 import type { School, TermFee, BusFeeLocationCategory } from "@/types/school";
-import type { FeePayment, FeePaymentPayload, PaymentMethod } from "@/types/fees";
-import { PAYMENT_METHODS } from "@/types/fees";
+import type { FeePayment, FeePaymentPayload, PaymentMethod, PaymentTowards } from "@/types/fees";
+import { PAYMENT_METHODS, PAYMENT_TOWARDS_OPTIONS } from "@/types/fees";
 import type { FeeConcession } from "@/types/concessions";
 import { getSchoolUsers } from "@/app/actions/schoolUsers";
 import { getSchoolById } from "@/app/actions/schools";
@@ -56,7 +56,6 @@ interface ClassFeeSummary {
   totalCollected: number;
   totalConcessions: number;
   totalDue: number;
-  collectionPercentage: number;
 }
 
 interface OverallFeeSummary {
@@ -85,6 +84,7 @@ export default function FeeManagementPage() {
   const [paymentAmount, setPaymentAmount] = useState<number | string>("");
   const [paymentDate, setPaymentDate] = useState<Date | undefined>(undefined);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
+  const [paymentTowards, setPaymentTowards] = useState<PaymentTowards | "">("");
   const [paymentNotes, setPaymentNotes] = useState<string>("");
 
   const [isLoading, setIsLoading] = useState(true);
@@ -206,11 +206,13 @@ export default function FeeManagementPage() {
       setPaymentAmount(studentToRecordPayment.dueAmount > 0 ? studentToRecordPayment.dueAmount : "");
       setPaymentDate(new Date()); 
       setPaymentMethod("");
+      setPaymentTowards("");
       setPaymentNotes("");
     } else {
       setPaymentAmount("");
       setPaymentDate(undefined); 
       setPaymentMethod("");
+      setPaymentTowards("");
       setPaymentNotes("");
     }
   }, [studentToRecordPayment]);
@@ -249,8 +251,7 @@ export default function FeeManagementPage() {
     const summaries = Array.from(classFeeMap.entries()).map(([className, data]) => {
       const netExpectedForClass = data.totalExpected - data.totalConcessions;
       const totalDue = Math.max(0, netExpectedForClass - data.totalCollected);
-      const collectionPercentage = netExpectedForClass > 0 ? Math.round((data.totalCollected / netExpectedForClass) * 100) : (data.totalCollected > 0 ? 100 : 0);
-      return { className, classId: data.classId, totalExpected: data.totalExpected, totalCollected: data.totalCollected, totalConcessions: data.totalConcessions, totalDue, collectionPercentage };
+      return { className, classId: data.classId, totalExpected: data.totalExpected, totalCollected: data.totalCollected, totalConcessions: data.totalConcessions, totalDue };
     });
 
     const grandNetExpected = grandTotalExpected - grandTotalConcessions;
@@ -269,7 +270,7 @@ export default function FeeManagementPage() {
     const payload: FeePaymentPayload = {
       studentId: studentToRecordPayment._id!.toString(), studentName: studentToRecordPayment.name!, schoolId: authUser.schoolId.toString(),
       classId: studentToRecordPayment.classLabel!, amountPaid: +paymentAmount, paymentDate: paymentDate,
-      recordedByAdminId: authUser._id.toString(), paymentMethod: paymentMethod || undefined, notes: paymentNotes || undefined,
+      recordedByAdminId: authUser._id.toString(), paymentMethod: paymentMethod || undefined, paymentTowards: paymentTowards || undefined, notes: paymentNotes || undefined,
     };
     const result = await recordFeePayment(payload);
     if (result.success) {
@@ -282,13 +283,39 @@ export default function FeeManagementPage() {
     setIsSubmittingPayment(false);
   };
   
-  const handlePrintReceipt = (student: StudentFeeDetailsProcessed | null) => {
-    if (!student) return;
-    const latestPayment = allSchoolPayments.filter(p => p.studentId === student._id).sort((a,b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())[0];
-    if (latestPayment?._id) {
-        window.open(`/dashboard/admin/fees/receipt/${latestPayment._id.toString()}`, '_blank');
-    } else {
-        toast({ title: "No Payments", description: `No payments found for ${student.name} to generate a receipt.` });
+  const handlePrintReceipt = (paymentId: string) => {
+    window.open(`/dashboard/admin/fees/receipt/${paymentId}`, '_blank');
+  };
+
+  const handlePrintHistory = () => {
+    const printContent = document.getElementById('paymentHistoryContent');
+    if (printContent) {
+        const studentName = studentForHistory?.name || 'Student';
+        const schoolName = schoolDetails?.schoolName || 'School';
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+            newWindow.document.write(`
+                <html>
+                    <head>
+                        <title>Payment History - ${studentName}</title>
+                        <style>
+                            body { font-family: sans-serif; }
+                            table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                            th { background-color: #f2f2f2; }
+                            h1, h2 { text-align: center; }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>${schoolName}</h1>
+                        <h2>Payment History for ${studentName}</h2>
+                        ${printContent.innerHTML}
+                    </body>
+                </html>
+            `);
+            newWindow.document.close();
+            newWindow.print();
+        }
     }
   };
 
@@ -347,8 +374,8 @@ export default function FeeManagementPage() {
             feeOverallSummary ? (
               <div id="feeReportContent" className="p-4 bg-card rounded-md">
                   <Card className="mb-6 bg-secondary/30 border-none"><CardHeader><CardTitle className="text-lg">Overall Summary for {filterAcademicYear}</CardTitle></CardHeader><CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Expected</p><p className="text-2xl font-bold"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalExpected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Concessions</p><p className="text-2xl font-bold text-blue-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalConcessions.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collected</p><p className="text-2xl font-bold text-green-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalCollected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Due</p><p className="text-2xl font-bold text-red-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalDue.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collection %</p><p className="text-2xl font-bold text-blue-600">{feeOverallSummary.overallCollectionPercentage}%</p><Progress value={feeOverallSummary.overallCollectionPercentage} className="h-2 mt-1" /></div></CardContent></Card>
-                  <Table><TableHeader><TableRow><TableHead>Class Name</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-center">Collection %</TableHead></TableRow></TableHeader>
-                  <TableBody>{feeClassSummaries.map((summary) => (<TableRow key={summary.className} onClick={() => setSelectedClass(summary)} className="cursor-pointer hover:bg-muted/50"><TableCell className="font-medium">{summary.className}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-center"><div className="flex flex-col items-center"><span className="font-bold">{summary.collectionPercentage}%</span><Progress value={summary.collectionPercentage} className="h-1.5 w-20 mt-1" /></div></TableCell></TableRow>))}</TableBody></Table>
+                  <Table><TableHeader><TableRow><TableHead>Class Name</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
+                  <TableBody>{feeClassSummaries.map((summary) => (<TableRow key={summary.className}><TableCell className="font-medium">{summary.className}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-center"><Button variant="outline" size="sm" onClick={() => setSelectedClass(summary)}>Open</Button></TableCell></TableRow>))}</TableBody></Table>
               </div>
           ) : (<p className="text-center text-muted-foreground py-4">No fee data found for the selected academic year.</p>)}
         </CardContent>
@@ -392,7 +419,6 @@ export default function FeeManagementPage() {
         </Card>
       )}
 
-      {/* Record Payment Dialog */}
       <Dialog open={!!studentToRecordPayment} onOpenChange={(isOpen) => !isOpen && setStudentToRecordPayment(null)}>
         <DialogContent>
             <DialogHeader>
@@ -403,6 +429,7 @@ export default function FeeManagementPage() {
                 <div><Label htmlFor="payment-amount">Payment Amount (<span className="font-sans">₹</span>)</Label><Input id="payment-amount" type="number" placeholder="Enter amount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} disabled={isSubmittingPayment}/></div>
                 <div><Label htmlFor="payment-date">Payment Date</Label><Popover><PopoverTrigger asChild><Button id="payment-date" variant={"outline"} className="w-full justify-start text-left font-normal" disabled={isSubmittingPayment || !paymentDate}><CalendarDays className="mr-2 h-4 w-4" />{paymentDate ? format(paymentDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={paymentDate} onSelect={setPaymentDate} initialFocus disabled={(date) => date > new Date()}/></PopoverContent></Popover></div>
                 <div><Label htmlFor="payment-method">Payment Method</Label><Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select method..."/></SelectTrigger><SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label htmlFor="payment-towards">Payment Towards (Optional)</Label><Select value={paymentTowards} onValueChange={(v) => setPaymentTowards(v as PaymentTowards)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select purpose..."/></SelectTrigger><SelectContent>{PAYMENT_TOWARDS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select></div>
                 <div><Label htmlFor="payment-notes">Notes</Label><Textarea id="payment-notes" placeholder="e.g., Part payment for Term 1" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} disabled={isSubmittingPayment}/></div>
             </div>
             <DialogFooter>
@@ -415,9 +442,8 @@ export default function FeeManagementPage() {
         </DialogContent>
       </Dialog>
       
-      {/* Payment History Dialog */}
       <Dialog open={!!studentForHistory} onOpenChange={(isOpen) => !isOpen && setStudentForHistory(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
             <DialogHeader>
                 <DialogTitle className="flex items-center"><History className="mr-2 h-5 w-5"/>Payment History for {studentForHistory?.name}</DialogTitle>
                 <DialogDescription>
@@ -425,10 +451,10 @@ export default function FeeManagementPage() {
                     Total Due: <span className="font-sans font-semibold">₹</span>{studentForHistory?.dueAmount.toLocaleString()}
                 </DialogDescription>
             </DialogHeader>
-            <div className="max-h-[60vh] overflow-y-auto pr-2">
+            <div className="max-h-[60vh] overflow-y-auto pr-2" id="paymentHistoryContent">
                 {allSchoolPayments.filter(p => p.studentId === studentForHistory?._id).length > 0 ? (
                     <Table>
-                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Amount Paid (<span className="font-sans">₹</span>)</TableHead><TableHead>Method</TableHead><TableHead>Notes</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Amount Paid (<span className="font-sans">₹</span>)</TableHead><TableHead>Method</TableHead><TableHead>Notes</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
                             {allSchoolPayments
                                 .filter(p => p.studentId === studentForHistory?._id)
@@ -439,6 +465,9 @@ export default function FeeManagementPage() {
                                     <TableCell className="font-medium"><span className="font-sans">₹</span>{payment.amountPaid.toLocaleString()}</TableCell>
                                     <TableCell>{payment.paymentMethod || 'N/A'}</TableCell>
                                     <TableCell>{payment.notes || 'N/A'}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="ghost" size="sm" onClick={() => handlePrintReceipt(payment._id.toString())}><Printer className="mr-2 h-4 w-4"/>Print</Button>
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -449,11 +478,10 @@ export default function FeeManagementPage() {
             </div>
             <DialogFooter>
                 <Button onClick={() => setStudentForHistory(null)} variant="outline">Close</Button>
-                <Button onClick={() => handlePrintReceipt(studentForHistory)}><Printer className="mr-2 h-4 w-4"/>Print Last Receipt</Button>
+                <Button onClick={handlePrintHistory}><Printer className="mr-2 h-4 w-4"/>Print Full History</Button>
             </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
