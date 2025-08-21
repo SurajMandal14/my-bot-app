@@ -17,7 +17,7 @@ const feePaymentPayloadSchema = z.object({
   paymentDate: z.date(),
   recordedByAdminId: z.string().min(1, "Admin ID is required."),
   paymentMethod: z.enum(PAYMENT_METHODS).optional(),
-  paymentTowards: z.enum(PAYMENT_TOWARDS_OPTIONS).optional(), // New field
+  paymentTowards: z.enum(PAYMENT_TOWARDS_OPTIONS, { required_error: "Payment purpose is required."}),
   notes: z.string().optional(),
 });
 

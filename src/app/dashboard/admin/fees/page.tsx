@@ -203,7 +203,7 @@ export default function FeeManagementPage() {
 
   useEffect(() => {
     if (studentToRecordPayment) {
-      setPaymentAmount(studentToRecordPayment.dueAmount > 0 ? studentToRecordPayment.dueAmount : "");
+      setPaymentAmount("");
       setPaymentDate(new Date()); 
       setPaymentMethod("");
       setPaymentTowards("");
@@ -265,7 +265,10 @@ export default function FeeManagementPage() {
   
   
   const handleRecordPayment = async () => {
-    if (!studentToRecordPayment || !paymentAmount || +paymentAmount <= 0 || !paymentDate || !authUser?._id || !authUser?.schoolId) return;
+    if (!studentToRecordPayment || !paymentAmount || +paymentAmount <= 0 || !paymentDate || !authUser?._id || !authUser?.schoolId || !paymentTowards) {
+        toast({ variant: "destructive", title: "Missing Information", description: "Please fill all required fields before recording the payment."});
+        return;
+    }
     setIsSubmittingPayment(true);
     const payload: FeePaymentPayload = {
       studentId: studentToRecordPayment._id!.toString(), studentName: studentToRecordPayment.name!, schoolId: authUser.schoolId.toString(),
@@ -426,15 +429,15 @@ export default function FeeManagementPage() {
                 <DialogDescription>Class: {studentToRecordPayment?.classLabel} | Amount Due: <span className="font-sans">₹</span>{studentToRecordPayment?.dueAmount.toLocaleString()}</DialogDescription>
             </DialogHeader>
             <div className="pt-2 space-y-3">
+                <div><Label htmlFor="payment-towards">Payment Towards</Label><Select value={paymentTowards} onValueChange={(v) => setPaymentTowards(v as PaymentTowards)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select purpose..."/></SelectTrigger><SelectContent>{PAYMENT_TOWARDS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select></div>
                 <div><Label htmlFor="payment-amount">Payment Amount (<span className="font-sans">₹</span>)</Label><Input id="payment-amount" type="number" placeholder="Enter amount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} disabled={isSubmittingPayment}/></div>
                 <div><Label htmlFor="payment-date">Payment Date</Label><Popover><PopoverTrigger asChild><Button id="payment-date" variant={"outline"} className="w-full justify-start text-left font-normal" disabled={isSubmittingPayment || !paymentDate}><CalendarDays className="mr-2 h-4 w-4" />{paymentDate ? format(paymentDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={paymentDate} onSelect={setPaymentDate} initialFocus disabled={(date) => date > new Date()}/></PopoverContent></Popover></div>
-                <div><Label htmlFor="payment-method">Payment Method</Label><Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select method..."/></SelectTrigger><SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
-                <div><Label htmlFor="payment-towards">Payment Towards (Optional)</Label><Select value={paymentTowards} onValueChange={(v) => setPaymentTowards(v as PaymentTowards)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select purpose..."/></SelectTrigger><SelectContent>{PAYMENT_TOWARDS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label htmlFor="payment-method">Payment Method (Optional)</Label><Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select method..."/></SelectTrigger><SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
                 <div><Label htmlFor="payment-notes">Notes</Label><Textarea id="payment-notes" placeholder="e.g., Part payment for Term 1" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} disabled={isSubmittingPayment}/></div>
             </div>
             <DialogFooter>
                 <Button onClick={() => setStudentToRecordPayment(null)} variant="outline">Cancel</Button>
-                <Button onClick={handleRecordPayment} disabled={!paymentAmount || +paymentAmount <= 0 || isSubmittingPayment}>
+                <Button onClick={handleRecordPayment} disabled={!paymentAmount || +paymentAmount <= 0 || isSubmittingPayment || !paymentTowards}>
                     {isSubmittingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Record Payment
                 </Button>

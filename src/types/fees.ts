@@ -16,7 +16,7 @@ export interface FeePaymentPayload {
   paymentDate: Date;
   recordedByAdminId: string;
   paymentMethod?: PaymentMethod; // e.g., 'cash', 'card', 'online'
-  paymentTowards?: PaymentTowards;
+  paymentTowards: PaymentTowards;
   notes?: string;
 }
 
