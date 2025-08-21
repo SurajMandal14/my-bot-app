@@ -28,7 +28,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { createSchoolClass, getSchoolClasses, updateSchoolClass, deleteSchoolClass } from "@/app/actions/classes";
@@ -163,16 +162,16 @@ export default function AdminClassManagementPage() {
 
   useEffect(() => {
     if (isFormOpen && editingClass) {
-      form.reset({
-        name: editingClass.name || "",
-        section: editingClass.section || "",
-        academicYear: editingClass.academicYear || selectedAcademicYear,
-        classTeacherId: editingClass.classTeacherId?.toString() || "",
-        subjects: editingClass.subjects && editingClass.subjects.length > 0 
-          ? editingClass.subjects.map(s => ({ name: s.name, teacherId: s.teacherId?.toString() || "" })) 
-          : [{ name: "", teacherId: "" }],
-        secondLanguageSubjectName: editingClass.secondLanguageSubjectName || "",
-      });
+        form.reset({
+            name: editingClass.name || "",
+            section: editingClass.section || "",
+            academicYear: editingClass.academicYear || selectedAcademicYear,
+            classTeacherId: editingClass.classTeacherId?.toString() || "",
+            subjects: editingClass.subjects && editingClass.subjects.length > 0 
+              ? editingClass.subjects.map(s => ({ name: s.name, teacherId: s.teacherId?.toString() || "" })) 
+              : [{ name: "", teacherId: "" }],
+            secondLanguageSubjectName: editingClass.secondLanguageSubjectName || "",
+        });
     } else if (isFormOpen && !editingClass) {
        form.reset({
         name: "",
