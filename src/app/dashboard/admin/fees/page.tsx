@@ -41,6 +41,7 @@ interface ClassOption {
 interface StudentFeeDetailsProcessed extends AppUser {
   totalAnnualTuitionFee: number;
   totalAnnualBusFee: number;
+  busFeePaid: number;
   totalAnnualFee: number;
   paidAmount: number;
   totalConcessions: number;
@@ -88,6 +89,7 @@ export default function FeeManagementPage() {
   const [feeOverallSummary, setFeeOverallSummary] = useState<OverallFeeSummary | null>(null);
 
   const [selectedClass, setSelectedClass] = useState<ClassFeeSummary | null>(null);
+  const [selectedBusFeeRoute, setSelectedBusFeeRoute] = useState<BusFeeSummary | null>(null);
   const [studentToRecordPayment, setStudentToRecordPayment] = useState<StudentFeeDetailsProcessed | null>(null);
   const [studentForHistory, setStudentForHistory] = useState<StudentFeeDetailsProcessed | null>(null);
 
@@ -200,10 +202,11 @@ export default function FeeManagementPage() {
           const totalAnnualFee = totalAnnualTuitionFee + totalAnnualBusFee;
 
           const paidAmount = allSchoolPayments.filter(p => p.studentId.toString() === student._id!.toString()).reduce((sum, p) => sum + p.amountPaid, 0);
+          const busFeePaid = allSchoolPayments.filter(p => p.studentId.toString() === student._id!.toString() && p.paymentTowards === 'Bus Fees').reduce((sum,p) => sum + p.amountPaid, 0);
           const totalConcessions = allSchoolConcessions.filter(c => c.studentId.toString() === student._id!.toString() && c.academicYear === filterAcademicYear).reduce((sum, c) => sum + c.amount, 0);
           const dueAmount = Math.max(0, totalAnnualFee - paidAmount - totalConcessions);
 
-          return { ...student, className: studentClassName, classLabel: studentClassLabel, totalAnnualTuitionFee, totalAnnualBusFee, totalAnnualFee, paidAmount, totalConcessions, dueAmount } as StudentFeeDetailsProcessed;
+          return { ...student, className: studentClassName, classLabel: studentClassLabel, totalAnnualTuitionFee, totalAnnualBusFee, busFeePaid, totalAnnualFee, paidAmount, totalConcessions, dueAmount } as StudentFeeDetailsProcessed;
         });
 
   }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, classOptions, filterAcademicYear]);
@@ -212,6 +215,11 @@ export default function FeeManagementPage() {
     if (!selectedClass) return [];
     return studentFeeList.filter(s => s.classLabel === selectedClass.className);
   }, [selectedClass, studentFeeList]);
+  
+  const studentsInSelectedBusRoute = useMemo(() => {
+    if (!selectedBusFeeRoute) return [];
+    return studentFeeList.filter(s => s.busRouteLocation === selectedBusFeeRoute.location && s.busClassCategory === selectedBusFeeRoute.classCategory);
+  }, [selectedBusFeeRoute, studentFeeList]);
 
 
   useEffect(() => {
@@ -406,7 +414,7 @@ export default function FeeManagementPage() {
         <CardContent>
             <div className="flex items-center gap-2">
                 <Label htmlFor="academic-year-select" className="text-sm font-medium">Academic Year:</Label>
-                <Select value={filterAcademicYear} onValueChange={(val) => { setFilterAcademicYear(val); setSelectedClass(null);}} disabled={isLoading || academicYears.length === 0}>
+                <Select value={filterAcademicYear} onValueChange={(val) => { setFilterAcademicYear(val); setSelectedClass(null); setSelectedBusFeeRoute(null);}} disabled={isLoading || academicYears.length === 0}>
                     <SelectTrigger id="academic-year-select" className="w-[180px]"><SelectValue placeholder="Select Year" /></SelectTrigger>
                     <SelectContent>{academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}</SelectContent>
                 </Select>
@@ -422,7 +430,7 @@ export default function FeeManagementPage() {
               <div id="feeReportContent" className="p-4 bg-card rounded-md">
                   <Card className="mb-6 bg-secondary/30 border-none"><CardHeader><CardTitle className="text-lg">Overall Summary for {filterAcademicYear}</CardTitle></CardHeader><CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Expected</p><p className="text-2xl font-bold"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalExpected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Concessions</p><p className="text-2xl font-bold text-blue-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalConcessions.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collected</p><p className="text-2xl font-bold text-green-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalCollected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Due</p><p className="text-2xl font-bold text-red-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalDue.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collection %</p><p className="text-2xl font-bold text-blue-600">{feeOverallSummary.overallCollectionPercentage}%</p><Progress value={feeOverallSummary.overallCollectionPercentage} className="h-2 mt-1" /></div></CardContent></Card>
                   <Table><TableHeader><TableRow><TableHead>Class Name</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-right">Collection %</TableHead></TableRow></TableHeader>
-                  <TableBody>{feeClassSummaries.map((summary) => (<TableRow key={summary.className} onClick={() => setSelectedClass(summary)} className="cursor-pointer hover:bg-muted/50"><TableCell className="font-medium">{summary.className}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-right">{summary.collectionPercentage}%</TableCell></TableRow>))}</TableBody></Table>
+                  <TableBody>{feeClassSummaries.map((summary) => (<TableRow key={summary.className} onClick={() => { setSelectedClass(summary); setSelectedBusFeeRoute(null); }} className="cursor-pointer hover:bg-muted/50"><TableCell className="font-medium">{summary.className}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-right">{summary.collectionPercentage}%</TableCell></TableRow>))}</TableBody></Table>
               </div>
           ) : (<p className="text-center text-muted-foreground py-4">No fee data found for the selected academic year.</p>)}
         </CardContent>
@@ -488,7 +496,7 @@ export default function FeeManagementPage() {
                     <TableHeader><TableRow><TableHead>Location / Route</TableHead><TableHead>Station</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-right">Collection %</TableHead></TableRow></TableHeader>
                     <TableBody>
                         {filteredBusFeeSummaries.map((summary, index) => (
-                            <TableRow key={`${summary.location}-${summary.classCategory}-${index}`}>
+                            <TableRow key={`${summary.location}-${summary.classCategory}-${index}`} onClick={() => { setSelectedBusFeeRoute(summary); setSelectedClass(null); }} className="cursor-pointer hover:bg-muted/50">
                                 <TableCell className="font-medium">{summary.location}</TableCell>
                                 <TableCell>{summary.classCategory}</TableCell>
                                 <TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell>
@@ -504,6 +512,43 @@ export default function FeeManagementPage() {
             )}
         </CardContent>
       </Card>
+
+      {selectedBusFeeRoute && (
+         <Card>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <CardTitle>Bus Fee Details: {selectedBusFeeRoute.location} ({selectedBusFeeRoute.classCategory})</CardTitle>
+                    <Button variant="ghost" size="icon" onClick={() => setSelectedBusFeeRoute(null)}><X className="h-5 w-5"/></Button>
+                </div>
+                <CardDescription>Bus fee breakdown for each student on this route.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {studentsInSelectedBusRoute.length > 0 ? (
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Student Name</TableHead><TableHead>Class</TableHead><TableHead className="text-right">Total Bus Fee</TableHead><TableHead className="text-right">Bus Fee Paid</TableHead><TableHead className="text-right">Bus Fee Due</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {studentsInSelectedBusRoute.map(student => {
+                                const busFeeDue = student.totalAnnualBusFee - student.busFeePaid;
+                                return (
+                                <TableRow key={student._id}>
+                                    <TableCell className="font-medium">{student.name}</TableCell>
+                                    <TableCell>{student.classLabel || 'N/A'}</TableCell>
+                                    <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualBusFee.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{student.busFeePaid.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-red-600 font-semibold"><span className="font-sans">₹</span>{busFeeDue.toLocaleString()}</TableCell>
+                                    <TableCell className="text-center">
+                                        <Button variant="secondary" size="sm" onClick={() => setStudentForHistory(student)}>History</Button>
+                                    </TableCell>
+                                </TableRow>
+                            )})}
+                        </TableBody>
+                    </Table>
+                ) : (
+                    <p className="text-center text-muted-foreground py-4">No students found for this bus route in the selected academic year.</p>
+                )}
+            </CardContent>
+        </Card>
+      )}
 
       <Dialog open={!!studentToRecordPayment} onOpenChange={(isOpen) => !isOpen && setStudentToRecordPayment(null)}>
         <DialogContent>
@@ -540,7 +585,7 @@ export default function FeeManagementPage() {
             <div className="max-h-[60vh] overflow-y-auto pr-2" id="paymentHistoryContent">
                 {allSchoolPayments.filter(p => p.studentId === studentForHistory?._id).length > 0 ? (
                     <Table>
-                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Amount Paid (<span className="font-sans">₹</span>)</TableHead><TableHead>Method</TableHead><TableHead>Notes</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Amount Paid (<span className="font-sans">₹</span>)</TableHead><TableHead>Towards</TableHead><TableHead>Method</TableHead><TableHead>Notes</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
                             {allSchoolPayments
                                 .filter(p => p.studentId === studentForHistory?._id)
@@ -549,6 +594,7 @@ export default function FeeManagementPage() {
                                 <TableRow key={payment._id.toString()}>
                                     <TableCell>{format(new Date(payment.paymentDate), "PP")}</TableCell>
                                     <TableCell className="font-medium"><span className="font-sans">₹</span>{payment.amountPaid.toLocaleString()}</TableCell>
+                                    <TableCell>{payment.paymentTowards || 'N/A'}</TableCell>
                                     <TableCell>{payment.paymentMethod || 'N/A'}</TableCell>
                                     <TableCell>{payment.notes || 'N/A'}</TableCell>
                                     <TableCell className="text-right">
