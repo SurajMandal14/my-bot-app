@@ -9,9 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search, ArrowUpDown, Bus, Download } from "lucide-react";
+import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search, ArrowUpDown, Bus, Download, History, X } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/attendance";
@@ -50,6 +51,7 @@ interface StudentFeeDetailsProcessed extends AppUser {
 
 interface ClassFeeSummary {
   className: string;
+  classId: string;
   totalExpected: number;
   totalCollected: number;
   totalConcessions: number;
@@ -76,10 +78,10 @@ export default function FeeManagementPage() {
   const [feeClassSummaries, setFeeClassSummaries] = useState<ClassFeeSummary[]>([]);
   const [feeOverallSummary, setFeeOverallSummary] = useState<OverallFeeSummary | null>(null);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filteredStudents, setFilteredStudents] = useState<StudentFeeDetailsProcessed[]>([]);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  
+  const [selectedClass, setSelectedClass] = useState<ClassFeeSummary | null>(null);
+  const [studentToRecordPayment, setStudentToRecordPayment] = useState<StudentFeeDetailsProcessed | null>(null);
+  const [studentForHistory, setStudentForHistory] = useState<StudentFeeDetailsProcessed | null>(null);
+
   const [paymentAmount, setPaymentAmount] = useState<number | string>("");
   const [paymentDate, setPaymentDate] = useState<Date | undefined>(undefined);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
@@ -193,13 +195,15 @@ export default function FeeManagementPage() {
 
   }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, classOptions, filterAcademicYear]);
 
-  const selectedStudentFullData = useMemo(() => {
-    return selectedStudentId ? studentFeeList.find(s => s._id!.toString() === selectedStudentId) : null;
-  }, [selectedStudentId, studentFeeList]);
+  const studentsInSelectedClass = useMemo(() => {
+    if (!selectedClass) return [];
+    return studentFeeList.filter(s => s.classLabel === selectedClass.className);
+  }, [selectedClass, studentFeeList]);
+
 
   useEffect(() => {
-    if (selectedStudentFullData) {
-      setPaymentAmount(selectedStudentFullData.dueAmount > 0 ? selectedStudentFullData.dueAmount : "");
+    if (studentToRecordPayment) {
+      setPaymentAmount(studentToRecordPayment.dueAmount > 0 ? studentToRecordPayment.dueAmount : "");
       setPaymentDate(new Date()); 
       setPaymentMethod("");
       setPaymentNotes("");
@@ -209,19 +213,7 @@ export default function FeeManagementPage() {
       setPaymentMethod("");
       setPaymentNotes("");
     }
-  }, [selectedStudentId, selectedStudentFullData]);
-
-  useEffect(() => {
-    if (searchTerm.trim().length > 1) {
-      setFilteredStudents(studentFeeList.filter(student => 
-        student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.admissionId?.toLowerCase().includes(searchTerm.toLowerCase())
-      ).slice(0, 10));
-    } else {
-      setFilteredStudents([]);
-    }
-  }, [searchTerm, studentFeeList]);
-
+  }, [studentToRecordPayment]);
 
   useEffect(() => {
     if (!schoolDetails || studentFeeList.length === 0) {
@@ -234,18 +226,18 @@ export default function FeeManagementPage() {
     let grandTotalCollected = 0;
     let grandTotalConcessions = 0;
 
-    const classFeeMap = new Map<string, { totalExpected: number, totalCollected: number, totalConcessions: number, studentCount: number }>();
+    const classFeeMap = new Map<string, { classId: string; totalExpected: number, totalCollected: number, totalConcessions: number, studentCount: number }>();
     
     studentFeeList.forEach(student => {
-        const { classLabel, totalAnnualFee, paidAmount, totalConcessions } = student;
-        if (!classLabel) return;
+        const { classLabel, classId, totalAnnualFee, paidAmount, totalConcessions } = student;
+        if (!classLabel || !classId) return;
         
         grandTotalExpected += totalAnnualFee;
         grandTotalCollected += paidAmount;
         grandTotalConcessions += totalConcessions;
 
         if (!classFeeMap.has(classLabel)) {
-            classFeeMap.set(classLabel, { totalExpected: 0, totalCollected: 0, totalConcessions: 0, studentCount: 0 });
+            classFeeMap.set(classLabel, { classId, totalExpected: 0, totalCollected: 0, totalConcessions: 0, studentCount: 0 });
         }
         const classData = classFeeMap.get(classLabel)!;
         classData.totalExpected += totalAnnualFee;
@@ -258,7 +250,7 @@ export default function FeeManagementPage() {
       const netExpectedForClass = data.totalExpected - data.totalConcessions;
       const totalDue = Math.max(0, netExpectedForClass - data.totalCollected);
       const collectionPercentage = netExpectedForClass > 0 ? Math.round((data.totalCollected / netExpectedForClass) * 100) : (data.totalCollected > 0 ? 100 : 0);
-      return { className, totalExpected: data.totalExpected, totalCollected: data.totalCollected, totalConcessions: data.totalConcessions, totalDue, collectionPercentage };
+      return { className, classId: data.classId, totalExpected: data.totalExpected, totalCollected: data.totalCollected, totalConcessions: data.totalConcessions, totalDue, collectionPercentage };
     });
 
     const grandNetExpected = grandTotalExpected - grandTotalConcessions;
@@ -268,22 +260,22 @@ export default function FeeManagementPage() {
     setFeeClassSummaries(summaries.sort((a,b) => a.className.localeCompare(b.className)));
     setFeeOverallSummary({ grandTotalExpected, grandTotalCollected, grandTotalConcessions, grandTotalDue, overallCollectionPercentage });
 
-  }, [studentFeeList, schoolDetails, allSchoolPayments, allSchoolConcessions, filterAcademicYear]);
+  }, [studentFeeList, schoolDetails, filterAcademicYear]);
   
   
   const handleRecordPayment = async () => {
-    if (!selectedStudentFullData || !paymentAmount || +paymentAmount <= 0 || !paymentDate || !authUser?._id || !authUser?.schoolId) return;
+    if (!studentToRecordPayment || !paymentAmount || +paymentAmount <= 0 || !paymentDate || !authUser?._id || !authUser?.schoolId) return;
     setIsSubmittingPayment(true);
     const payload: FeePaymentPayload = {
-      studentId: selectedStudentFullData._id!.toString(), studentName: selectedStudentFullData.name!, schoolId: authUser.schoolId.toString(),
-      classId: selectedStudentFullData.classLabel!, amountPaid: +paymentAmount, paymentDate: paymentDate,
+      studentId: studentToRecordPayment._id!.toString(), studentName: studentToRecordPayment.name!, schoolId: authUser.schoolId.toString(),
+      classId: studentToRecordPayment.classLabel!, amountPaid: +paymentAmount, paymentDate: paymentDate,
       recordedByAdminId: authUser._id.toString(), paymentMethod: paymentMethod || undefined, notes: paymentNotes || undefined,
     };
     const result = await recordFeePayment(payload);
     if (result.success) {
       toast({ title: "Payment Recorded", description: result.message });
       if (authUser?.schoolId) loadReportData();
-      setSelectedStudentId(null);
+      setStudentToRecordPayment(null);
     } else {
       toast({ variant: "destructive", title: "Payment Failed", description: result.error || result.message });
     }
@@ -325,7 +317,6 @@ export default function FeeManagementPage() {
     }
   };
 
-
   if (!authUser) {
     if (!isLoading) return <Card><CardHeader><CardTitle>Access Denied</CardTitle></CardHeader><CardContent><p>Please log in as an admin.</p></CardContent></Card>;
     return <div className="flex flex-1 items-center justify-center py-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -341,57 +332,128 @@ export default function FeeManagementPage() {
         <CardContent>
             <div className="flex items-center gap-2">
                 <Label htmlFor="academic-year-select" className="text-sm font-medium">Academic Year:</Label>
-                <Select value={filterAcademicYear} onValueChange={setFilterAcademicYear} disabled={isLoading || academicYears.length === 0}>
+                <Select value={filterAcademicYear} onValueChange={(val) => { setFilterAcademicYear(val); setSelectedClass(null);}} disabled={isLoading || academicYears.length === 0}>
                     <SelectTrigger id="academic-year-select" className="w-[180px]"><SelectValue placeholder="Select Year" /></SelectTrigger>
                     <SelectContent>{academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}</SelectContent>
                 </Select>
             </div>
         </CardContent>
       </Card>
-
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card className="md:col-span-1">
-          <CardHeader><CardTitle>Record Payment</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="student-search">Search Student (by Name or Adm. No.)</Label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input id="student-search" placeholder="Start typing..." value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setSelectedStudentId(null);}} className="pl-8" disabled={isSubmittingPayment}/>
+      
+      <Card>
+        <CardHeader><div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2"><CardTitle>Fee Collection Summary</CardTitle><Button onClick={handleDownloadFeePdf} variant="outline" size="sm" disabled={isLoading || isDownloadingFeePdf}>{isDownloadingFeePdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}Download Report</Button></div></CardHeader>
+        <CardContent>
+          {isLoading ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading fee summary...</p></div>) :
+            feeOverallSummary ? (
+              <div id="feeReportContent" className="p-4 bg-card rounded-md">
+                  <Card className="mb-6 bg-secondary/30 border-none"><CardHeader><CardTitle className="text-lg">Overall Summary for {filterAcademicYear}</CardTitle></CardHeader><CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Expected</p><p className="text-2xl font-bold"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalExpected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Concessions</p><p className="text-2xl font-bold text-blue-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalConcessions.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collected</p><p className="text-2xl font-bold text-green-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalCollected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Due</p><p className="text-2xl font-bold text-red-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalDue.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collection %</p><p className="text-2xl font-bold text-blue-600">{feeOverallSummary.overallCollectionPercentage}%</p><Progress value={feeOverallSummary.overallCollectionPercentage} className="h-2 mt-1" /></div></CardContent></Card>
+                  <Table><TableHeader><TableRow><TableHead>Class Name</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-center">Collection %</TableHead></TableRow></TableHeader>
+                  <TableBody>{feeClassSummaries.map((summary) => (<TableRow key={summary.className} onClick={() => setSelectedClass(summary)} className="cursor-pointer hover:bg-muted/50"><TableCell className="font-medium">{summary.className}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-center"><div className="flex flex-col items-center"><span className="font-bold">{summary.collectionPercentage}%</span><Progress value={summary.collectionPercentage} className="h-1.5 w-20 mt-1" /></div></TableCell></TableRow>))}</TableBody></Table>
               </div>
-              {searchTerm && (<div className="mt-2 border rounded-md max-h-60 overflow-y-auto bg-background absolute w-[calc(100%-3rem)] md:w-full max-w-sm z-10">{filteredStudents.length > 0 ? (filteredStudents.map(student => (<div key={student._id!.toString()} onClick={() => {setSelectedStudentId(student._id!.toString()); setSearchTerm(""); setFilteredStudents([]);}} className="p-2 hover:bg-accent cursor-pointer border-b last:border-b-0"><p className="font-medium">{student.name}</p><p className="text-sm text-muted-foreground">{student.classLabel || 'N/A'} - Adm No: {student.admissionId || 'N/A'}</p></div>))) : (<p className="p-2 text-center text-sm text-muted-foreground">No students found</p>)}</div>)}
-            </div>
-            {selectedStudentFullData && (
-              <>
-                <div className="text-sm font-semibold pt-2">Selected: <span className="text-primary">{selectedStudentFullData.name}</span> <span className="text-muted-foreground">({selectedStudentFullData.classLabel})</span></div>
-                <p className="text-sm font-semibold">Amount Due: <span className="font-sans">₹</span>{selectedStudentFullData.dueAmount.toLocaleString()}</p>
-                <div className="pt-2 space-y-3">
-                    <div><Label htmlFor="payment-amount">Payment Amount (<span className="font-sans">₹</span>)</Label><Input id="payment-amount" type="number" placeholder="Enter amount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} disabled={isSubmittingPayment || selectedStudentFullData.dueAmount <= 0}/></div>
-                    <div><Label htmlFor="payment-date">Payment Date</Label><Popover><PopoverTrigger asChild><Button id="payment-date" variant={"outline"} className="w-full justify-start text-left font-normal" disabled={isSubmittingPayment || !paymentDate}><CalendarDays className="mr-2 h-4 w-4" />{paymentDate ? format(paymentDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={paymentDate} onSelect={setPaymentDate} initialFocus disabled={(date) => date > new Date()}/></PopoverContent></Popover></div>
-                    <div><Label htmlFor="payment-method">Payment Method</Label><Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select method..."/></SelectTrigger><SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
-                    <div><Label htmlFor="payment-notes">Notes</Label><Textarea id="payment-notes" placeholder="e.g., Part payment for Term 1" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} disabled={isSubmittingPayment}/></div>
-                </div>
-                <div className="flex gap-2"><Button onClick={handleRecordPayment} disabled={!paymentAmount || +paymentAmount <= 0 || isSubmittingPayment || selectedStudentFullData.dueAmount <= 0} className="flex-1">{isSubmittingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Payment</Button><Button onClick={() => handlePrintReceipt(selectedStudentFullData)} variant="outline"><Printer className="mr-2 h-4 w-4"/>Print Last Receipt</Button></div>
-                {selectedStudentFullData.dueAmount <= 0 && <p className="text-sm text-green-600 text-center pt-2">No amount due for this student.</p>}
-              </>
-            )}
-            {!selectedStudentId && !searchTerm && <p className="text-sm text-muted-foreground text-center pt-2">Search for a student to record a payment.</p>}
-          </CardContent>
-        </Card>
+          ) : (<p className="text-center text-muted-foreground py-4">No fee data found for the selected academic year.</p>)}
+        </CardContent>
+      </Card>
 
-        <Card className="md:col-span-2">
-          <CardHeader><div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2"><CardTitle>Fee Collection Summary</CardTitle><Button onClick={handleDownloadFeePdf} variant="outline" size="sm" disabled={isLoading || isDownloadingFeePdf}>{isDownloadingFeePdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}Download Report</Button></div></CardHeader>
-          <CardContent>
-            {isLoading ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading fee summary...</p></div>) :
-             feeOverallSummary ? (
-                <div id="feeReportContent" className="p-4 bg-card rounded-md">
-                    <Card className="mb-6 bg-secondary/30 border-none"><CardHeader><CardTitle className="text-lg">Overall Summary for {filterAcademicYear}</CardTitle></CardHeader><CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Expected</p><p className="text-2xl font-bold"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalExpected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Concessions</p><p className="text-2xl font-bold text-blue-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalConcessions.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collected</p><p className="text-2xl font-bold text-green-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalCollected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Due</p><p className="text-2xl font-bold text-red-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalDue.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collection %</p><p className="text-2xl font-bold text-blue-600">{feeOverallSummary.overallCollectionPercentage}%</p><Progress value={feeOverallSummary.overallCollectionPercentage} className="h-2 mt-1" /></div></CardContent></Card>
-                    <Table><TableHeader><TableRow><TableHead>Class Name</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-center">Collection %</TableHead></TableRow></TableHeader><TableBody>{feeClassSummaries.map((summary) => (<TableRow key={summary.className}><TableCell className="font-medium">{summary.className}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-center"><div className="flex flex-col items-center"><span className="font-bold">{summary.collectionPercentage}%</span><Progress value={summary.collectionPercentage} className="h-1.5 w-20 mt-1" /></div></TableCell></TableRow>))}</TableBody></Table>
+      {selectedClass && (
+        <Card>
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <CardTitle>Fee Details for Class: {selectedClass.className}</CardTitle>
+                    <Button variant="ghost" size="icon" onClick={() => setSelectedClass(null)}><X className="h-5 w-5"/></Button>
                 </div>
-            ) : (<p className="text-center text-muted-foreground py-4">No fee data found for the selected academic year.</p>)}
-          </CardContent>
+                <CardDescription>Detailed fee breakdown for each student in the selected class.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {studentsInSelectedClass.length > 0 ? (
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Student Name</TableHead><TableHead>Admission No.</TableHead><TableHead className="text-right">Total Fees</TableHead><TableHead className="text-right">Bus Fees</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Amount Paid</TableHead><TableHead className="text-right">Amount Due</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {studentsInSelectedClass.map(student => (
+                                <TableRow key={student._id}>
+                                    <TableCell className="font-medium">{student.name}</TableCell>
+                                    <TableCell>{student.admissionId || 'N/A'}</TableCell>
+                                    <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualFee.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualBusFee.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{student.totalConcessions.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{student.paidAmount.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right text-red-600 font-semibold"><span className="font-sans">₹</span>{student.dueAmount.toLocaleString()}</TableCell>
+                                    <TableCell className="text-center space-x-2">
+                                        <Button variant="outline" size="sm" onClick={() => setStudentToRecordPayment(student)} disabled={student.dueAmount <= 0}>Record Payment</Button>
+                                        <Button variant="secondary" size="sm" onClick={() => setStudentForHistory(student)}>History</Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                ) : (
+                    <p className="text-center text-muted-foreground py-4">No students found in this class for the selected academic year.</p>
+                )}
+            </CardContent>
         </Card>
-      </div>
+      )}
+
+      {/* Record Payment Dialog */}
+      <Dialog open={!!studentToRecordPayment} onOpenChange={(isOpen) => !isOpen && setStudentToRecordPayment(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Record Payment for {studentToRecordPayment?.name}</DialogTitle>
+                <DialogDescription>Class: {studentToRecordPayment?.classLabel} | Amount Due: <span className="font-sans">₹</span>{studentToRecordPayment?.dueAmount.toLocaleString()}</DialogDescription>
+            </DialogHeader>
+            <div className="pt-2 space-y-3">
+                <div><Label htmlFor="payment-amount">Payment Amount (<span className="font-sans">₹</span>)</Label><Input id="payment-amount" type="number" placeholder="Enter amount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} disabled={isSubmittingPayment}/></div>
+                <div><Label htmlFor="payment-date">Payment Date</Label><Popover><PopoverTrigger asChild><Button id="payment-date" variant={"outline"} className="w-full justify-start text-left font-normal" disabled={isSubmittingPayment || !paymentDate}><CalendarDays className="mr-2 h-4 w-4" />{paymentDate ? format(paymentDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={paymentDate} onSelect={setPaymentDate} initialFocus disabled={(date) => date > new Date()}/></PopoverContent></Popover></div>
+                <div><Label htmlFor="payment-method">Payment Method</Label><Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select method..."/></SelectTrigger><SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label htmlFor="payment-notes">Notes</Label><Textarea id="payment-notes" placeholder="e.g., Part payment for Term 1" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} disabled={isSubmittingPayment}/></div>
+            </div>
+            <DialogFooter>
+                <Button onClick={() => setStudentToRecordPayment(null)} variant="outline">Cancel</Button>
+                <Button onClick={handleRecordPayment} disabled={!paymentAmount || +paymentAmount <= 0 || isSubmittingPayment}>
+                    {isSubmittingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Record Payment
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Payment History Dialog */}
+      <Dialog open={!!studentForHistory} onOpenChange={(isOpen) => !isOpen && setStudentForHistory(null)}>
+        <DialogContent className="max-w-2xl">
+            <DialogHeader>
+                <DialogTitle className="flex items-center"><History className="mr-2 h-5 w-5"/>Payment History for {studentForHistory?.name}</DialogTitle>
+                <DialogDescription>
+                    Total Paid: <span className="font-sans font-semibold">₹</span>{studentForHistory?.paidAmount.toLocaleString()} | 
+                    Total Due: <span className="font-sans font-semibold">₹</span>{studentForHistory?.dueAmount.toLocaleString()}
+                </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[60vh] overflow-y-auto pr-2">
+                {allSchoolPayments.filter(p => p.studentId === studentForHistory?._id).length > 0 ? (
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Amount Paid (<span className="font-sans">₹</span>)</TableHead><TableHead>Method</TableHead><TableHead>Notes</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {allSchoolPayments
+                                .filter(p => p.studentId === studentForHistory?._id)
+                                .sort((a,b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
+                                .map(payment => (
+                                <TableRow key={payment._id.toString()}>
+                                    <TableCell>{format(new Date(payment.paymentDate), "PP")}</TableCell>
+                                    <TableCell className="font-medium"><span className="font-sans">₹</span>{payment.amountPaid.toLocaleString()}</TableCell>
+                                    <TableCell>{payment.paymentMethod || 'N/A'}</TableCell>
+                                    <TableCell>{payment.notes || 'N/A'}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                ) : (
+                    <p className="text-center text-muted-foreground py-6">No payment history found for this student.</p>
+                )}
+            </div>
+            <DialogFooter>
+                <Button onClick={() => setStudentForHistory(null)} variant="outline">Close</Button>
+                <Button onClick={() => handlePrintReceipt(studentForHistory)}><Printer className="mr-2 h-4 w-4"/>Print Last Receipt</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
