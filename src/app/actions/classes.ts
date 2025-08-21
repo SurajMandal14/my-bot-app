@@ -478,7 +478,7 @@ export async function getClassesForSchoolAsOptions(schoolId: string): Promise<{ 
     
     return classes.map(cls => ({ 
         value: (cls._id as ObjectId).toString(), 
-        label: `${cls.name}${cls.section ? ` - ${cls.section}` : ''} (${cls.academicYear})`,
+        label: `${cls.name}${cls.section ? ` - ${cls.section}` : ''}`,
         name: cls.name as string, // Store original name
         section: cls.section as string | undefined // Store section
     }));

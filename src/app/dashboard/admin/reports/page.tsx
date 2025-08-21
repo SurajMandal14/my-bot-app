@@ -762,5 +762,3 @@ export default function AdminReportsPage() {
     </div>
   );
 }
-
-    

@@ -575,11 +575,11 @@ export async function bulkCreateSchoolUsers(
         .find({ schoolId: schoolObjectId })
         .toArray();
     
-    // Create a map for quick lookup: "ClassName-Section" -> classId
-    const classNameToIdMap = new Map<string, string>();
+    // Create a map for quick lookup: "ClassName-Section-AcademicYear" -> classId
+    const classKeyToIdMap = new Map<string, string>();
     existingClasses.forEach(cls => {
-        const key = `${cls.name}-${cls.section || ''}`;
-        classNameToIdMap.set(key, cls._id.toString());
+        const key = `${cls.name}-${cls.section || ''}-${cls.academicYear}`;
+        classKeyToIdMap.set(key, cls._id.toString());
     });
     
     const usersToInsert: Omit<User, '_id'>[] = [];
@@ -593,8 +593,8 @@ export async function bulkCreateSchoolUsers(
       }
       
       // Class validation
-      const classKey = `${user.classId}-${user.section}`;
-      const targetClassId = classNameToIdMap.get(classKey);
+      const classKey = `${user.classId}-${user.section}-${user.academicYear}`;
+      const targetClassId = classKeyToIdMap.get(classKey);
 
       if (!targetClassId) {
         skippedCount++; // Skip if class does not exist
