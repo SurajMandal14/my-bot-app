@@ -164,7 +164,7 @@ export default function AdminClassManagementPage() {
   useEffect(() => {
     // This effect ensures the form is populated correctly when editing.
     // It waits for both the `editingClass` data and `availableClassNamesForSchool` to be ready.
-    if (isFormOpen && editingClass && availableClassNamesForSchool.length > 0) {
+    if (isFormOpen && editingClass) {
         form.reset({
             name: editingClass.name || "",
             section: editingClass.section || "",
@@ -185,7 +185,7 @@ export default function AdminClassManagementPage() {
         secondLanguageSubjectName: "",
       });
     }
-  }, [editingClass, isFormOpen, form, selectedAcademicYear, availableClassNamesForSchool]);
+  }, [editingClass, isFormOpen, form, selectedAcademicYear]);
 
 
   async function onSubmit(values: CreateClassFormData) {

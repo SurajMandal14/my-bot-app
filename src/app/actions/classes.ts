@@ -164,6 +164,7 @@ export async function getSchoolClasses(schoolId: string): Promise<SchoolClassesR
     
     const classesWithDetails = await db.collection('school_classes').aggregate([
       { $match: { schoolId: new ObjectId(schoolId) } },
+      // Get class teacher's name
       {
         $lookup: {
           from: 'users',
@@ -172,12 +173,42 @@ export async function getSchoolClasses(schoolId: string): Promise<SchoolClassesR
           as: 'classTeacherInfo',
         },
       },
+      { $unwind: { path: '$classTeacherInfo', preserveNullAndEmptyArrays: true } },
+      // Unwind subjects to process each one
+      { $unwind: { path: '$subjects', preserveNullAndEmptyArrays: true } },
+      // Get subject teacher's name
       {
-        $unwind: {
-          path: '$classTeacherInfo',
-          preserveNullAndEmptyArrays: true,
+        $lookup: {
+          from: 'users',
+          localField: 'subjects.teacherId',
+          foreignField: '_id',
+          as: 'subjectTeacherInfo',
         },
       },
+      { $unwind: { path: '$subjectTeacherInfo', preserveNullAndEmptyArrays: true } },
+      // Group back by class to rebuild the subjects array with teacher names
+      {
+        $group: {
+          _id: '$_id',
+          name: { $first: '$name' },
+          section: { $first: '$section' },
+          schoolId: { $first: '$schoolId' },
+          academicYear: { $first: '$academicYear' },
+          classTeacherId: { $first: '$classTeacherId' },
+          classTeacherName: { $first: '$classTeacherInfo.name' },
+          secondLanguageSubjectName: { $first: '$secondLanguageSubjectName' },
+          createdAt: { $first: '$createdAt' },
+          updatedAt: { $first: '$updatedAt' },
+          subjects: {
+            $push: {
+              name: '$subjects.name',
+              teacherId: '$subjects.teacherId',
+              teacherName: '$subjectTeacherInfo.name',
+            },
+          },
+        },
+      },
+      // Now get student count
       {
         $lookup: {
           from: 'users',
@@ -202,56 +233,18 @@ export async function getSchoolClasses(schoolId: string): Promise<SchoolClassesR
       {
         $addFields: {
           studentCount: { $ifNull: [{ $arrayElemAt: ['$studentCountArr.count', 0] }, 0] },
-        },
-      },
-      {
-        $project: {
-          _id: 1,
-          name: 1,
-          section: 1,
-          schoolId: 1,
-          academicYear: 1,
-          classTeacherId: 1,
-          classTeacherName: '$classTeacherInfo.name',
-          secondLanguageSubjectName: 1,
-          createdAt: 1,
-          updatedAt: 1,
-          subjects: 1,
-          studentCount: 1,
+          // Clean up empty subject if a class has no subjects
+          subjects: {
+            $filter: {
+              input: "$subjects",
+              as: "subject",
+              cond: { $ne: [ "$$subject.name", null ] }
+            }
+          }
         },
       },
       { $sort: { academicYear: -1, name: 1, section: 1 } },
     ]).toArray();
-
-
-    const classIds = classesWithDetails.map(c => c._id);
-    const allSubjectsInfo = await db.collection('school_classes').aggregate([
-        { $match: { _id: { $in: classIds } } },
-        { $unwind: '$subjects' },
-        {
-            $lookup: {
-                from: 'users',
-                localField: 'subjects.teacherId',
-                foreignField: '_id',
-                as: 'subjectTeacherInfo'
-            }
-        },
-        { $unwind: { path: '$subjectTeacherInfo', preserveNullAndEmptyArrays: true } },
-        {
-            $group: {
-                _id: '$_id',
-                subjects: {
-                    $push: {
-                        name: '$subjects.name',
-                        teacherId: '$subjects.teacherId',
-                        teacherName: '$subjectTeacherInfo.name'
-                    }
-                }
-            }
-        }
-    ]).toArray();
-    
-    const subjectsMap = new Map(allSubjectsInfo.map(item => [item._id.toString(), item.subjects]));
 
     const classes: SchoolClass[] = classesWithDetails.map(cls => ({
       _id: (cls._id as ObjectId).toString(),
@@ -259,7 +252,7 @@ export async function getSchoolClasses(schoolId: string): Promise<SchoolClassesR
       section: cls.section || '',
       schoolId: (cls.schoolId as ObjectId).toString(),
       academicYear: cls.academicYear || '',
-      subjects: (subjectsMap.get(cls._id.toString()) || []).map((s: any) => ({
+      subjects: (cls.subjects || []).map((s: any) => ({
         name: s.name,
         teacherId: s.teacherId ? s.teacherId.toString() : undefined,
         teacherName: s.teacherName || undefined,
@@ -268,7 +261,7 @@ export async function getSchoolClasses(schoolId: string): Promise<SchoolClassesR
       createdAt: cls.createdAt ? new Date(cls.createdAt).toISOString() : new Date().toISOString(),
       updatedAt: cls.updatedAt ? new Date(cls.updatedAt).toISOString() : new Date().toISOString(),
       classTeacherId: cls.classTeacherId ? (cls.classTeacherId as ObjectId).toString() : undefined,
-      classTeacherName: (cls as any).classTeacherName || undefined,
+      classTeacherName: cls.classTeacherName || undefined,
       studentCount: (cls as any).studentCount || 0,
     }));
 
