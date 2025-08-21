@@ -162,7 +162,8 @@ export default function AdminClassManagementPage() {
   }, [authUser, fetchInitialData]);
 
   useEffect(() => {
-    if (isFormOpen && editingClass) {
+    // This effect now depends on classOptions being loaded to prevent race conditions
+    if (isFormOpen && editingClass && availableClassNamesForSchool.length > 0) {
         form.reset({
             name: editingClass.name || "",
             section: editingClass.section || "",
@@ -183,7 +184,7 @@ export default function AdminClassManagementPage() {
         secondLanguageSubjectName: "",
       });
     }
-  }, [editingClass, isFormOpen, form, selectedAcademicYear]);
+  }, [editingClass, isFormOpen, form, selectedAcademicYear, availableClassNamesForSchool]);
 
   async function onSubmit(values: CreateClassFormData) {
     if (!authUser?.schoolId) return;
