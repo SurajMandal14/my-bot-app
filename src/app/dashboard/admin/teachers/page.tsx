@@ -68,6 +68,18 @@ const bloodGroupOptions = [
     { value: 'O+', label: 'O+' }, { value: 'O-', label: 'O-' },
 ];
 
+const genderOptions = [
+    { value: 'Male', label: 'Male' },
+    { value: 'Female', label: 'Female' },
+    { value: 'Other', label: 'Other' },
+];
+
+const maritalStatusOptions = [
+    { value: 'Single', label: 'Single' },
+    { value: 'Married', label: 'Married' },
+    { value: 'Other', label: 'Other' },
+];
+
 export default function AdminTeacherManagementPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -99,11 +111,13 @@ export default function AdminTeacherManagementPage() {
         presentAddress: { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         isPermanentSameAsPresent: false,
         permanentAddress: { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
+        gender: "", maritalStatus: "", spouseName: ""
     },
   });
 
   const isPermanentSameAsPresent = form.watch("isPermanentSameAsPresent");
   const presentAddress = form.watch("presentAddress");
+  const gender = form.watch("gender");
 
   useEffect(() => {
     if (isPermanentSameAsPresent) {
@@ -182,6 +196,9 @@ export default function AdminTeacherManagementPage() {
         isPermanentSameAsPresent: false,
         permanentAddress: editingTeacher.permanentAddress || { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
         bloodGroup: editingTeacher.bloodGroup || "",
+        gender: editingTeacher.gender || "",
+        maritalStatus: editingTeacher.maritalStatus || "",
+        spouseName: editingTeacher.spouseName || "",
       });
     }
   }, [editingTeacher, isFormOpen, form]);
@@ -224,6 +241,7 @@ export default function AdminTeacherManagementPage() {
       presentAddress: { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
       isPermanentSameAsPresent: false,
       permanentAddress: { houseNo: "", street: "", village: "", mandal: "", district: "", state: "" },
+      gender: "", maritalStatus: "", spouseName: ""
     });
     setIsFormOpen(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -356,14 +374,19 @@ export default function AdminTeacherManagementPage() {
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <FormField control={form.control} name="name" render={({ field }) => (<FormItem className="lg:col-span-2"><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
           <FormField control={form.control} name="dob" render={({ field }) => (<FormItem><FormLabel>Date of Birth</FormLabel><FormControl><Input type="date" {...field}/></FormControl><FormMessage/></FormItem>)}/>
+          <ControlledListbox control={form.control} name="gender" label="Gender" options={genderOptions} placeholder="Select Gender" />
           <ControlledListbox control={form.control} name="bloodGroup" label="Blood Group" options={bloodGroupOptions} placeholder="Select" />
         </CardContent>
       </Card>
 
-      <Card><CardHeader><CardTitle className="flex items-center text-xl"><Users className="mr-2 h-6 w-6 text-primary"/>Family Details</CardTitle></CardHeader>
+      <Card><CardHeader><CardTitle className="flex items-center text-xl"><Users className="mr-2 h-6 w-6 text-primary"/>Family & Marital Details</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField control={form.control} name="fatherName" render={({ field }) => (<FormItem><FormLabel>Father's Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
             <FormField control={form.control} name="motherName" render={({ field }) => (<FormItem><FormLabel>Mother's Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
+            <ControlledListbox control={form.control} name="maritalStatus" label="Marital Status" options={maritalStatusOptions} placeholder="Select Status" />
+            {gender && (
+                 <FormField control={form.control} name="spouseName" render={({ field }) => (<FormItem><FormLabel>{gender === 'Female' ? "Husband's Name" : gender === 'Male' ? "Wife's Name" : "Spouse's Name"}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
+            )}
         </CardContent>
       </Card>
       

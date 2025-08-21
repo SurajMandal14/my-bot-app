@@ -39,7 +39,9 @@ export async function createSchoolUser(values: CreateSchoolUserFormData, schoolI
         gender, bloodGroup, nationality, religion, caste, subcaste, pwd, identificationMarks,
         presentAddress, permanentAddress, fatherMobile, motherMobile, fatherAadhar, motherAadhar,
         fatherQualification, motherQualification, fatherOccupation, motherOccupation,
-        rationCardNumber, isTcAttached, previousSchool, childIdNumber, motherTongue, qualification
+        rationCardNumber, isTcAttached, previousSchool, childIdNumber, motherTongue, qualification,
+        // Teacher specific fields
+        maritalStatus, spouseName
     } = validatedFields.data;
 
     const { db } = await connectToDatabase();
@@ -95,6 +97,8 @@ export async function createSchoolUser(values: CreateSchoolUserFormData, schoolI
       presentAddress, permanentAddress, fatherMobile, motherMobile, fatherAadhar, motherAadhar,
       fatherQualification, motherQualification, fatherOccupation, motherOccupation,
       rationCardNumber, isTcAttached, previousSchool, childIdNumber, motherTongue,
+      maritalStatus: role === 'teacher' ? maritalStatus : undefined,
+      spouseName: role === 'teacher' ? spouseName : undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -195,7 +199,9 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
         gender, bloodGroup, nationality, religion, caste, subcaste, pwd, identificationMarks,
         presentAddress, permanentAddress, fatherMobile, motherMobile, fatherAadhar, motherAadhar,
         fatherQualification, motherQualification, fatherOccupation, motherOccupation,
-        rationCardNumber, isTcAttached, previousSchool, childIdNumber, motherTongue, qualification
+        rationCardNumber, isTcAttached, previousSchool, childIdNumber, motherTongue, qualification,
+        // Teacher specific fields
+        maritalStatus, spouseName
     } = validatedFields.data;
 
     const { db } = await connectToDatabase();
@@ -246,6 +252,8 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
       fatherQualification, motherQualification, fatherOccupation, motherOccupation,
       rationCardNumber, isTcAttached, previousSchool, childIdNumber, motherTongue,
       qualification: role === 'teacher' ? qualification : undefined,
+      maritalStatus: role === 'teacher' ? maritalStatus : undefined,
+      spouseName: role === 'teacher' ? spouseName : undefined,
     };
     
     if (role === 'student' && !enableBusTransport) {

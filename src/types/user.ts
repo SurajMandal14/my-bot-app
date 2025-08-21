@@ -47,6 +47,10 @@ export interface User {
   dateOfJoining?: string;
   dateOfLeaving?: string;
 
+  // New teacher fields
+  maritalStatus?: 'Single' | 'Married' | 'Other' | string;
+  spouseName?: string;
+
   // New detailed student form fields
   bloodGroup?: string;
   nationality?: string;
@@ -143,6 +147,10 @@ const baseSchoolUserFormSchema = z.object({
   motherTongue: z.string().optional(),
   dateOfJoining: z.string().optional(),
   qualification: z.string().optional(),
+
+  // Teacher specific fields
+  maritalStatus: z.string().optional(),
+  spouseName: z.string().optional(),
 
   // These are system-managed but part of the base user type
   section: z.string().optional(),
