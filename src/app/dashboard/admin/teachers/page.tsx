@@ -384,7 +384,7 @@ export default function AdminTeacherManagementPage() {
             <FormField control={form.control} name="fatherName" render={({ field }) => (<FormItem><FormLabel>Father's Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
             <FormField control={form.control} name="motherName" render={({ field }) => (<FormItem><FormLabel>Mother's Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
             <ControlledListbox control={form.control} name="maritalStatus" label="Marital Status" options={maritalStatusOptions} placeholder="Select Status" />
-            {maritalStatus === 'Married' && (
+            {(maritalStatus === 'Married' || maritalStatus === 'Other') && (
               <FormField control={form.control} name="spouseName" render={({ field }) => (<FormItem><FormLabel>Spouse's Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
             )}
         </CardContent>
@@ -521,5 +521,3 @@ export default function AdminTeacherManagementPage() {
     </div>
   );
 }
-
-    
