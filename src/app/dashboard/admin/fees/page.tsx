@@ -56,6 +56,7 @@ interface ClassFeeSummary {
   totalCollected: number;
   totalConcessions: number;
   totalDue: number;
+  collectionPercentage: number;
 }
 
 interface OverallFeeSummary {
@@ -251,7 +252,8 @@ export default function FeeManagementPage() {
     const summaries = Array.from(classFeeMap.entries()).map(([className, data]) => {
       const netExpectedForClass = data.totalExpected - data.totalConcessions;
       const totalDue = Math.max(0, netExpectedForClass - data.totalCollected);
-      return { className, classId: data.classId, totalExpected: data.totalExpected, totalCollected: data.totalCollected, totalConcessions: data.totalConcessions, totalDue };
+      const collectionPercentage = netExpectedForClass > 0 ? Math.round((data.totalCollected / netExpectedForClass) * 100) : 0;
+      return { className, classId: data.classId, totalExpected: data.totalExpected, totalCollected: data.totalCollected, totalConcessions: data.totalConcessions, totalDue, collectionPercentage };
     });
 
     const grandNetExpected = grandTotalExpected - grandTotalConcessions;
@@ -377,8 +379,8 @@ export default function FeeManagementPage() {
             feeOverallSummary ? (
               <div id="feeReportContent" className="p-4 bg-card rounded-md">
                   <Card className="mb-6 bg-secondary/30 border-none"><CardHeader><CardTitle className="text-lg">Overall Summary for {filterAcademicYear}</CardTitle></CardHeader><CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Expected</p><p className="text-2xl font-bold"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalExpected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Concessions</p><p className="text-2xl font-bold text-blue-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalConcessions.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collected</p><p className="text-2xl font-bold text-green-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalCollected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Due</p><p className="text-2xl font-bold text-red-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalDue.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collection %</p><p className="text-2xl font-bold text-blue-600">{feeOverallSummary.overallCollectionPercentage}%</p><Progress value={feeOverallSummary.overallCollectionPercentage} className="h-2 mt-1" /></div></CardContent></Card>
-                  <Table><TableHeader><TableRow><TableHead>Class Name</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
-                  <TableBody>{feeClassSummaries.map((summary) => (<TableRow key={summary.className}><TableCell className="font-medium">{summary.className}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-center"><Button variant="outline" size="sm" onClick={() => setSelectedClass(summary)}>Open</Button></TableCell></TableRow>))}</TableBody></Table>
+                  <Table><TableHeader><TableRow><TableHead>Class Name</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-right">Collection %</TableHead></TableRow></TableHeader>
+                  <TableBody>{feeClassSummaries.map((summary) => (<TableRow key={summary.className} onClick={() => setSelectedClass(summary)} className="cursor-pointer hover:bg-muted/50"><TableCell className="font-medium">{summary.className}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-right">{summary.collectionPercentage}%</TableCell></TableRow>))}</TableBody></Table>
               </div>
           ) : (<p className="text-center text-muted-foreground py-4">No fee data found for the selected academic year.</p>)}
         </CardContent>
