@@ -110,6 +110,9 @@ export default function FeeManagementPage() {
   const [busFeeSearchTerm, setBusFeeSearchTerm] = useState("");
   const [busFeeSummaries, setBusFeeSummaries] = useState<BusFeeSummary[]>([]);
 
+  const [historyFilterType, setHistoryFilterType] = useState<'all' | 'bus_fees_only'>('all');
+
+
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser && storedUser !== "undefined" && storedUser !== "null") {
@@ -398,6 +401,15 @@ export default function FeeManagementPage() {
         summary.classCategory.toLowerCase().includes(lowercasedTerm)
     );
   }, [busFeeSummaries, busFeeSearchTerm]);
+  
+  const paymentHistoryToDisplay = useMemo(() => {
+    const basePayments = allSchoolPayments.filter(p => p.studentId === studentForHistory?._id);
+    const filteredPayments = historyFilterType === 'bus_fees_only'
+      ? basePayments.filter(p => p.paymentTowards === 'Bus Fees')
+      : basePayments;
+    
+    return filteredPayments.sort((a,b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
+  }, [allSchoolPayments, studentForHistory, historyFilterType]);
 
   if (!authUser) {
     if (!isLoading) return <Card><CardHeader><CardTitle>Access Denied</CardTitle></CardHeader><CardContent><p>Please log in as an admin.</p></CardContent></Card>;
@@ -461,7 +473,7 @@ export default function FeeManagementPage() {
                                     <TableCell className="text-right text-red-600 font-semibold"><span className="font-sans">₹</span>{student.dueAmount.toLocaleString()}</TableCell>
                                     <TableCell className="text-center space-x-2">
                                         <Button variant="outline" size="sm" onClick={() => setStudentToRecordPayment(student)} disabled={student.dueAmount <= 0}>Record Payment</Button>
-                                        <Button variant="secondary" size="sm" onClick={() => setStudentForHistory(student)}>History</Button>
+                                        <Button variant="secondary" size="sm" onClick={() => { setStudentForHistory(student); setHistoryFilterType('all'); }}>History</Button>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -537,7 +549,7 @@ export default function FeeManagementPage() {
                                     <TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{student.busFeePaid.toLocaleString()}</TableCell>
                                     <TableCell className="text-right text-red-600 font-semibold"><span className="font-sans">₹</span>{busFeeDue.toLocaleString()}</TableCell>
                                     <TableCell className="text-center">
-                                        <Button variant="secondary" size="sm" onClick={() => setStudentForHistory(student)}>History</Button>
+                                        <Button variant="secondary" size="sm" onClick={() => { setStudentForHistory(student); setHistoryFilterType('bus_fees_only'); }}>History</Button>
                                     </TableCell>
                                 </TableRow>
                             )})}
@@ -580,17 +592,15 @@ export default function FeeManagementPage() {
                 <DialogDescription>
                     Total Paid: <span className="font-sans font-semibold">₹</span>{studentForHistory?.paidAmount.toLocaleString()} | 
                     Total Due: <span className="font-sans font-semibold">₹</span>{studentForHistory?.dueAmount.toLocaleString()}
+                    {historyFilterType === 'bus_fees_only' && <span className="ml-2 font-bold text-primary">(Showing Bus Fees Only)</span>}
                 </DialogDescription>
             </DialogHeader>
             <div className="max-h-[60vh] overflow-y-auto pr-2" id="paymentHistoryContent">
-                {allSchoolPayments.filter(p => p.studentId === studentForHistory?._id).length > 0 ? (
+                {paymentHistoryToDisplay.length > 0 ? (
                     <Table>
                         <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Amount Paid (<span className="font-sans">₹</span>)</TableHead><TableHead>Towards</TableHead><TableHead>Method</TableHead><TableHead>Notes</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
-                            {allSchoolPayments
-                                .filter(p => p.studentId === studentForHistory?._id)
-                                .sort((a,b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
-                                .map(payment => (
+                            {paymentHistoryToDisplay.map(payment => (
                                 <TableRow key={payment._id.toString()}>
                                     <TableCell>{format(new Date(payment.paymentDate), "PP")}</TableCell>
                                     <TableCell className="font-medium"><span className="font-sans">₹</span>{payment.amountPaid.toLocaleString()}</TableCell>
@@ -605,7 +615,7 @@ export default function FeeManagementPage() {
                         </TableBody>
                     </Table>
                 ) : (
-                    <p className="text-center text-muted-foreground py-6">No payment history found for this student.</p>
+                    <p className="text-center text-muted-foreground py-6">No {historyFilterType === 'bus_fees_only' ? 'bus fee' : ''} payment history found for this student.</p>
                 )}
             </div>
             <DialogFooter>
@@ -617,5 +627,3 @@ export default function FeeManagementPage() {
     </div>
   );
 }
-
-    
