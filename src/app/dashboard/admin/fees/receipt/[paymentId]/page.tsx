@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { getPaymentById } from '@/app/actions/fees';
 import { getSchoolById } from '@/app/actions/schools'; 
 import type { FeePayment } from '@/types/fees';
@@ -15,17 +15,13 @@ import { format } from 'date-fns';
 
 export default function FeeReceiptPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const paymentId = params.paymentId as string;
   
   const [payment, setPayment] = useState<FeePayment | null>(null);
   const [school, setSchool] = useState<School | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-  const studentNameQuery = searchParams?.get('studentName');
-  const classNameQuery = searchParams?.get('className');
-
 
   const fetchReceiptData = useCallback(async () => {
     if (!paymentId) {
@@ -98,8 +94,8 @@ export default function FeeReceiptPage() {
     );
   }
   
-  const studentDisplayName = studentNameQuery || payment.studentName;
-  const studentDisplayClass = classNameQuery || payment.classId;
+  const studentDisplayName = payment.studentName;
+  const studentDisplayClass = payment.classId;
 
   return (
     <div className="min-h-screen bg-muted p-4 sm:p-8 flex flex-col items-center print:bg-white print:p-0">

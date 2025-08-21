@@ -9,13 +9,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search, ArrowUpDown, Bus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
+import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search, ArrowUpDown, Bus, Download } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/attendance";
 import type { User as AppUser } from "@/types/user";
 import type { School, TermFee, BusFeeLocationCategory } from "@/types/school";
-import type { FeePayment, FeePaymentPayload } from "@/types/fees";
+import type { FeePayment, FeePaymentPayload, PaymentMethod } from "@/types/fees";
+import { PAYMENT_METHODS } from "@/types/fees";
 import type { FeeConcession } from "@/types/concessions";
 import { getSchoolUsers } from "@/app/actions/schoolUsers";
 import { getSchoolById } from "@/app/actions/schools";
@@ -23,17 +26,10 @@ import { recordFeePayment, getFeePaymentsBySchool } from "@/app/actions/fees";
 import { getFeeConcessionsForSchool } from "@/app/actions/concessions";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
 import { format } from "date-fns";
-
-const getCurrentAcademicYear = (): string => {
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-  if (currentMonth >= 5) { 
-    return `${currentYear}-${currentYear + 1}`;
-  } else { 
-    return `${currentYear - 1}-${currentYear}`;
-  }
-};
+import { getAcademicYears } from "@/app/actions/academicYears";
+import type { AcademicYear } from "@/types/academicYear";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface ClassOption {
   value: string;
@@ -52,7 +48,22 @@ interface StudentFeeDetailsProcessed extends AppUser {
   classLabel?: string;
 }
 
-type SortableKeys = 'name' | 'classLabel' | 'totalAnnualTuitionFee' | 'totalAnnualBusFee' | 'totalAnnualFee' | 'paidAmount' | 'totalConcessions' | 'dueAmount';
+interface ClassFeeSummary {
+  className: string;
+  totalExpected: number;
+  totalCollected: number;
+  totalConcessions: number;
+  totalDue: number;
+  collectionPercentage: number;
+}
+
+interface OverallFeeSummary {
+  grandTotalExpected: number;
+  grandTotalCollected: number;
+  grandTotalConcessions: number;
+  grandTotalDue: number;
+  overallCollectionPercentage: number;
+}
 
 export default function FeeManagementPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -62,24 +73,25 @@ export default function FeeManagementPage() {
   const [allSchoolConcessions, setAllSchoolConcessions] = useState<FeeConcession[]>([]);
   const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
   
-  const [studentFeeList, setStudentFeeList] = useState<StudentFeeDetailsProcessed[]>([]);
-  
+  const [feeClassSummaries, setFeeClassSummaries] = useState<ClassFeeSummary[]>([]);
+  const [feeOverallSummary, setFeeOverallSummary] = useState<OverallFeeSummary | null>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredStudents, setFilteredStudents] = useState<StudentFeeDetailsProcessed[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   
   const [paymentAmount, setPaymentAmount] = useState<number | string>("");
   const [paymentDate, setPaymentDate] = useState<Date | undefined>(undefined);
-  const [paymentMethod, setPaymentMethod] = useState<string>("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [paymentNotes, setPaymentNotes] = useState<string>("");
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isDownloadingFeePdf, setIsDownloadingFeePdf] = useState(false);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const { toast } = useToast();
-  const currentAcademicYear = getCurrentAcademicYear();
   
-  const [feeStatusFilterTerm, setFeeStatusFilterTerm] = useState("");
-  const [sortConfig, setSortConfig] = useState<{ key: SortableKeys; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [filterAcademicYear, setFilterAcademicYear] = useState<string>("");
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -88,45 +100,35 @@ export default function FeeManagementPage() {
         const parsedUser: AuthUser = JSON.parse(storedUser);
         if (parsedUser && parsedUser.role === 'admin' && parsedUser.schoolId && parsedUser._id) {
           setAuthUser(parsedUser);
-        } else {
-          setAuthUser(null);
-          toast({ variant: "destructive", title: "Access Denied", description: "You must be a school admin with valid session data." });
         }
-      } catch (e) {
-        console.error("FeeManagementPage: Failed to parse authUser", e);
-        setAuthUser(null);
+      } catch (e) { console.error("FeeManagementPage: Failed to parse authUser", e); }
+    }
+  }, []);
+
+  const fetchInitialOptions = useCallback(async () => {
+    setIsLoading(true);
+    const academicYearsResult = await getAcademicYears();
+    if (academicYearsResult.success && academicYearsResult.academicYears) {
+      setAcademicYears(academicYearsResult.academicYears);
+      const defaultYear = academicYearsResult.academicYears.find(y => y.isDefault) || academicYearsResult.academicYears[0];
+      if (defaultYear) {
+        setFilterAcademicYear(defaultYear.year);
       }
-    } else {
-      setAuthUser(null);
     }
-  }, [toast]);
-
-  const calculateAnnualTuitionFee = useCallback((className: string | undefined, schoolConfig: School | null): number => {
-    if (!className || !schoolConfig || !schoolConfig.tuitionFees) return 0;
-    const classFeeConfig = schoolConfig.tuitionFees.find(cf => cf.className === className);
-    if (!classFeeConfig || !classFeeConfig.terms) return 0;
-    return classFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
+    setIsLoading(false);
   }, []);
+  
+  useEffect(() => { fetchInitialOptions() }, [fetchInitialOptions]);
 
-  const calculateAnnualBusFee = useCallback((student: AppUser, schoolConfig: School | null): number => {
-    if (!student.busRouteLocation || !student.busClassCategory || !schoolConfig || !schoolConfig.busFeeStructures) return 0;
-    const busFeeConfig = schoolConfig.busFeeStructures.find(bfs => bfs.location === student.busRouteLocation && bfs.classCategory === student.busClassCategory);
-    if (!busFeeConfig || !busFeeConfig.terms) return 0;
-    return busFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
-  }, []);
-
-  const fetchSchoolDataAndRelated = useCallback(async () => {
-    if (!authUser || !authUser.schoolId) {
-      setIsLoading(false);
-      return;
-    }
+  const loadReportData = useCallback(async () => {
+    if (!authUser || !authUser.schoolId || !filterAcademicYear) return;
     setIsLoading(true);
     try {
       const [schoolResult, usersResult, paymentsResult, concessionsResult, classesOptResult] = await Promise.all([
         getSchoolById(authUser.schoolId.toString()),
         getSchoolUsers(authUser.schoolId.toString()),
         getFeePaymentsBySchool(authUser.schoolId.toString()),
-        getFeeConcessionsForSchool(authUser.schoolId.toString(), currentAcademicYear),
+        getFeeConcessionsForSchool(authUser.schoolId.toString(), filterAcademicYear),
         getClassesForSchoolAsOptions(authUser.schoolId.toString())
       ]);
 
@@ -150,57 +152,50 @@ export default function FeeManagementPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [authUser, toast, currentAcademicYear]);
+  }, [authUser, toast, filterAcademicYear]);
   
   useEffect(() => {
-    if (authUser && authUser.schoolId) fetchSchoolDataAndRelated();
-    else if (!authUser) setIsLoading(false);
-  }, [authUser, fetchSchoolDataAndRelated]);
+    if (authUser && authUser.schoolId && filterAcademicYear) loadReportData();
+  }, [authUser, filterAcademicYear, loadReportData]);
 
-
-  const processStudentFeeDetails = useCallback(() => {
-    if (!schoolDetails || allStudents.length === 0 || classOptions.length === 0) {
-      setStudentFeeList([]);
-      return;
-    }
-
-    const processedList = allStudents.map(student => {
-      const classInfo = classOptions.find(opt => opt.value === student.classId);
-      const studentClassName = classInfo?.name;
-      const studentClassLabel = classInfo?.label || student.classId || 'N/A';
+  const studentFeeList: StudentFeeDetailsProcessed[] = useMemo(() => {
+      if (!schoolDetails || allStudents.length === 0 || classOptions.length === 0) return [];
       
-      const totalAnnualTuitionFee = calculateAnnualTuitionFee(studentClassName, schoolDetails);
-      const totalAnnualBusFee = calculateAnnualBusFee(student, schoolDetails);
-      const totalAnnualFee = totalAnnualTuitionFee + totalAnnualBusFee;
+      const calculateAnnualTuitionFee = (className: string | undefined): number => {
+          if (!className || !schoolDetails?.tuitionFees) return 0;
+          const classFeeConfig = schoolDetails.tuitionFees.find(cf => cf.className === className);
+          return classFeeConfig?.terms.reduce((sum, term) => sum + (term.amount || 0), 0) || 0;
+      };
 
-      const paidAmount = allSchoolPayments.filter(p => p.studentId.toString() === student._id.toString()).reduce((sum, p) => sum + p.amountPaid, 0);
-      const totalConcessions = allSchoolConcessions.filter(c => c.studentId.toString() === student._id.toString() && c.academicYear === currentAcademicYear).reduce((sum, c) => sum + c.amount, 0);
-      const dueAmount = Math.max(0, totalAnnualFee - paidAmount - totalConcessions);
+      const calculateAnnualBusFee = (student: AppUser): number => {
+          if (!student.busRouteLocation || !student.busClassCategory || !schoolDetails?.busFeeStructures) return 0;
+          const busFeeConfig = schoolDetails.busFeeStructures.find(bfs => bfs.location === student.busRouteLocation && bfs.classCategory === student.busClassCategory);
+          return busFeeConfig?.terms.reduce((sum, term) => sum + (term.amount || 0), 0) || 0;
+      };
 
-      return { ...student, className: studentClassName, classLabel: studentClassLabel, totalAnnualTuitionFee, totalAnnualBusFee, totalAnnualFee, paidAmount, totalConcessions, dueAmount };
-    }) as StudentFeeDetailsProcessed[];
-    setStudentFeeList(processedList);
+      return allStudents
+        .filter(s => s.academicYear === filterAcademicYear)
+        .map(student => {
+          const classInfo = classOptions.find(opt => opt.value === student.classId);
+          const studentClassName = classInfo?.name;
+          const studentClassLabel = classInfo?.label || student.classId || 'N/A';
+          
+          const totalAnnualTuitionFee = calculateAnnualTuitionFee(studentClassName);
+          const totalAnnualBusFee = calculateAnnualBusFee(student);
+          const totalAnnualFee = totalAnnualTuitionFee + totalAnnualBusFee;
 
-  }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, calculateAnnualTuitionFee, calculateAnnualBusFee, currentAcademicYear, classOptions]);
+          const paidAmount = allSchoolPayments.filter(p => p.studentId.toString() === student._id!.toString()).reduce((sum, p) => sum + p.amountPaid, 0);
+          const totalConcessions = allSchoolConcessions.filter(c => c.studentId.toString() === student._id!.toString() && c.academicYear === filterAcademicYear).reduce((sum, c) => sum + c.amount, 0);
+          const dueAmount = Math.max(0, totalAnnualFee - paidAmount - totalConcessions);
 
-  useEffect(() => {
-     processStudentFeeDetails();
-  }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, classOptions, processStudentFeeDetails]);
+          return { ...student, className: studentClassName, classLabel: studentClassLabel, totalAnnualTuitionFee, totalAnnualBusFee, totalAnnualFee, paidAmount, totalConcessions, dueAmount } as StudentFeeDetailsProcessed;
+        });
 
-  useEffect(() => {
-    if (searchTerm.trim().length > 1) {
-      const results = studentFeeList.filter(student => 
-        student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.admissionId?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredStudents(results.slice(0, 10)); // Limit to top 10 results for performance
-    } else {
-      setFilteredStudents([]);
-    }
-  }, [searchTerm, studentFeeList]);
+  }, [allStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, classOptions, filterAcademicYear]);
 
-
-  const selectedStudentFullData = selectedStudentId ? studentFeeList.find(s => s._id.toString() === selectedStudentId) : null;
+  const selectedStudentFullData = useMemo(() => {
+    return selectedStudentId ? studentFeeList.find(s => s._id!.toString() === selectedStudentId) : null;
+  }, [selectedStudentId, studentFeeList]);
 
   useEffect(() => {
     if (selectedStudentFullData) {
@@ -216,106 +211,142 @@ export default function FeeManagementPage() {
     }
   }, [selectedStudentId, selectedStudentFullData]);
 
-  const handleRecordPayment = async () => {
-    if (!selectedStudentFullData || !paymentAmount || +paymentAmount <= 0 || !paymentDate || !authUser?._id || !authUser?.schoolId) {
-      toast({ variant: "destructive", title: "Error", description: "Please select a student, enter a valid payment amount, date, and ensure admin details are available." });
+  useEffect(() => {
+    if (searchTerm.trim().length > 1) {
+      setFilteredStudents(studentFeeList.filter(student => 
+        student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.admissionId?.toLowerCase().includes(searchTerm.toLowerCase())
+      ).slice(0, 10));
+    } else {
+      setFilteredStudents([]);
+    }
+  }, [searchTerm, studentFeeList]);
+
+
+  useEffect(() => {
+    if (!schoolDetails || studentFeeList.length === 0) {
+      setFeeClassSummaries([]);
+      setFeeOverallSummary(null);
       return;
     }
-    setIsSubmittingPayment(true);
 
-    const payload: FeePaymentPayload = {
-      studentId: selectedStudentFullData._id.toString(),
-      studentName: selectedStudentFullData.name || 'N/A',
-      schoolId: authUser.schoolId.toString(),
-      classId: selectedStudentFullData.classLabel || 'N/A',
-      amountPaid: +paymentAmount,
-      paymentDate: paymentDate,
-      recordedByAdminId: authUser._id.toString(),
-      paymentMethod: paymentMethod || undefined,
-      notes: paymentNotes || undefined,
-    };
+    let grandTotalExpected = 0;
+    let grandTotalCollected = 0;
+    let grandTotalConcessions = 0;
 
-    const result = await recordFeePayment(payload);
+    const classFeeMap = new Map<string, { totalExpected: number, totalCollected: number, totalConcessions: number, studentCount: number }>();
     
+    studentFeeList.forEach(student => {
+        const { classLabel, totalAnnualFee, paidAmount, totalConcessions } = student;
+        if (!classLabel) return;
+        
+        grandTotalExpected += totalAnnualFee;
+        grandTotalCollected += paidAmount;
+        grandTotalConcessions += totalConcessions;
+
+        if (!classFeeMap.has(classLabel)) {
+            classFeeMap.set(classLabel, { totalExpected: 0, totalCollected: 0, totalConcessions: 0, studentCount: 0 });
+        }
+        const classData = classFeeMap.get(classLabel)!;
+        classData.totalExpected += totalAnnualFee;
+        classData.totalCollected += paidAmount;
+        classData.totalConcessions += totalConcessions;
+        classData.studentCount++;
+    });
+
+    const summaries = Array.from(classFeeMap.entries()).map(([className, data]) => {
+      const netExpectedForClass = data.totalExpected - data.totalConcessions;
+      const totalDue = Math.max(0, netExpectedForClass - data.totalCollected);
+      const collectionPercentage = netExpectedForClass > 0 ? Math.round((data.totalCollected / netExpectedForClass) * 100) : (data.totalCollected > 0 ? 100 : 0);
+      return { className, totalExpected: data.totalExpected, totalCollected: data.totalCollected, totalConcessions: data.totalConcessions, totalDue, collectionPercentage };
+    });
+
+    const grandNetExpected = grandTotalExpected - grandTotalConcessions;
+    const grandTotalDue = Math.max(0, grandNetExpected - grandTotalCollected);
+    const overallCollectionPercentage = grandNetExpected > 0 ? Math.round((grandTotalCollected / grandNetExpected) * 100) : (grandTotalCollected > 0 ? 100 : 0);
+
+    setFeeClassSummaries(summaries.sort((a,b) => a.className.localeCompare(b.className)));
+    setFeeOverallSummary({ grandTotalExpected, grandTotalCollected, grandTotalConcessions, grandTotalDue, overallCollectionPercentage });
+
+  }, [studentFeeList, schoolDetails, allSchoolPayments, allSchoolConcessions, filterAcademicYear]);
+  
+  
+  const handleRecordPayment = async () => {
+    if (!selectedStudentFullData || !paymentAmount || +paymentAmount <= 0 || !paymentDate || !authUser?._id || !authUser?.schoolId) return;
+    setIsSubmittingPayment(true);
+    const payload: FeePaymentPayload = {
+      studentId: selectedStudentFullData._id!.toString(), studentName: selectedStudentFullData.name!, schoolId: authUser.schoolId.toString(),
+      classId: selectedStudentFullData.classLabel!, amountPaid: +paymentAmount, paymentDate: paymentDate,
+      recordedByAdminId: authUser._id.toString(), paymentMethod: paymentMethod || undefined, notes: paymentNotes || undefined,
+    };
+    const result = await recordFeePayment(payload);
     if (result.success) {
       toast({ title: "Payment Recorded", description: result.message });
-      if (authUser?.schoolId) await fetchSchoolDataAndRelated();
+      if (authUser?.schoolId) loadReportData();
       setSelectedStudentId(null);
     } else {
       toast({ variant: "destructive", title: "Payment Failed", description: result.error || result.message });
     }
     setIsSubmittingPayment(false);
   };
-
-  const handleGenerateReceipt = (studentId: string) => {
-    const student = studentFeeList.find(s => s._id.toString() === studentId);
-    if (!student || !schoolDetails) return toast({variant: "destructive", title: "Error", description: "Student or school details not found."});
-    
-    const studentPayments = allSchoolPayments.filter(p => p.studentId.toString() === studentId.toString());
-    if (studentPayments.length === 0) return toast({title: "No Payments", description: `No payments found for ${student.name || 'this student'}.`});
-
-    const latestPayment = studentPayments.sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())[0];
-    if (latestPayment && latestPayment._id) {
-      const receiptUrl = `/dashboard/admin/fees/receipt/${latestPayment._id.toString()}?studentName=${encodeURIComponent(student.name || '')}&className=${encodeURIComponent(student.classLabel || '')}`;
-      window.open(receiptUrl, '_blank');
+  
+  const handlePrintReceipt = (student: StudentFeeDetailsProcessed | null) => {
+    if (!student) return;
+    const latestPayment = allSchoolPayments.filter(p => p.studentId === student._id).sort((a,b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())[0];
+    if (latestPayment?._id) {
+        window.open(`/dashboard/admin/fees/receipt/${latestPayment._id.toString()}`, '_blank');
     } else {
-       toast({variant: "destructive", title: "Error", description: "Could not identify the latest payment for receipt generation."});
+        toast({ title: "No Payments", description: `No payments found for ${student.name} to generate a receipt.` });
     }
   };
-  
-  const handleSort = (key: SortableKeys) => {
-    setSortConfig(prevConfig => ({
-      key,
-      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
-    }));
+
+  const handleDownloadFeePdf = async () => {
+    const reportContent = document.getElementById('feeReportContent');
+    if (!reportContent || !schoolDetails) return;
+    setIsDownloadingFeePdf(true);
+    try {
+      const canvas = await html2canvas(reportContent, { scale: 2, useCORS: true, logging: false });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const { width: imgWidth, height: imgHeight } = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const ratio = imgWidth / imgHeight;
+      let newImgWidth = pdfWidth - 20; let newImgHeight = newImgWidth / ratio;
+      if (newImgHeight > pdfHeight - 20) { newImgHeight = pdfHeight - 20; newImgWidth = newImgHeight * ratio; }
+      const x = (pdfWidth - newImgWidth) / 2; const y = 10;
+      pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
+      pdf.save(`Fee_Collection_Report_${schoolDetails.schoolName.replace(/\s+/g, '_')}_${filterAcademicYear}.pdf`);
+    } catch (error) {
+      console.error("PDF Error:", error);
+      toast({ variant: "destructive", title: "PDF Error", description: "Could not generate fee report PDF."});
+    } finally {
+      setIsDownloadingFeePdf(false);
+    }
   };
 
-  const filteredAndSortedFeeList = useMemo(() => {
-    let processableStudents = [...studentFeeList];
-    
-    // Filtering
-    if (feeStatusFilterTerm) {
-      const lowercasedFilter = feeStatusFilterTerm.toLowerCase();
-      processableStudents = processableStudents.filter(student => 
-        student.name?.toLowerCase().includes(lowercasedFilter) ||
-        student.admissionId?.toLowerCase().includes(lowercasedFilter)
-      );
-    }
-    
-    // Sorting
-    processableStudents.sort((a, b) => {
-      const { key, direction } = sortConfig;
-      
-      const aValue = a[key] ?? (typeof a[key] === 'number' ? 0 : '');
-      const bValue = b[key] ?? (typeof b[key] === 'number' ? 0 : '');
 
-      if (aValue < bValue) return direction === 'asc' ? -1 : 1;
-      if (aValue > bValue) return direction === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return processableStudents;
-  }, [studentFeeList, feeStatusFilterTerm, sortConfig]);
-
-  const renderSortIcon = (columnKey: SortableKeys) => {
-    if (sortConfig.key !== columnKey) {
-      return <ArrowUpDown className="ml-2 h-4 w-4" />;
-    }
-    return sortConfig.direction === 'asc' ? '▲' : '▼';
-  };
-  
-  if (isLoading && !authUser) return <div className="flex flex-1 items-center justify-center py-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-3 text-lg">Loading session...</p></div>;
-  if (!authUser && !isLoading) return <Card><CardHeader><CardTitle>Access Denied</CardTitle></CardHeader><CardContent><p>Please log in as a school administrator to manage fees.</p><Button onClick={() => window.location.href = '/'} className="mt-4">Go to Login</Button></CardContent></Card>;
-  if (isLoading && authUser) return <div className="flex flex-1 items-center justify-center py-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-3 text-lg">Loading fee management data...</p></div>;
-  if (!schoolDetails && !isLoading) return <Card><CardHeader><CardTitle className="flex items-center"><Info className="mr-2 h-6 w-6 text-destructive"/> Configuration Error</CardTitle></CardHeader><CardContent><p className="text-destructive">School details could not be loaded.</p><p className="mt-2 text-sm text-muted-foreground">Please ensure the school profile is set up by a Super Admin.</p><Button onClick={fetchSchoolDataAndRelated} className="mt-4" variant="outline" disabled={isLoading}>Refresh Data</Button></CardContent></Card>;
+  if (!authUser) {
+    if (!isLoading) return <Card><CardHeader><CardTitle>Access Denied</CardTitle></CardHeader><CardContent><p>Please log in as an admin.</p></CardContent></Card>;
+    return <div className="flex flex-1 items-center justify-center py-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+  }
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center"><DollarSign className="mr-2 h-6 w-6" /> Fee Management</CardTitle>
-          <CardDescription>Manage student fees for {schoolDetails?.schoolName || "your school"}, record payments, and generate receipts. Fees shown are for academic year: {currentAcademicYear}.</CardDescription>
+          <CardDescription>Manage student fees, record payments, and view summary reports.</CardDescription>
         </CardHeader>
+        <CardContent>
+            <div className="flex items-center gap-2">
+                <Label htmlFor="academic-year-select" className="text-sm font-medium">Academic Year:</Label>
+                <Select value={filterAcademicYear} onValueChange={setFilterAcademicYear} disabled={isLoading || academicYears.length === 0}>
+                    <SelectTrigger id="academic-year-select" className="w-[180px]"><SelectValue placeholder="Select Year" /></SelectTrigger>
+                    <SelectContent>{academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}</SelectContent>
+                </Select>
+            </div>
+        </CardContent>
       </Card>
 
       <div className="grid md:grid-cols-3 gap-6">
@@ -326,83 +357,21 @@ export default function FeeManagementPage() {
               <Label htmlFor="student-search">Search Student (by Name or Adm. No.)</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                    id="student-search"
-                    placeholder="Start typing..."
-                    value={searchTerm}
-                    onChange={(e) => {
-                        setSearchTerm(e.target.value);
-                        if (selectedStudentId) setSelectedStudentId(null);
-                    }}
-                    className="pl-8"
-                    disabled={isSubmittingPayment}
-                />
+                <Input id="student-search" placeholder="Start typing..." value={searchTerm} onChange={(e) => {setSearchTerm(e.target.value); setSelectedStudentId(null);}} className="pl-8" disabled={isSubmittingPayment}/>
               </div>
-              {searchTerm && (
-                <div className="mt-2 border rounded-md max-h-60 overflow-y-auto bg-background absolute w-[calc(100%-3rem)] md:w-full max-w-sm z-10">
-                  {filteredStudents.length > 0 ? (
-                    filteredStudents.map(student => (
-                      <div 
-                        key={student._id!.toString()}
-                        onClick={() => {
-                          setSelectedStudentId(student._id!.toString());
-                          setSearchTerm("");
-                          setFilteredStudents([]);
-                        }}
-                        className="p-2 hover:bg-accent cursor-pointer border-b last:border-b-0"
-                      >
-                        <p className="font-medium">{student.name}</p>
-                        <p className="text-sm text-muted-foreground">{student.classLabel || 'N/A'} - Adm No: {student.admissionId || 'N/A'}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="p-2 text-center text-sm text-muted-foreground">No students found matching "{searchTerm}"</p>
-                  )}
-                </div>
-              )}
+              {searchTerm && (<div className="mt-2 border rounded-md max-h-60 overflow-y-auto bg-background absolute w-[calc(100%-3rem)] md:w-full max-w-sm z-10">{filteredStudents.length > 0 ? (filteredStudents.map(student => (<div key={student._id!.toString()} onClick={() => {setSelectedStudentId(student._id!.toString()); setSearchTerm(""); setFilteredStudents([]);}} className="p-2 hover:bg-accent cursor-pointer border-b last:border-b-0"><p className="font-medium">{student.name}</p><p className="text-sm text-muted-foreground">{student.classLabel || 'N/A'} - Adm No: {student.admissionId || 'N/A'}</p></div>))) : (<p className="p-2 text-center text-sm text-muted-foreground">No students found</p>)}</div>)}
             </div>
             {selectedStudentFullData && (
               <>
-                <p className="text-sm font-semibold pt-2">Selected: <span className="text-primary">{selectedStudentFullData.name}</span></p>
-                <p className="text-sm">Class: {selectedStudentFullData.classLabel || 'N/A'}</p>
-                <p className="text-sm">Tuition Fee: <span className="font-sans">₹</span>{selectedStudentFullData.totalAnnualTuitionFee.toLocaleString()}</p>
-                <p className="text-sm">Bus Fee: <span className="font-sans">₹</span>{selectedStudentFullData.totalAnnualBusFee.toLocaleString()}</p>
-                <p className="text-sm font-semibold">Total Annual Fee: <span className="font-sans">₹</span>{selectedStudentFullData.totalAnnualFee.toLocaleString()}</p>
-                <p className="text-sm">Amount Paid: <span className="font-sans">₹</span>{selectedStudentFullData.paidAmount.toLocaleString()}</p>
-                <p className="text-sm text-blue-600">Total Concessions ({currentAcademicYear}): <span className="font-sans">₹</span>{selectedStudentFullData.totalConcessions.toLocaleString()}</p>
+                <div className="text-sm font-semibold pt-2">Selected: <span className="text-primary">{selectedStudentFullData.name}</span> <span className="text-muted-foreground">({selectedStudentFullData.classLabel})</span></div>
                 <p className="text-sm font-semibold">Amount Due: <span className="font-sans">₹</span>{selectedStudentFullData.dueAmount.toLocaleString()}</p>
-                
                 <div className="pt-2 space-y-3">
-                    <div>
-                        <Label htmlFor="payment-amount">Payment Amount (<span className="font-sans">₹</span>)</Label>
-                        <Input id="payment-amount" type="number" placeholder="Enter amount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} disabled={!selectedStudentFullData || isSubmittingPayment || selectedStudentFullData.dueAmount <= 0}/>
-                    </div>
-                    <div>
-                        <Label htmlFor="payment-date">Payment Date</Label>
-                         <Popover>
-                            <PopoverTrigger asChild>
-                            <Button id="payment-date" variant={"outline"} className="w-full justify-start text-left font-normal" disabled={!selectedStudentFullData || isSubmittingPayment || !paymentDate}>
-                                <CalendarDays className="mr-2 h-4 w-4" />
-                                {paymentDate ? format(paymentDate, "PPP") : <span>Pick a date</span>}
-                            </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={paymentDate} onSelect={setPaymentDate} initialFocus disabled={(date) => date > new Date() || date < new Date("2000-01-01")}/></PopoverContent>
-                        </Popover>
-                    </div>
-                    <div>
-                        <Label htmlFor="payment-method">Payment Method (Optional)</Label>
-                        <Input id="payment-method" type="text" placeholder="e.g., Cash, Card, Online" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} disabled={!selectedStudentFullData || isSubmittingPayment}/>
-                    </div>
-                    <div>
-                        <Label htmlFor="payment-notes">Notes (Optional)</Label>
-                        <Textarea id="payment-notes" placeholder="e.g., Part payment for Term 1" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} disabled={!selectedStudentFullData || isSubmittingPayment}/>
-                    </div>
+                    <div><Label htmlFor="payment-amount">Payment Amount (<span className="font-sans">₹</span>)</Label><Input id="payment-amount" type="number" placeholder="Enter amount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} disabled={isSubmittingPayment || selectedStudentFullData.dueAmount <= 0}/></div>
+                    <div><Label htmlFor="payment-date">Payment Date</Label><Popover><PopoverTrigger asChild><Button id="payment-date" variant={"outline"} className="w-full justify-start text-left font-normal" disabled={isSubmittingPayment || !paymentDate}><CalendarDays className="mr-2 h-4 w-4" />{paymentDate ? format(paymentDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={paymentDate} onSelect={setPaymentDate} initialFocus disabled={(date) => date > new Date()}/></PopoverContent></Popover></div>
+                    <div><Label htmlFor="payment-method">Payment Method</Label><Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select method..."/></SelectTrigger><SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
+                    <div><Label htmlFor="payment-notes">Notes</Label><Textarea id="payment-notes" placeholder="e.g., Part payment for Term 1" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} disabled={isSubmittingPayment}/></div>
                 </div>
-
-                <Button onClick={handleRecordPayment} disabled={!selectedStudentFullData || !paymentAmount || +paymentAmount <= 0 || isSubmittingPayment || selectedStudentFullData.dueAmount <= 0 || !paymentDate} className="w-full">
-                  {isSubmittingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isSubmittingPayment ? "Recording..." : "Record Payment"}
-                </Button>
+                <div className="flex gap-2"><Button onClick={handleRecordPayment} disabled={!paymentAmount || +paymentAmount <= 0 || isSubmittingPayment || selectedStudentFullData.dueAmount <= 0} className="flex-1">{isSubmittingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Payment</Button><Button onClick={() => handlePrintReceipt(selectedStudentFullData)} variant="outline"><Printer className="mr-2 h-4 w-4"/>Print Last Receipt</Button></div>
                 {selectedStudentFullData.dueAmount <= 0 && <p className="text-sm text-green-600 text-center pt-2">No amount due for this student.</p>}
               </>
             )}
@@ -411,55 +380,15 @@ export default function FeeManagementPage() {
         </Card>
 
         <Card className="md:col-span-2">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-              <div className="w-full sm:w-auto">
-                <CardTitle>Student Fee Status ({currentAcademicYear})</CardTitle>
-                <CardDescription>Overview of student fees, payments, concessions, and dues.</CardDescription>
-              </div>
-              <Input
-                placeholder="Filter by name or admission no..."
-                value={feeStatusFilterTerm}
-                onChange={(e) => setFeeStatusFilterTerm(e.target.value)}
-                className="w-full sm:max-w-xs"
-                disabled={isLoading}
-              />
-            </div>
-          </CardHeader>
+          <CardHeader><div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2"><CardTitle>Fee Collection Summary</CardTitle><Button onClick={handleDownloadFeePdf} variant="outline" size="sm" disabled={isLoading || isDownloadingFeePdf}>{isDownloadingFeePdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}Download Report</Button></div></CardHeader>
           <CardContent>
-            {filteredAndSortedFeeList.length > 0 ? (
-              <Table>
-                <TableHeader><TableRow>
-                    <TableHead><Button variant="ghost" onClick={() => handleSort('name')}>Student Name {renderSortIcon('name')}</Button></TableHead>
-                    <TableHead><Button variant="ghost" onClick={() => handleSort('classLabel')}>Class {renderSortIcon('classLabel')}</Button></TableHead>
-                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalAnnualTuitionFee')}>Tuition Fee {renderSortIcon('totalAnnualTuitionFee')}</Button></TableHead>
-                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalAnnualBusFee')}>Bus Fee {renderSortIcon('totalAnnualBusFee')}</Button></TableHead>
-                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalAnnualFee')}>Total Fee {renderSortIcon('totalAnnualFee')}</Button></TableHead>
-                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('paidAmount')}>Paid {renderSortIcon('paidAmount')}</Button></TableHead>
-                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('totalConcessions')}>Concessions {renderSortIcon('totalConcessions')}</Button></TableHead>
-                    <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('dueAmount')}>Due {renderSortIcon('dueAmount')}</Button></TableHead>
-                    <TableHead className="text-center">Actions</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {filteredAndSortedFeeList.map((student) => (
-                    <TableRow key={student._id.toString()}>
-                      <TableCell>{student.name}</TableCell>
-                      <TableCell>{student.classLabel || 'N/A'}</TableCell>
-                      <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualTuitionFee.toLocaleString()}</TableCell>
-                      <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualBusFee.toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-semibold"><span className="font-sans">₹</span>{student.totalAnnualFee.toLocaleString()}</TableCell>
-                      <TableCell className="text-right"><span className="font-sans">₹</span>{student.paidAmount.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{student.totalConcessions.toLocaleString()}</TableCell>
-                      <TableCell className={`text-right font-semibold ${student.dueAmount > 0 ? "text-destructive" : "text-green-600"}`}><span className="font-sans">₹</span>{student.dueAmount.toLocaleString()}</TableCell>
-                      <TableCell className="space-x-1 text-center">
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setSelectedStudentId(student._id.toString())} title="Record Payment"><DollarSign className="h-4 w-4" /></Button>
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleGenerateReceipt(student._id.toString())} title="Generate Receipt" disabled={student.paidAmount === 0}><Printer className="h-4 w-4" /></Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (<p className="text-center text-muted-foreground py-4">{isLoading ? "Loading student fee data..." : allStudents.length === 0 ? "No students found." : !schoolDetails ? "School fee config not loaded." : "No fee details to display."}</p>)}
+            {isLoading ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading fee summary...</p></div>) :
+             feeOverallSummary ? (
+                <div id="feeReportContent" className="p-4 bg-card rounded-md">
+                    <Card className="mb-6 bg-secondary/30 border-none"><CardHeader><CardTitle className="text-lg">Overall Summary for {filterAcademicYear}</CardTitle></CardHeader><CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Expected</p><p className="text-2xl font-bold"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalExpected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Concessions</p><p className="text-2xl font-bold text-blue-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalConcessions.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collected</p><p className="text-2xl font-bold text-green-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalCollected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Due</p><p className="text-2xl font-bold text-red-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalDue.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collection %</p><p className="text-2xl font-bold text-blue-600">{feeOverallSummary.overallCollectionPercentage}%</p><Progress value={feeOverallSummary.overallCollectionPercentage} className="h-2 mt-1" /></div></CardContent></Card>
+                    <Table><TableHeader><TableRow><TableHead>Class Name</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-center">Collection %</TableHead></TableRow></TableHeader><TableBody>{feeClassSummaries.map((summary) => (<TableRow key={summary.className}><TableCell className="font-medium">{summary.className}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-center"><div className="flex flex-col items-center"><span className="font-bold">{summary.collectionPercentage}%</span><Progress value={summary.collectionPercentage} className="h-1.5 w-20 mt-1" /></div></TableCell></TableRow>))}</TableBody></Table>
+                </div>
+            ) : (<p className="text-center text-muted-foreground py-4">No fee data found for the selected academic year.</p>)}
           </CardContent>
         </Card>
       </div>

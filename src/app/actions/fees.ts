@@ -6,6 +6,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import type { FeePayment, FeePaymentPayload, GetFeePaymentResult } from '@/types/fees';
 import { ObjectId } from 'mongodb';
 import { revalidatePath } from 'next/cache';
+import { PAYMENT_METHODS } from '@/types/fees';
 
 const feePaymentPayloadSchema = z.object({
   studentId: z.string().min(1, "Student ID is required."),
@@ -15,7 +16,7 @@ const feePaymentPayloadSchema = z.object({
   amountPaid: z.number().positive("Payment amount must be positive."),
   paymentDate: z.date(),
   recordedByAdminId: z.string().min(1, "Admin ID is required."),
-  paymentMethod: z.string().optional(),
+  paymentMethod: z.enum(PAYMENT_METHODS).optional(),
   notes: z.string().optional(),
 });
 
@@ -157,7 +158,7 @@ export async function getPaymentById(paymentId: string): Promise<GetFeePaymentRe
     }
 
     const { db } = await connectToDatabase();
-    const feePaymentsCollection = db.collection<FeePayment>('fee_payments');
+    const feePaymentsCollection = db.collection('fee_payments');
     
     const payment = await feePaymentsCollection.findOne({ _id: new ObjectId(paymentId) as any });
 
