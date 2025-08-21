@@ -724,8 +724,8 @@ export default function GenerateCBSEStateReportPage() {
 
       {/* Report Card Display Area */}
       {!isLoadingStudentAndClassData && loadedStudent && authUser && (
-        <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4">
-            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md lg:block ${showBackSide && 'hidden'}`}>
+        <div className="space-y-4">
+            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide && 'hidden lg:block'}`}>
                 <CBSEStateFront
                   studentData={studentData} onStudentDataChange={handleStudentDataChange}
                   academicSubjects={loadedClassSubjects} 
@@ -738,7 +738,7 @@ export default function GenerateCBSEStateReportPage() {
                 />
             </div>
           
-            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md lg:block ${!showBackSide && 'hidden'}`}>
+            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide && 'hidden lg:block'}`}>
                 <CBSEStateBack
                   saData={saData}
                   onSaDataChange={handleSaDataChange}
