@@ -164,7 +164,7 @@ export default function AdminClassManagementPage() {
   useEffect(() => {
     if (isFormOpen && editingClass) {
       form.reset({
-        name: editingClass.name,
+        name: editingClass.name || "",
         section: editingClass.section || "",
         academicYear: editingClass.academicYear || selectedAcademicYear,
         classTeacherId: editingClass.classTeacherId?.toString() || "",
@@ -172,6 +172,15 @@ export default function AdminClassManagementPage() {
           ? editingClass.subjects.map(s => ({ name: s.name, teacherId: s.teacherId?.toString() || "" })) 
           : [{ name: "", teacherId: "" }],
         secondLanguageSubjectName: editingClass.secondLanguageSubjectName || "",
+      });
+    } else if (isFormOpen && !editingClass) {
+       form.reset({
+        name: "",
+        section: "",
+        academicYear: selectedAcademicYear,
+        classTeacherId: "",
+        subjects: [{ name: "", teacherId: "" }],
+        secondLanguageSubjectName: "",
       });
     }
   }, [editingClass, isFormOpen, form, selectedAcademicYear]);
@@ -208,7 +217,6 @@ export default function AdminClassManagementPage() {
         return;
     }
     setEditingClass(null);
-    form.reset({ name: "", section: "", academicYear: selectedAcademicYear, classTeacherId: "", subjects: [{ name: "", teacherId: "" }], secondLanguageSubjectName: "" });
     setIsFormOpen(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
