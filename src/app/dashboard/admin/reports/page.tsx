@@ -3,10 +3,9 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChartBig, Loader2, Info, Download, DollarSign, FileText, BadgePercent, Users, ShieldCheck, ShieldOff, BookOpenCheck, CheckCircle2, XCircleIcon, ChevronLeft, ChevronRight, AlertTriangle, FileSignature } from "lucide-react";
+import { BarChartBig, Loader2, Info, Users, ShieldCheck, ShieldOff, CheckCircle2, XCircleIcon, ChevronLeft, ChevronRight, AlertTriangle, FileSignature, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
@@ -21,43 +20,15 @@ import {
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/attendance";
-import type { User as AppUser } from "@/types/user";
-import type { School } from "@/types/school";
-import type { FeePayment } from "@/types/fees";
-import type { FeeConcession } from "@/types/concessions";
-import { getReportCardsForClass, setReportPublicationStatusForClass, generateAllReportsForClass } from "@/app/actions/reports"; 
-import type { BulkPublishReportInfo } from "@/types/report"; 
-import { getClassesForSchoolAsOptions } from "@/app/actions/classes"; 
-import { getSchoolUsers } from "@/app/actions/schoolUsers";
-import { getSchoolById } from "@/app/actions/schools";
-import { getFeePaymentsBySchool } from "@/app/actions/fees";
-import { getFeeConcessionsForSchool } from "@/app/actions/concessions";
+import { getReportCardsForClass, setReportPublicationStatusForClass, generateAllReportsForClass } from "@/app/actions/reports";
+import type { BulkPublishReportInfo } from "@/types/report";
+import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
 import { getMonthlyAttendanceForAdmin } from "@/app/actions/attendance";
 import type { MonthlyAttendanceRecord } from "@/types/attendance";
 import Link from "next/link";
 import { format } from "date-fns";
 import { getAcademicYears } from "@/app/actions/academicYears";
 import type { AcademicYear } from "@/types/academicYear";
-
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-
-interface ClassFeeSummary {
-  className: string;
-  totalExpected: number;
-  totalCollected: number;
-  totalConcessions: number;
-  totalDue: number;
-  collectionPercentage: number;
-}
-
-interface OverallFeeSummary {
-  grandTotalExpected: number;
-  grandTotalCollected: number;
-  grandTotalConcessions: number;
-  grandTotalDue: number;
-  overallCollectionPercentage: number;
-}
 
 interface ClassOption {
   value: string; // class _id
@@ -66,13 +37,6 @@ interface ClassOption {
 }
 
 export default function AdminReportsPage() {
-  const [allSchoolStudents, setAllSchoolStudents] = useState<AppUser[]>([]);
-  const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
-  const [allSchoolPayments, setAllSchoolPayments] = useState<FeePayment[]>([]);
-  const [allSchoolConcessions, setAllSchoolConcessions] = useState<FeeConcession[]>([]);
-  const [feeClassSummaries, setFeeClassSummaries] = useState<ClassFeeSummary[]>([]);
-  const [feeOverallSummary, setFeeOverallSummary] = useState<OverallFeeSummary | null>(null);
-  
   const [attendanceRecords, setAttendanceRecords] = useState<MonthlyAttendanceRecord[]>([]);
   const [isLoadingAttendance, setIsLoadingAttendance] = useState(false);
   const [attendanceMonth, setAttendanceMonth] = useState<number>(new Date().getMonth());
@@ -80,10 +44,8 @@ export default function AdminReportsPage() {
 
 
   const [isLoading, setIsLoading] = useState(false);
-  const [isDownloadingFeePdf, setIsDownloadingFeePdf] = useState(false);
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [filterAcademicYear, setFilterAcademicYear] = useState<string>("");
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
 
   // States for Bulk Report Publishing
@@ -131,147 +93,19 @@ export default function AdminReportsPage() {
 
     if (academicYearsResult.success && academicYearsResult.academicYears) {
       setAcademicYears(academicYearsResult.academicYears);
-      const activeYear = schoolDetails?.activeAcademicYear || academicYearsResult.academicYears.find(y => y.isDefault)?.year || academicYearsResult.academicYears[0]?.year || "";
+      const activeYear = academicYearsResult.academicYears.find(y => y.isDefault)?.year || academicYearsResult.academicYears[0]?.year || "";
       if (activeYear) {
-        setFilterAcademicYear(activeYear);
         setAcademicYearForBulkPublish(activeYear);
       }
     } else {
       toast({ variant: "destructive", title: "Error", description: "Could not load academic years." });
     }
     setIsLoading(false);
-  }, [authUser?.schoolId, schoolDetails?.activeAcademicYear, toast]);
+  }, [authUser?.schoolId, toast]);
 
   useEffect(() => {
     fetchOptions();
   }, [fetchOptions]);
-
-
-  const calculateAnnualTuitionFee = useCallback((className: string | undefined, schoolConfig: School | null): number => {
-    if (!className || !schoolConfig || !schoolConfig.tuitionFees) return 0;
-    const classFeeConfig = schoolConfig.tuitionFees.find(cf => cf.className === className);
-    if (!classFeeConfig || !classFeeConfig.terms) return 0;
-    return classFeeConfig.terms.reduce((sum, term) => sum + (term.amount || 0), 0);
-  }, []);
-
-  const loadReportData = useCallback(async () => {
-    if (!authUser || !authUser.schoolId || !filterAcademicYear) {
-        setIsLoading(false);
-        return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const [studentsResult, schoolRes, paymentsResult, concessionsResult] = await Promise.all([
-        getSchoolUsers(authUser.schoolId.toString()),
-        getSchoolById(authUser.schoolId.toString()),
-        getFeePaymentsBySchool(authUser.schoolId.toString()),
-        getFeeConcessionsForSchool(authUser.schoolId.toString(), filterAcademicYear),
-      ]);
-
-      if (studentsResult.success && studentsResult.users) {
-        setAllSchoolStudents(studentsResult.users.filter(u => u.role === 'student'));
-      }
-      if (schoolRes.success && schoolRes.school) setSchoolDetails(schoolRes.school);
-      if (paymentsResult.success && paymentsResult.payments) setAllSchoolPayments(paymentsResult.payments);
-      if (concessionsResult.success && concessionsResult.concessions) setAllSchoolConcessions(concessionsResult.concessions);
-      
-    } catch (error) {
-       toast({ variant: "destructive", title: "Error Fetching Report Data", description: "An error occurred while fetching school-wide information."});
-       console.error("Error fetching report data:", error);
-    }
-    setIsLoading(false);
-  }, [authUser, toast, filterAcademicYear]);
-  
-  useEffect(() => {
-    loadReportData();
-  }, [loadReportData]);
-
-
-  const processFeeData = useCallback(() => {
-    if (!allSchoolStudents.length || !schoolDetails || !allSchoolPayments) {
-      setFeeClassSummaries([]);
-      setFeeOverallSummary(null);
-      return;
-    }
-
-    let grandTotalExpected = 0;
-    let grandTotalCollected = 0;
-    let grandTotalConcessions = 0;
-
-    const classFeeMap = new Map<string, { totalExpected: number, totalCollected: number, totalConcessions: number, studentCount: number }>();
-
-    const studentsForYear = allSchoolStudents.filter(s => s.academicYear === filterAcademicYear);
-
-    studentsForYear.forEach(student => {
-      if (student.classId) {
-        const classObj = classOptions.find(c => c.value === student.classId);
-        const classNameForTuitionLookup = classObj?.name; 
-        const displayClassName = classObj?.label || student.classId;
-
-        if (classNameForTuitionLookup) {
-          const studentTotalAnnualTuitionFee = calculateAnnualTuitionFee(classNameForTuitionLookup, schoolDetails);
-          const studentPayments = allSchoolPayments.filter(p => p.studentId.toString() === student._id!.toString());
-          const studentTotalPaid = studentPayments.reduce((sum, p) => sum + p.amountPaid, 0);
-
-          const studentConcessionsForYear = allSchoolConcessions.filter(
-              c => c.studentId.toString() === student._id!.toString() && c.academicYear === filterAcademicYear
-          );
-          const studentTotalConcessions = studentConcessionsForYear.reduce((sum, c) => sum + c.amount, 0);
-
-          grandTotalExpected += studentTotalAnnualTuitionFee;
-          grandTotalCollected += studentTotalPaid;
-          grandTotalConcessions += studentTotalConcessions;
-
-          if (!classFeeMap.has(displayClassName)) {
-            classFeeMap.set(displayClassName, { totalExpected: 0, totalCollected: 0, totalConcessions: 0, studentCount: 0 });
-          }
-          const classData = classFeeMap.get(displayClassName)!;
-          classData.totalExpected += studentTotalAnnualTuitionFee;
-          classData.totalCollected += studentTotalPaid;
-          classData.totalConcessions += studentTotalConcessions;
-          classData.studentCount++;
-        }
-      }
-    });
-
-    const feeSummaries: ClassFeeSummary[] = [];
-    for (const [className, data] of classFeeMap.entries()) {
-      const netExpectedForClass = data.totalExpected - data.totalConcessions;
-      const totalDue = Math.max(0, netExpectedForClass - data.totalCollected);
-      const collectionPercentage = netExpectedForClass > 0 ? Math.round((data.totalCollected / netExpectedForClass) * 100) : (data.totalCollected > 0 ? 100 : 0);
-
-      feeSummaries.push({
-        className,
-        totalExpected: data.totalExpected,
-        totalCollected: data.totalCollected,
-        totalConcessions: data.totalConcessions,
-        totalDue,
-        collectionPercentage,
-      });
-    }
-
-    const grandNetExpected = grandTotalExpected - grandTotalConcessions;
-    const grandTotalDue = Math.max(0, grandNetExpected - grandTotalCollected);
-    const overallCollectionPercentage = grandNetExpected > 0 ? Math.round((grandTotalCollected / grandNetExpected) * 100) : (grandTotalCollected > 0 ? 100 : 0);
-
-    setFeeOverallSummary({
-      grandTotalExpected,
-      grandTotalCollected,
-      grandTotalConcessions,
-      grandTotalDue,
-      overallCollectionPercentage,
-    });
-    setFeeClassSummaries(feeSummaries.sort((a,b) => a.className.localeCompare(b.className)));
-
-  }, [allSchoolStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, calculateAnnualTuitionFee, filterAcademicYear, classOptions]);
-
-
-  useEffect(() => {
-    processFeeData();
-  }, [allSchoolStudents, schoolDetails, allSchoolPayments, allSchoolConcessions, processFeeData]);
-
 
   const fetchAttendance = useCallback(async () => {
     if (!authUser || !authUser.schoolId) return;
@@ -293,60 +127,6 @@ export default function AdminReportsPage() {
       fetchAttendance();
     }
   }, [authUser, fetchAttendance]);
-
-
-  const handleDownloadFeePdf = async () => {
-    const reportContent = document.getElementById('feeReportContent');
-    if (!reportContent) {
-      toast({ variant: "destructive", title: "Error", description: "Fee report content not found for PDF generation." });
-      return;
-    }
-     if (!schoolDetails) {
-        toast({ variant: "info", title: "Missing Data", description: "School details not loaded, cannot generate fee report PDF." });
-        return;
-    }
-
-    setIsDownloadingFeePdf(true);
-    try {
-      const canvas = await html2canvas(reportContent, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-      });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgWidth = imgProps.width;
-      const imgHeight = imgProps.height;
-
-      const ratio = imgWidth / imgHeight;
-      let newImgWidth = pdfWidth - 20;
-      let newImgHeight = newImgWidth / ratio;
-
-      if (newImgHeight > pdfHeight - 20) {
-        newImgHeight = pdfHeight - 20;
-        newImgWidth = newImgHeight * ratio;
-      }
-
-      const x = (pdfWidth - newImgWidth) / 2;
-      const y = (pdfHeight - newImgHeight) / 2;
-
-      pdf.addImage(imgData, 'PNG', x, y, newImgWidth, newImgHeight);
-      pdf.save(`Fee_Collection_Report_${schoolDetails.schoolName.replace(/\s+/g, '_')}_${filterAcademicYear}.pdf`);
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      toast({ variant: "destructive", title: "PDF Error", description: "Could not generate fee report PDF. See console for details."});
-    } finally {
-      setIsDownloadingFeePdf(false);
-    }
-  };
 
   const handleLoadReportsForBulkPublish = async () => {
     if (!authUser?.schoolId || !selectedClassForBulkPublish || !academicYearForBulkPublish) {
@@ -636,125 +416,6 @@ export default function AdminReportsPage() {
                     <Info className="mx-auto h-12 w-12 text-muted-foreground" />
                     <p className="mt-4 text-lg font-semibold">No Attendance Data</p>
                     <p className="text-muted-foreground">No attendance has been submitted for this month.</p>
-                </div>
-             )}
-        </CardContent>
-      </Card>
-
-
-      <Card>
-        <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-                <div>
-                    <CardTitle>Fee Collection Summary Report</CardTitle>
-                    <div className="flex items-center gap-2 mt-2">
-                        <Label htmlFor="fee-academic-year">Academic Year:</Label>
-                        <Select onValueChange={setFilterAcademicYear} value={filterAcademicYear} disabled={isLoading || academicYears.length === 0}>
-                            <SelectTrigger id="fee-academic-year" className="w-[180px]">
-                                <SelectValue placeholder="Select Year" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-                 <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={handleDownloadFeePdf}
-                        disabled={isLoading || isDownloadingFeePdf || !authUser || !feeOverallSummary || !schoolDetails}
-                        className="w-full sm:w-auto"
-                    >
-                        {isDownloadingFeePdf ? <Loader2 className="mr-0 sm:mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-0 sm:mr-2 h-4 w-4"/>}
-                        <span className="sm:inline hidden">Download PDF</span>
-                        <span className="sm:hidden inline">PDF</span>
-                    </Button>
-                 </div>
-            </div>
-        </CardHeader>
-        <CardContent>
-             {isLoading && !feeOverallSummary ? (
-                 <div className="flex items-center justify-center py-10">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="ml-2">Loading fee collection data...</p>
-                </div>
-             ) : !authUser ? (
-                <p className="text-center text-muted-foreground py-4">Please log in as a school admin to view reports.</p>
-             ) : feeClassSummaries.length > 0 && feeOverallSummary && schoolDetails ? (
-                <div id="feeReportContent" className="p-4 bg-card rounded-md">
-                <Card className="mb-6 bg-secondary/30">
-                    <CardHeader>
-                        <CardTitle className="text-lg">Overall School Fee Summary - {schoolDetails?.schoolName || 'School'} ({filterAcademicYear})</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-                        <div>
-                            <p className="text-sm text-muted-foreground">Total Expected (Gross)</p>
-                            <p className="text-2xl font-bold"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalExpected.toLocaleString()}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">Total Concessions</p>
-                            <p className="text-2xl font-bold text-blue-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalConcessions.toLocaleString()}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">Total Collected</p>
-                            <p className="text-2xl font-bold text-green-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalCollected.toLocaleString()}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">Total Due (Net)</p>
-                            <p className="text-2xl font-bold text-red-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalDue.toLocaleString()}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">Collection % (of Net Payable)</p>
-                            <p className="text-2xl font-bold text-blue-600">{feeOverallSummary.overallCollectionPercentage}%</p>
-                            <Progress value={feeOverallSummary.overallCollectionPercentage} className="h-2 mt-1" />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Table>
-                <TableHeader>
-                    <TableRow>
-                    <TableHead>Class Name</TableHead>
-                    <TableHead className="text-right">Expected (<span className="font-sans">₹</span>)</TableHead>
-                    <TableHead className="text-right">Concessions (<span className="font-sans">₹</span>)</TableHead>
-                    <TableHead className="text-right">Collected (<span className="font-sans">₹</span>)</TableHead>
-                    <TableHead className="text-right">Net Due (<span className="font-sans">₹</span>)</TableHead>
-                    <TableHead className="text-center">Collection %</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {feeClassSummaries.map((summary) => (
-                    <TableRow key={summary.className}>
-                        <TableCell className="font-medium">{summary.className}</TableCell>
-                        <TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-green-600 font-medium"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-red-600 font-medium"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell>
-                        <TableCell className="text-center">
-                            <div className="flex flex-col items-center">
-                                <span className={`font-bold ${summary.collectionPercentage >= 90 ? 'text-green-600' : summary.collectionPercentage >= 75 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                    {summary.collectionPercentage}%
-                                </span>
-                                <Progress value={summary.collectionPercentage} className="h-1.5 w-20 mt-1" />
-                            </div>
-                        </TableCell>
-                    </TableRow>
-                    ))}
-                </TableBody>
-                </Table>
-                </div>
-             ) : (
-                <div className="text-center py-10">
-                    <Info className="mx-auto h-12 w-12 text-muted-foreground" />
-                    <p className="mt-4 text-lg font-semibold">No Fee Data to Display</p>
-                    <p className="text-muted-foreground">
-                        {(!allSchoolStudents.length) ? "No students found for this school. Please add students." :
-                         (!schoolDetails) ? "School fee structure not loaded. Cannot calculate fee summaries." :
-                         (!allSchoolPayments.length && !allSchoolConcessions.length && schoolDetails && allSchoolStudents.length > 0) ? "No fee payments or concessions have been recorded for this school year yet." :
-                         "Fee data is currently unavailable."
-                        }
-                    </p>
                 </div>
              )}
         </CardContent>
