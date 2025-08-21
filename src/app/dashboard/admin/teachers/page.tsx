@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -118,6 +117,7 @@ export default function AdminTeacherManagementPage() {
 
   const isPermanentSameAsPresent = form.watch("isPermanentSameAsPresent");
   const presentAddress = form.watch("presentAddress");
+  const maritalStatus = form.watch("maritalStatus");
 
   useEffect(() => {
     if (isPermanentSameAsPresent) {
@@ -384,7 +384,9 @@ export default function AdminTeacherManagementPage() {
             <FormField control={form.control} name="fatherName" render={({ field }) => (<FormItem><FormLabel>Father's Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
             <FormField control={form.control} name="motherName" render={({ field }) => (<FormItem><FormLabel>Mother's Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
             <ControlledListbox control={form.control} name="maritalStatus" label="Marital Status" options={maritalStatusOptions} placeholder="Select Status" />
-            <FormField control={form.control} name="spouseName" render={({ field }) => (<FormItem><FormLabel>Spouse's Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
+            {maritalStatus === 'Married' && (
+              <FormField control={form.control} name="spouseName" render={({ field }) => (<FormItem><FormLabel>Spouse's Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage/></FormItem>)}/>
+            )}
         </CardContent>
       </Card>
       
@@ -519,3 +521,5 @@ export default function AdminTeacherManagementPage() {
     </div>
   );
 }
+
+    
