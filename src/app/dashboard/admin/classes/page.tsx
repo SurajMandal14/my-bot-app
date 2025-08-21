@@ -162,7 +162,8 @@ export default function AdminClassManagementPage() {
   }, [authUser, fetchInitialData]);
 
   useEffect(() => {
-    // This effect now depends on classOptions being loaded to prevent race conditions
+    // This effect ensures the form is populated correctly when editing.
+    // It waits for both the `editingClass` data and `availableClassNamesForSchool` to be ready.
     if (isFormOpen && editingClass && availableClassNamesForSchool.length > 0) {
         form.reset({
             name: editingClass.name || "",
@@ -185,6 +186,7 @@ export default function AdminClassManagementPage() {
       });
     }
   }, [editingClass, isFormOpen, form, selectedAcademicYear, availableClassNamesForSchool]);
+
 
   async function onSubmit(values: CreateClassFormData) {
     if (!authUser?.schoolId) return;

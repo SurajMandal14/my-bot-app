@@ -165,85 +165,93 @@ export async function getSchoolClasses(schoolId: string): Promise<SchoolClassesR
     const classesWithDetails = await db.collection('school_classes').aggregate([
       { $match: { schoolId: new ObjectId(schoolId) } },
       {
-        $lookup: { 
+        $lookup: {
           from: 'users',
           localField: 'classTeacherId',
           foreignField: '_id',
-          as: 'classTeacherInfo'
-        }
-      },
-      { $unwind: { path: '$classTeacherInfo', preserveNullAndEmptyArrays: true } },
-      {
-        $unwind: { 
-          path: '$subjects',
-          preserveNullAndEmptyArrays: true 
-        }
+          as: 'classTeacherInfo',
+        },
       },
       {
-        $lookup: { 
-          from: 'users',
-          localField: 'subjects.teacherId', 
-          foreignField: '_id',
-          as: 'subjectTeacherInfo'
-        }
+        $unwind: {
+          path: '$classTeacherInfo',
+          preserveNullAndEmptyArrays: true,
+        },
       },
-      { $unwind: { path: '$subjectTeacherInfo', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: 'users',
-          let: { class_id_str: { $toString: "$_id" } },
+          let: { class_id_str: { $toString: '$_id' } },
           pipeline: [
-             { $match: 
-                { $expr: 
-                   { $and: [
-                       { $eq: [ "$role", "student" ] },
-                       { $eq: [ "$classId", "$$class_id_str" ] },
-                       { $eq: [ "$schoolId", new ObjectId(schoolId) ] }
-                   ]}
-                }
-             },
-             { $count: "count" }
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$role', 'student'] },
+                    { $eq: ['$classId', '$$class_id_str'] },
+                    { $eq: ['$schoolId', new ObjectId(schoolId)] },
+                  ],
+                },
+              },
+            },
+            { $count: 'count' },
           ],
-          as: 'studentCountArr'
-        }
+          as: 'studentCountArr',
+        },
       },
       {
-        $group: { 
-          _id: '$_id',
-          name: { $first: '$name' },
-          section: { $first: '$section'},
-          schoolId: { $first: '$schoolId' },
-          academicYear: { $first: '$academicYear' },
-          classTeacherId: { $first: '$classTeacherId' },
-          classTeacherName: { $first: '$classTeacherInfo.name' },
-          secondLanguageSubjectName: { $first: '$secondLanguageSubjectName' },
-          createdAt: { $first: '$createdAt' },
-          updatedAt: { $first: '$updatedAt' },
-          studentCount: { $first: { $arrayElemAt: [ "$studentCountArr.count", 0 ] } },
-          subjects: { 
-            $push: { 
-              name: '$subjects.name',
-              teacherId: '$subjects.teacherId',
-              teacherName: '$subjectTeacherInfo.name'
-            }
-          }
-        }
+        $addFields: {
+          studentCount: { $ifNull: [{ $arrayElemAt: ['$studentCountArr.count', 0] }, 0] },
+        },
       },
       {
-        $project: { 
-          _id: 1, name: 1, section:1, schoolId: 1, academicYear: 1, classTeacherId: 1, classTeacherName: 1, secondLanguageSubjectName: 1, createdAt: 1, updatedAt: 1, studentCount: 1,
-          subjects: {
-            $filter: { 
-                 input: "$subjects",
-                 as: "subject",
-                 cond: { $ne: [ "$$subject.name", null ] }
-            }
-          }
-        }
+        $project: {
+          _id: 1,
+          name: 1,
+          section: 1,
+          schoolId: 1,
+          academicYear: 1,
+          classTeacherId: 1,
+          classTeacherName: '$classTeacherInfo.name',
+          secondLanguageSubjectName: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          subjects: 1,
+          studentCount: 1,
+        },
       },
-      { $sort: { academicYear: -1, name: 1, section: 1 } }
+      { $sort: { academicYear: -1, name: 1, section: 1 } },
     ]).toArray();
 
+
+    const classIds = classesWithDetails.map(c => c._id);
+    const allSubjectsInfo = await db.collection('school_classes').aggregate([
+        { $match: { _id: { $in: classIds } } },
+        { $unwind: '$subjects' },
+        {
+            $lookup: {
+                from: 'users',
+                localField: 'subjects.teacherId',
+                foreignField: '_id',
+                as: 'subjectTeacherInfo'
+            }
+        },
+        { $unwind: { path: '$subjectTeacherInfo', preserveNullAndEmptyArrays: true } },
+        {
+            $group: {
+                _id: '$_id',
+                subjects: {
+                    $push: {
+                        name: '$subjects.name',
+                        teacherId: '$subjects.teacherId',
+                        teacherName: '$subjectTeacherInfo.name'
+                    }
+                }
+            }
+        }
+    ]).toArray();
+    
+    const subjectsMap = new Map(allSubjectsInfo.map(item => [item._id.toString(), item.subjects]));
 
     const classes: SchoolClass[] = classesWithDetails.map(cls => ({
       _id: (cls._id as ObjectId).toString(),
@@ -251,7 +259,7 @@ export async function getSchoolClasses(schoolId: string): Promise<SchoolClassesR
       section: cls.section || '',
       schoolId: (cls.schoolId as ObjectId).toString(),
       academicYear: cls.academicYear || '',
-      subjects: (cls.subjects || []).map((s: any) => ({
+      subjects: (subjectsMap.get(cls._id.toString()) || []).map((s: any) => ({
         name: s.name,
         teacherId: s.teacherId ? s.teacherId.toString() : undefined,
         teacherName: s.teacherName || undefined,
@@ -478,7 +486,7 @@ export async function getClassesForSchoolAsOptions(schoolId: string): Promise<{ 
     
     return classes.map(cls => ({ 
         value: (cls._id as ObjectId).toString(), 
-        label: `${cls.name}${cls.section ? ` - ${cls.section}` : ''}`,
+        label: `${cls.name}${cls.section ? ` - ${cls.section}` : ''} (${cls.academicYear})`,
         name: cls.name as string, // Store original name
         section: cls.section as string | undefined // Store section
     }));
