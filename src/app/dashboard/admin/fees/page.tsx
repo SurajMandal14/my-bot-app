@@ -67,6 +67,15 @@ interface OverallFeeSummary {
   overallCollectionPercentage: number;
 }
 
+interface BusFeeSummary {
+    location: string;
+    classCategory: string;
+    totalExpected: number;
+    totalCollected: number;
+    totalDue: number;
+    collectionPercentage: number;
+}
+
 export default function FeeManagementPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
@@ -95,6 +104,9 @@ export default function FeeManagementPage() {
   
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [filterAcademicYear, setFilterAcademicYear] = useState<string>("");
+
+  const [busFeeSearchTerm, setBusFeeSearchTerm] = useState("");
+  const [busFeeSummaries, setBusFeeSummaries] = useState<BusFeeSummary[]>([]);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -222,6 +234,7 @@ export default function FeeManagementPage() {
     if (!schoolDetails || studentFeeList.length === 0) {
       setFeeClassSummaries([]);
       setFeeOverallSummary(null);
+      setBusFeeSummaries([]);
       return;
     }
 
@@ -230,41 +243,61 @@ export default function FeeManagementPage() {
     let grandTotalConcessions = 0;
 
     const classFeeMap = new Map<string, { classId: string; totalExpected: number, totalCollected: number, totalConcessions: number, studentCount: number }>();
-    
+    const busFeeMap = new Map<string, { totalExpected: number, totalCollected: number }>();
+
     studentFeeList.forEach(student => {
-        const { classLabel, classId, totalAnnualFee, paidAmount, totalConcessions } = student;
-        if (!classLabel || !classId) return;
+        const { classLabel, classId, totalAnnualFee, paidAmount, totalConcessions, totalAnnualBusFee, busRouteLocation, busClassCategory } = student;
         
         grandTotalExpected += totalAnnualFee;
         grandTotalCollected += paidAmount;
         grandTotalConcessions += totalConcessions;
 
-        if (!classFeeMap.has(classLabel)) {
-            classFeeMap.set(classLabel, { classId, totalExpected: 0, totalCollected: 0, totalConcessions: 0, studentCount: 0 });
+        if (classLabel && classId) {
+            if (!classFeeMap.has(classLabel)) {
+                classFeeMap.set(classLabel, { classId, totalExpected: 0, totalCollected: 0, totalConcessions: 0, studentCount: 0 });
+            }
+            const classData = classFeeMap.get(classLabel)!;
+            classData.totalExpected += totalAnnualFee;
+            classData.totalCollected += paidAmount;
+            classData.totalConcessions += totalConcessions;
+            classData.studentCount++;
         }
-        const classData = classFeeMap.get(classLabel)!;
-        classData.totalExpected += totalAnnualFee;
-        classData.totalCollected += paidAmount;
-        classData.totalConcessions += totalConcessions;
-        classData.studentCount++;
+
+        if (busRouteLocation && busClassCategory) {
+            const busKey = `${busRouteLocation} - ${busClassCategory}`;
+            if (!busFeeMap.has(busKey)) {
+                busFeeMap.set(busKey, { totalExpected: 0, totalCollected: 0 });
+            }
+            const busData = busFeeMap.get(busKey)!;
+            busData.totalExpected += totalAnnualBusFee;
+            const busPayments = allSchoolPayments.filter(p => p.studentId === student._id && p.paymentTowards === 'Bus Fees').reduce((sum, p) => sum + p.amountPaid, 0);
+            busData.totalCollected += busPayments;
+        }
     });
 
-    const summaries = Array.from(classFeeMap.entries()).map(([className, data]) => {
+    const classSummaries = Array.from(classFeeMap.entries()).map(([className, data]) => {
       const netExpectedForClass = data.totalExpected - data.totalConcessions;
       const totalDue = Math.max(0, netExpectedForClass - data.totalCollected);
       const collectionPercentage = netExpectedForClass > 0 ? Math.round((data.totalCollected / netExpectedForClass) * 100) : 0;
       return { className, classId: data.classId, totalExpected: data.totalExpected, totalCollected: data.totalCollected, totalConcessions: data.totalConcessions, totalDue, collectionPercentage };
     });
 
+    const busSummariesResult: BusFeeSummary[] = Array.from(busFeeMap.entries()).map(([key, data]) => {
+        const [location, classCategory] = key.split(' - ');
+        const totalDue = Math.max(0, data.totalExpected - data.totalCollected);
+        const collectionPercentage = data.totalExpected > 0 ? Math.round((data.totalCollected / data.totalExpected) * 100) : 0;
+        return { location, classCategory, ...data, totalDue, collectionPercentage };
+    });
+
     const grandNetExpected = grandTotalExpected - grandTotalConcessions;
     const grandTotalDue = Math.max(0, grandNetExpected - grandTotalCollected);
     const overallCollectionPercentage = grandNetExpected > 0 ? Math.round((grandTotalCollected / grandNetExpected) * 100) : (grandTotalCollected > 0 ? 100 : 0);
 
-    setFeeClassSummaries(summaries.sort((a,b) => a.className.localeCompare(b.className)));
+    setFeeClassSummaries(classSummaries.sort((a,b) => a.className.localeCompare(b.className)));
+    setBusFeeSummaries(busSummariesResult.sort((a, b) => a.location.localeCompare(b.location)));
     setFeeOverallSummary({ grandTotalExpected, grandTotalCollected, grandTotalConcessions, grandTotalDue, overallCollectionPercentage });
 
-  }, [studentFeeList, schoolDetails, filterAcademicYear]);
-  
+  }, [studentFeeList, schoolDetails, filterAcademicYear, allSchoolPayments]);
   
   const handleRecordPayment = async () => {
     if (!studentToRecordPayment || !paymentAmount || +paymentAmount <= 0 || !paymentDate || !authUser?._id || !authUser?.schoolId || !paymentTowards) {
@@ -275,7 +308,7 @@ export default function FeeManagementPage() {
     const payload: FeePaymentPayload = {
       studentId: studentToRecordPayment._id!.toString(), studentName: studentToRecordPayment.name!, schoolId: authUser.schoolId.toString(),
       classId: studentToRecordPayment.classLabel!, amountPaid: +paymentAmount, paymentDate: paymentDate,
-      recordedByAdminId: authUser._id.toString(), paymentMethod: paymentMethod || undefined, paymentTowards: paymentTowards || undefined, notes: paymentNotes || undefined,
+      recordedByAdminId: authUser._id.toString(), paymentMethod: paymentMethod || undefined, paymentTowards: paymentTowards, notes: paymentNotes || undefined,
     };
     const result = await recordFeePayment(payload);
     if (result.success) {
@@ -348,6 +381,15 @@ export default function FeeManagementPage() {
       setIsDownloadingFeePdf(false);
     }
   };
+  
+  const filteredBusFeeSummaries = useMemo(() => {
+    if (!busFeeSearchTerm) return busFeeSummaries;
+    const lowercasedTerm = busFeeSearchTerm.toLowerCase();
+    return busFeeSummaries.filter(summary => 
+        summary.location.toLowerCase().includes(lowercasedTerm) || 
+        summary.classCategory.toLowerCase().includes(lowercasedTerm)
+    );
+  }, [busFeeSummaries, busFeeSearchTerm]);
 
   if (!authUser) {
     if (!isLoading) return <Card><CardHeader><CardTitle>Access Denied</CardTitle></CardHeader><CardContent><p>Please log in as an admin.</p></CardContent></Card>;
@@ -373,7 +415,7 @@ export default function FeeManagementPage() {
       </Card>
       
       <Card>
-        <CardHeader><div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2"><CardTitle>Fee Collection Summary</CardTitle><Button onClick={handleDownloadFeePdf} variant="outline" size="sm" disabled={isLoading || isDownloadingFeePdf}>{isDownloadingFeePdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}Download Report</Button></div></CardHeader>
+        <CardHeader><div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2"><CardTitle>Overall Fee Collection Summary</CardTitle><Button onClick={handleDownloadFeePdf} variant="outline" size="sm" disabled={isLoading || isDownloadingFeePdf}>{isDownloadingFeePdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}Download Report</Button></div></CardHeader>
         <CardContent>
           {isLoading ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading fee summary...</p></div>) :
             feeOverallSummary ? (
@@ -385,7 +427,7 @@ export default function FeeManagementPage() {
           ) : (<p className="text-center text-muted-foreground py-4">No fee data found for the selected academic year.</p>)}
         </CardContent>
       </Card>
-
+      
       {selectedClass && (
         <Card>
             <CardHeader>
@@ -423,6 +465,45 @@ export default function FeeManagementPage() {
             </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2">
+                <CardTitle>Bus Fee Collection Summary</CardTitle>
+                <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                        placeholder="Filter by route or station..." 
+                        className="pl-8 sm:w-[300px]" 
+                        value={busFeeSearchTerm}
+                        onChange={(e) => setBusFeeSearchTerm(e.target.value)}
+                    />
+                </div>
+            </div>
+        </CardHeader>
+        <CardContent>
+            {isLoading ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading bus fee summary...</p></div>) : 
+             filteredBusFeeSummaries.length > 0 ? (
+                <Table>
+                    <TableHeader><TableRow><TableHead>Location / Route</TableHead><TableHead>Station</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-right">Collection %</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                        {filteredBusFeeSummaries.map((summary, index) => (
+                            <TableRow key={`${summary.location}-${summary.classCategory}-${index}`}>
+                                <TableCell className="font-medium">{summary.location}</TableCell>
+                                <TableCell>{summary.classCategory}</TableCell>
+                                <TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell>
+                                <TableCell className="text-right">{summary.collectionPercentage}%</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            ) : (
+                <p className="text-center text-muted-foreground py-4">No bus fee data configured or collected for the selected academic year.</p>
+            )}
+        </CardContent>
+      </Card>
 
       <Dialog open={!!studentToRecordPayment} onOpenChange={(isOpen) => !isOpen && setStudentToRecordPayment(null)}>
         <DialogContent>
@@ -490,3 +571,5 @@ export default function FeeManagementPage() {
     </div>
   );
 }
+
+    
