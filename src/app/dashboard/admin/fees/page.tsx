@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search, ArrowUpDown, Bus, Download, History, X } from "lucide-react";
+import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search, ArrowUpDown, Bus, Download, History, X, ArrowLeft, ArrowRight } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/attendance";
@@ -31,6 +31,7 @@ import { getAcademicYears } from "@/app/actions/academicYears";
 import type { AcademicYear } from "@/types/academicYear";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import useEmblaCarousel from 'embla-carousel-react';
 
 interface ClassOption {
   value: string;
@@ -111,6 +112,16 @@ export default function FeeManagementPage() {
   const [busFeeSummaries, setBusFeeSummaries] = useState<BusFeeSummary[]>([]);
 
   const [historyFilterType, setHistoryFilterType] = useState<'all' | 'bus_fees_only'>('all');
+
+  const [emblaRef, emblaApi] = useEmblaCarousel();
+
+  const scrollPrev = useCallback(() => {
+    if (emblaApi) emblaApi.scrollPrev()
+  }, [emblaApi])
+
+  const scrollNext = useCallback(() => {
+    if (emblaApi) emblaApi.scrollNext()
+  }, [emblaApi])
 
 
   useEffect(() => {
@@ -435,16 +446,57 @@ export default function FeeManagementPage() {
       </Card>
       
       <Card>
-        <CardHeader><div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2"><CardTitle>Overall Fee Collection Summary</CardTitle><Button onClick={handleDownloadFeePdf} variant="outline" size="sm" disabled={isLoading || isDownloadingFeePdf}>{isDownloadingFeePdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}Download Report</Button></div></CardHeader>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2">
+            <CardTitle>Fee Collection Summaries</CardTitle>
+            <div className="flex items-center gap-2">
+              <Button onClick={scrollPrev} variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+              <Button onClick={scrollNext} variant="outline" size="icon"><ArrowRight className="h-4 w-4" /></Button>
+              <Button onClick={handleDownloadFeePdf} variant="outline" size="sm" disabled={isLoading || isDownloadingFeePdf}>{isDownloadingFeePdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}Download</Button>
+            </div>
+          </div>
+        </CardHeader>
         <CardContent>
-          {isLoading ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading fee summary...</p></div>) :
-            feeOverallSummary ? (
-              <div id="feeReportContent" className="p-4 bg-card rounded-md">
-                  <Card className="mb-6 bg-secondary/30 border-none"><CardHeader><CardTitle className="text-lg">Overall Summary for {filterAcademicYear}</CardTitle></CardHeader><CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Expected</p><p className="text-2xl font-bold"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalExpected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Concessions</p><p className="text-2xl font-bold text-blue-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalConcessions.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collected</p><p className="text-2xl font-bold text-green-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalCollected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Due</p><p className="text-2xl font-bold text-red-600"><span className="font-sans">₹</span>{feeOverallSummary.grandTotalDue.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collection %</p><p className="text-2xl font-bold text-blue-600">{feeOverallSummary.overallCollectionPercentage}%</p><Progress value={feeOverallSummary.overallCollectionPercentage} className="h-2 mt-1" /></div></CardContent></Card>
-                  <Table><TableHeader><TableRow><TableHead>Class Name</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-right">Collection %</TableHead></TableRow></TableHeader>
-                  <TableBody>{feeClassSummaries.map((summary) => (<TableRow key={summary.className} onClick={() => { setSelectedClass(summary); setSelectedBusFeeRoute(null); }} className="cursor-pointer hover:bg-muted/50"><TableCell className="font-medium">{summary.className}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-right">{summary.collectionPercentage}%</TableCell></TableRow>))}</TableBody></Table>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading fee summary...</p></div>
+          ) : (
+            <div className="overflow-hidden" ref={emblaRef}>
+              <div className="flex">
+                <div className="flex-[0_0_100%] min-w-0 pr-4">
+                  {/* Overall Summary Card */}
+                   <div id="feeReportContent" className="p-4 bg-card rounded-md">
+                      <Card className="mb-6 bg-secondary/30 border-none"><CardHeader><CardTitle className="text-lg">Overall Summary for {filterAcademicYear}</CardTitle></CardHeader><CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Expected</p><p className="text-2xl font-bold"><span className="font-sans">₹</span>{feeOverallSummary?.grandTotalExpected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Concessions</p><p className="text-2xl font-bold text-blue-600"><span className="font-sans">₹</span>{feeOverallSummary?.grandTotalConcessions.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collected</p><p className="text-2xl font-bold text-green-600"><span className="font-sans">₹</span>{feeOverallSummary?.grandTotalCollected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Due</p><p className="text-2xl font-bold text-red-600"><span className="font-sans">₹</span>{feeOverallSummary?.grandTotalDue.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collection %</p><p className="text-2xl font-bold text-blue-600">{feeOverallSummary?.overallCollectionPercentage}%</p><Progress value={feeOverallSummary?.overallCollectionPercentage} className="h-2 mt-1" /></div></CardContent></Card>
+                      <Table><TableHeader><TableRow><TableHead>Class Name</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-right">Collection %</TableHead></TableRow></TableHeader>
+                      <TableBody>{feeClassSummaries.map((summary) => (<TableRow key={summary.className} onClick={() => { setSelectedClass(summary); setSelectedBusFeeRoute(null); }} className="cursor-pointer hover:bg-muted/50"><TableCell className="font-medium">{summary.className}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{summary.totalConcessions.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-right">{summary.collectionPercentage}%</TableCell></TableRow>))}</TableBody></Table>
+                  </div>
+                </div>
+                <div className="flex-[0_0_100%] min-w-0 pr-4">
+                  {/* Bus Fee Summary Card */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2">
+                        <CardTitle>Bus Fee Collection Summary</CardTitle>
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input placeholder="Filter by route or station..." className="pl-8 sm:w-[300px]" value={busFeeSearchTerm} onChange={(e) => setBusFeeSearchTerm(e.target.value)} />
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {filteredBusFeeSummaries.length > 0 ? (
+                        <Table>
+                          <TableHeader><TableRow><TableHead>Location / Route</TableHead><TableHead>Station</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-right">Collection %</TableHead></TableRow></TableHeader>
+                          <TableBody>{filteredBusFeeSummaries.map((summary, index) => (<TableRow key={`${summary.location}-${summary.classCategory}-${index}`} onClick={() => { setSelectedBusFeeRoute(summary); setSelectedClass(null); }} className="cursor-pointer hover:bg-muted/50"><TableCell className="font-medium">{summary.location}</TableCell><TableCell>{summary.classCategory}</TableCell><TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell><TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell><TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell><TableCell className="text-right">{summary.collectionPercentage}%</TableCell></TableRow>))}</TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-center text-muted-foreground py-4">No bus fee data configured or collected for the selected academic year.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-          ) : (<p className="text-center text-muted-foreground py-4">No fee data found for the selected academic year.</p>)}
+            </div>
+          )}
         </CardContent>
       </Card>
       
@@ -485,46 +537,7 @@ export default function FeeManagementPage() {
             </CardContent>
         </Card>
       )}
-
-      <Card>
-        <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2">
-                <CardTitle>Bus Fee Collection Summary</CardTitle>
-                <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                        placeholder="Filter by route or station..." 
-                        className="pl-8 sm:w-[300px]" 
-                        value={busFeeSearchTerm}
-                        onChange={(e) => setBusFeeSearchTerm(e.target.value)}
-                    />
-                </div>
-            </div>
-        </CardHeader>
-        <CardContent>
-            {isLoading ? (<div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading bus fee summary...</p></div>) : 
-             filteredBusFeeSummaries.length > 0 ? (
-                <Table>
-                    <TableHeader><TableRow><TableHead>Location / Route</TableHead><TableHead>Station</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-right">Collection %</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                        {filteredBusFeeSummaries.map((summary, index) => (
-                            <TableRow key={`${summary.location}-${summary.classCategory}-${index}`} onClick={() => { setSelectedBusFeeRoute(summary); setSelectedClass(null); }} className="cursor-pointer hover:bg-muted/50">
-                                <TableCell className="font-medium">{summary.location}</TableCell>
-                                <TableCell>{summary.classCategory}</TableCell>
-                                <TableCell className="text-right"><span className="font-sans">₹</span>{summary.totalExpected.toLocaleString()}</TableCell>
-                                <TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{summary.totalCollected.toLocaleString()}</TableCell>
-                                <TableCell className="text-right text-red-600"><span className="font-sans">₹</span>{summary.totalDue.toLocaleString()}</TableCell>
-                                <TableCell className="text-right">{summary.collectionPercentage}%</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            ) : (
-                <p className="text-center text-muted-foreground py-4">No bus fee data configured or collected for the selected academic year.</p>
-            )}
-        </CardContent>
-      </Card>
-
+      
       {selectedBusFeeRoute && (
          <Card>
             <CardHeader>
