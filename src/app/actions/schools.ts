@@ -34,6 +34,7 @@ export async function createSchool(values: SchoolFormData): Promise<CreateSchool
 
     const newSchoolData: Omit<School, '_id' | 'createdAt' | 'updatedAt'> = {
       schoolName,
+      status: 'active',
       tuitionFees: (tuitionFees || []).map(tf => ({
         className: tf.className,
         terms: tf.terms.map(termFee => ({
@@ -63,7 +64,7 @@ export async function createSchool(values: SchoolFormData): Promise<CreateSchool
       updatedAt: new Date(),
     }
 
-    const result = await schoolsCollection.insertOne(schoolToInsert);
+    const result = await schoolsCollection.insertOne(schoolToInsert as any);
 
     if (!result.insertedId) {
       return { success: false, message: 'Failed to create school profile.', error: 'Database insertion failed.' };
@@ -112,7 +113,7 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
     const { 
         schoolName, tuitionFees, reportCardTemplate, schoolLogoUrl, 
         busFeeStructures, allowStudentsToViewPublishedReports, attendanceType,
-        activeAcademicYear, marksEntryLocks
+        activeAcademicYear, marksEntryLocks, status
     } = validatedFields.data;
 
     const { db } = await connectToDatabase();
@@ -131,6 +132,7 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
     
     const updateData: Partial<Omit<School, '_id' | 'createdAt'>> = {
       schoolName,
+      status: status || existingSchool.status,
       tuitionFees: (tuitionFees || []).map(tf => ({
         className: tf.className,
         terms: tf.terms.map(termFee => ({
@@ -179,7 +181,7 @@ export async function updateSchool(schoolId: string, values: SchoolFormData): Pr
         _id: updatedSchoolDoc._id.toString(),
         createdAt: new Date(updatedSchoolDoc.createdAt).toISOString(), 
         updatedAt: new Date(updatedSchoolDoc.updatedAt).toISOString(),
-    };
+    } as School;
 
     return {
       success: true,
@@ -205,6 +207,7 @@ export async function getSchools(): Promise<GetSchoolsResult> {
     const schools: School[] = schoolsDocs.map(doc => ({
       _id: doc._id.toString(),
       schoolName: doc.schoolName,
+      status: doc.status || 'active',
       schoolLogoUrl: doc.schoolLogoUrl,
       tuitionFees: (doc.tuitionFees || []).map((tf: any) => ({ 
         className: tf.className,
@@ -257,6 +260,7 @@ export async function getSchoolById(schoolId: string): Promise<GetSchoolByIdResu
     const school: School = {
       _id: schoolDoc._id.toString(),
       schoolName: schoolDoc.schoolName,
+      status: schoolDoc.status || 'active',
       schoolLogoUrl: schoolDoc.schoolLogoUrl,
       tuitionFees: (schoolDoc.tuitionFees || []).map((tf: any) => ({
         className: tf.className,
@@ -342,7 +346,7 @@ export async function setSchoolReportVisibility(schoolId: string, allowVisibilit
       _id: updatedSchoolDoc._id.toString(),
       createdAt: new Date(updatedSchoolDoc.createdAt).toISOString(),
       updatedAt: new Date(updatedSchoolDoc.updatedAt).toISOString(),
-    };
+    } as School;
 
     return {
       success: true,
@@ -367,10 +371,8 @@ export async function deleteSchool(schoolId: string): Promise<DeleteSchoolResult
     const schoolObjectId = new ObjectId(schoolId);
     const { db } = await connectToDatabase();
     
-    const usersCount = await db.collection('users').countDocuments({ schoolId: schoolObjectId });
-    if (usersCount > 0) {
-      return { success: false, message: 'Cannot delete school. Please remove all assigned users (Admins, Teachers, Students) first.' };
-    }
+    // Delete all users associated with the school
+    await db.collection('users').deleteMany({ schoolId: schoolObjectId });
 
     const result = await db.collection('schools').deleteOne({ _id: schoolObjectId as any });
     if (result.deletedCount === 0) {
@@ -379,7 +381,7 @@ export async function deleteSchool(schoolId: string): Promise<DeleteSchoolResult
 
     revalidatePath('/dashboard/super-admin/schools');
 
-    return { success: true, message: 'School deleted successfully!' };
+    return { success: true, message: 'School and all its associated users have been deleted successfully!' };
     
   } catch (error) {
     console.error('Delete school server action error:', error);
@@ -392,4 +394,37 @@ export interface DeleteSchoolResult {
   success: boolean;
   message: string;
   error?: string;
+}
+
+export interface SetSchoolStatusResult {
+    success: boolean;
+    message: string;
+    error?: string;
+}
+
+export async function setSchoolStatus(schoolId: string, status: 'active' | 'inactive'): Promise<SetSchoolStatusResult> {
+  try {
+    if (!ObjectId.isValid(schoolId)) {
+      return { success: false, message: 'Invalid school ID format.' };
+    }
+
+    const { db } = await connectToDatabase();
+    const schoolsCollection = db.collection('schools');
+
+    const result = await schoolsCollection.updateOne(
+      { _id: new ObjectId(schoolId) },
+      { $set: { status, updatedAt: new Date() } }
+    );
+
+    if (result.matchedCount === 0) {
+      return { success: false, message: 'School not found.' };
+    }
+
+    revalidatePath('/dashboard/super-admin/schools');
+    return { success: true, message: `School status successfully updated to ${status}.` };
+  } catch (error) {
+    console.error('Set school status error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
+    return { success: false, message: 'An unexpected error occurred.', error: errorMessage };
+  }
 }

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, School as SchoolIconUI, DollarSign, Loader2, Edit, XCircle, FileText, Image as ImageIcon, Trash2, Bus, Eye, CheckSquare } from "lucide-react";
+import { PlusCircle, School as SchoolIconUI, DollarSign, Loader2, Edit, XCircle, FileText, ImageIcon, Trash2, Bus, Eye, CheckSquare, Power, PowerOff } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import {
@@ -30,7 +30,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { createSchool, getSchools, updateSchool, deleteSchool } from "@/app/actions/schools";
+import { createSchool, getSchools, updateSchool, deleteSchool, setSchoolStatus } from "@/app/actions/schools";
 import { schoolFormSchema, type SchoolFormData, REPORT_CARD_TEMPLATES, type ReportCardTemplateKey, type TermFee, ATTENDANCE_TYPES } from '@/types/school'; 
 import type { School as SchoolType } from "@/types/school";
 import { useEffect, useState, useCallback } from "react";
@@ -49,6 +49,7 @@ export default function SchoolManagementPage() {
   const [editingSchool, setEditingSchool] = useState<SchoolType | null>(null);
   const [schoolToDelete, setSchoolToDelete] = useState<SchoolType | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
 
   const form = useForm<SchoolFormData>({
     resolver: zodResolver(schoolFormSchema),
@@ -60,6 +61,7 @@ export default function SchoolManagementPage() {
       reportCardTemplate: 'none',
       allowStudentsToViewPublishedReports: false,
       attendanceType: 'monthly',
+      status: 'active',
     },
   });
 
@@ -94,6 +96,7 @@ export default function SchoolManagementPage() {
 
   const mapSchoolToFormData = (school: SchoolType): SchoolFormData => ({
     schoolName: school.schoolName,
+    status: school.status || 'active',
     schoolLogoUrl: school.schoolLogoUrl || "", 
     reportCardTemplate: school.reportCardTemplate || 'none',
     allowStudentsToViewPublishedReports: school.allowStudentsToViewPublishedReports || false,
@@ -125,6 +128,7 @@ export default function SchoolManagementPage() {
       reportCardTemplate: 'none',
       allowStudentsToViewPublishedReports: false,
       attendanceType: 'monthly',
+      status: 'active',
     });
   };
 
@@ -168,6 +172,18 @@ export default function SchoolManagementPage() {
     } else {
       toast({ variant: "destructive", title: "Deletion Failed", description: result.message, duration: 5000 });
     }
+  };
+
+  const handleStatusToggle = async (schoolId: string, newStatus: 'active' | 'inactive') => {
+    setIsUpdatingStatus(schoolId);
+    const result = await setSchoolStatus(schoolId, newStatus);
+    if (result.success) {
+      toast({ title: "Status Updated", description: result.message });
+      fetchSchools();
+    } else {
+      toast({ variant: "destructive", title: "Status Update Failed", description: result.error || result.message });
+    }
+    setIsUpdatingStatus(null);
   };
   
   const termNames: TermFee['term'][] = ['Term 1', 'Term 2', 'Term 3'];
@@ -309,8 +325,7 @@ export default function SchoolManagementPage() {
               <div className="space-y-4 border-t pt-6">
                 <FormLabel className="text-lg font-semibold flex items-center"><DollarSign className="mr-2 h-5 w-5 text-primary" />Tuition Fees Configuration</FormLabel>
                 {tuitionFeeFields.map((field, classIndex) => (
-                  <Card key={field.id} className="p-4 border shadow-sm">
-                    <div className="flex justify-between items-start mb-3">
+                  <Card key={field.id} className="p-4 border shadow-sm"><div className="flex justify-between items-start mb-3">
                         <FormField
                             control={form.control}
                             name={`tuitionFees.${classIndex}.className`}
@@ -496,7 +511,7 @@ export default function SchoolManagementPage() {
             </div>
           ) : schools.length > 0 ? (
             schools.map(school => (
-            <Card key={school._id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4">
+            <Card key={school._id} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 ${school.status === 'inactive' ? 'bg-muted/50' : ''}`}>
               <div className="flex items-center gap-4">
                 <img 
                     src={school.schoolLogoUrl || "https://placehold.co/48x48.png"} 
@@ -509,20 +524,27 @@ export default function SchoolManagementPage() {
                 />
                 <div className="flex-grow">
                   <h3 className="font-semibold">{school.schoolName}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {school.tuitionFees?.length || 0} tuition config(s), {school.busFeeStructures?.length || 0} bus fee config(s)
-                  </p>
-                  <p className="text-xs text-muted-foreground">Report Card: <span className="font-medium">{REPORT_CARD_TEMPLATES[school.reportCardTemplate || 'none']}</span></p>
-                  <p className="text-xs text-muted-foreground">Attendance: <span className="font-medium">{ATTENDANCE_TYPES[school.attendanceType || 'monthly']}</span></p>
-                  <p className="text-xs text-muted-foreground">Student Report View: 
-                    <span className={`font-medium ${school.allowStudentsToViewPublishedReports ? 'text-green-600' : 'text-red-600'}`}>
-                      {school.allowStudentsToViewPublishedReports ? ' Enabled' : ' Disabled'}
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full capitalize ${school.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {school.status}
                     </span>
-                  </p>
-                  <p className="text-xs text-muted-foreground">Created: {new Date(school.createdAt).toLocaleDateString()}</p>
+                     <p className="text-xs text-muted-foreground">Created: {new Date(school.createdAt).toLocaleDateString()}</p>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <div className="flex items-center space-x-2">
+                    <Switch
+                        id={`status-switch-${school._id}`}
+                        checked={school.status === 'active'}
+                        onCheckedChange={(checked) => handleStatusToggle(school._id, checked ? 'active' : 'inactive')}
+                        disabled={isUpdatingStatus === school._id}
+                        aria-label="Toggle school status"
+                    />
+                    <Label htmlFor={`status-switch-${school._id}`} className="text-sm font-medium">
+                        {isUpdatingStatus === school._id ? <Loader2 className="h-4 w-4 animate-spin"/> : (school.status === 'active' ? <Power className="h-4 w-4 text-green-600"/> : <PowerOff className="h-4 w-4 text-destructive"/>)}
+                    </Label>
+                </div>
                 <Button variant="outline" size="sm" onClick={() => handleEdit(school)} className="w-full sm:w-auto flex-shrink-0">
                   <Edit className="mr-2 h-4 w-4" /> Edit
                 </Button>
@@ -536,13 +558,13 @@ export default function SchoolManagementPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will delete the school profile for <span className="font-semibold">{schoolToDelete?.schoolName}</span>. This action cannot be undone and may fail if the school has associated users.
+                        This will permanently delete the school profile for <span className="font-semibold">{schoolToDelete?.schoolName}</span> and all its associated users (admins, teachers, students). This action is irreversible.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel onClick={() => setSchoolToDelete(null)} disabled={isDeleting}>Cancel</AlertDialogCancel>
                       <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                        {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Delete School
+                        {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Delete School & Users
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

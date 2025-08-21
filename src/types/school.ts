@@ -50,6 +50,7 @@ export interface AssessmentLocks {
 export interface School {
   _id: string; // MongoDB ObjectId as string
   schoolName: string;
+  status: 'active' | 'inactive'; // New status field
   schoolLogoUrl?: string;
   tuitionFees: ClassTuitionFeeConfig[];
   busFeeStructures?: BusFeeLocationCategory[]; // Added new field
@@ -94,6 +95,7 @@ const assessmentLockSchema = z.object({
 // Zod schema for the main school form - MADE MORE LENIENT
 export const schoolFormSchema = z.object({
   schoolName: z.string().min(3, "School name must be at least 3 characters."),
+  status: z.enum(['active', 'inactive']).default('active').optional(),
   schoolLogoUrl: z.string().url({ message: "Please enter a valid URL for the school logo." }).optional().or(z.literal('')),
   
   // Relaxed validation for complex fields to prevent save failures

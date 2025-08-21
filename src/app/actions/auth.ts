@@ -4,6 +4,7 @@
 import { connectToDatabase } from '@/lib/mongodb';
 import * as z from 'zod';
 import type { User } from '@/types/user'; 
+import type { School } from '@/types/school';
 import bcrypt from 'bcryptjs'; 
 
 const loginSchema = z.object({
@@ -41,6 +42,15 @@ export async function loginUser(values: z.infer<typeof loginSchema>): Promise<Lo
     if (!userDoc) {
       return { error: 'User not found. Please check your credentials.', success: false };
     }
+    
+    // Check if school is active for non-superadmins
+    if (userDoc.role !== 'superadmin' && userDoc.schoolId) {
+      const school = await db.collection<School>('schools').findOne({ _id: userDoc.schoolId });
+      if (!school || school.status === 'inactive') {
+        return { error: 'This school account is currently inactive. Please contact support.', success: false };
+      }
+    }
+
 
     if (!userDoc.password) {
       return { error: 'Password not set for this user. Please contact support.', success: false };
