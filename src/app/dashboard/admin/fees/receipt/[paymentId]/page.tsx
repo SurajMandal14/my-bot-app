@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Printer, AlertTriangle } from "lucide-react";
 import { format } from 'date-fns';
+import { getStudentDetailsForReportCard } from '@/app/actions/schoolUsers';
 
 export default function FeeReceiptPage() {
   const params = useParams();
@@ -20,6 +21,7 @@ export default function FeeReceiptPage() {
   
   const [payment, setPayment] = useState<FeePayment | null>(null);
   const [school, setSchool] = useState<School | null>(null);
+  const [studentAdmissionId, setStudentAdmissionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,13 +36,26 @@ export default function FeeReceiptPage() {
     try {
       const paymentResult = await getPaymentById(paymentId);
       if (paymentResult.success && paymentResult.payment) {
-        setPayment(paymentResult.payment);
-        const schoolResult = await getSchoolById(paymentResult.payment.schoolId.toString());
+        const currentPayment = paymentResult.payment;
+        setPayment(currentPayment);
+        
+        const [schoolResult, studentResult] = await Promise.all([
+            getSchoolById(currentPayment.schoolId.toString()),
+            getStudentDetailsForReportCard(currentPayment.studentName, currentPayment.schoolId.toString(), new Date(currentPayment.paymentDate).getFullYear().toString())
+        ]);
+        
         if (schoolResult.success && schoolResult.school) {
           setSchool(schoolResult.school);
         } else {
           setError(schoolResult.message || "Could not load school details.");
         }
+        
+        // Use a direct lookup for admission ID if available
+        if (studentResult.success && studentResult.student) {
+           setStudentAdmissionId(studentResult.student.admissionId || "N/A");
+        }
+
+
       } else {
         setError(paymentResult.message || "Could not load payment details.");
         setPayment(null);
@@ -128,7 +143,7 @@ export default function FeeReceiptPage() {
             <div><strong className="font-medium">Payment Date:</strong> {format(new Date(payment.paymentDate), "PPP")}</div>
             <div><strong className="font-medium">Student Name:</strong> {studentDisplayName}</div>
             <div><strong className="font-medium">Class:</strong> {studentDisplayClass}</div>
-            <div><strong className="font-medium">Admission No. (Student ID):</strong> {payment.studentId.toString().slice(-10)}</div>
+            <div><strong className="font-medium">Admission No:</strong> {studentAdmissionId}</div>
           </div>
 
           <Separator />

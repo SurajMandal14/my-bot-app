@@ -30,6 +30,7 @@ import { format } from "date-fns";
 import { getAcademicYears } from "@/app/actions/academicYears";
 import type { AcademicYear } from "@/types/academicYear";
 import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import useEmblaCarousel from 'embla-carousel-react';
 
@@ -102,6 +103,7 @@ export default function FeeManagementPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloadingFeePdf, setIsDownloadingFeePdf] = useState(false);
+  const [isDownloadingStudentList, setIsDownloadingStudentList] = useState(false);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const { toast } = useToast();
   
@@ -238,7 +240,7 @@ export default function FeeManagementPage() {
 
   useEffect(() => {
     if (studentToRecordPayment) {
-      setPaymentAmount("");
+      setPaymentAmount(0);
       setPaymentDate(new Date()); 
       setPaymentMethod("");
       setPaymentTowards("");
@@ -349,33 +351,38 @@ export default function FeeManagementPage() {
 
   const handlePrintHistory = () => {
     const printContent = document.getElementById('paymentHistoryContent');
-    if (printContent) {
-        const studentName = studentForHistory?.name || 'Student';
-        const schoolName = schoolDetails?.schoolName || 'School';
-        const newWindow = window.open('', '_blank');
-        if (newWindow) {
-            newWindow.document.write(`
-                <html>
-                    <head>
-                        <title>Payment History - ${studentName}</title>
-                        <style>
-                            body { font-family: sans-serif; }
-                            table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                            th { background-color: #f2f2f2; }
-                            h1, h2 { text-align: center; }
-                        </style>
-                    </head>
-                    <body>
-                        <h1>${schoolName}</h1>
-                        <h2>Payment History for ${studentName}</h2>
-                        ${printContent.innerHTML}
-                    </body>
-                </html>
-            `);
-            newWindow.document.close();
-            newWindow.print();
-        }
+    if (printContent && studentForHistory && schoolDetails) {
+        const studentName = studentForHistory.name || 'Student';
+        const schoolName = schoolDetails.schoolName || 'School';
+        new Promise(resolve => {
+            const newWindow = window.open('', '_blank');
+            if (newWindow) {
+                newWindow.document.write(`
+                    <html>
+                        <head>
+                            <title>Payment History - ${studentName}</title>
+                            <style>
+                                body { font-family: sans-serif; }
+                                table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+                                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                                th { background-color: #f2f2f2; }
+                                h1, h2 { text-align: center; }
+                            </style>
+                        </head>
+                        <body>
+                            <h1>${schoolName}</h1>
+                            <h2>Payment History for ${studentForHistory.name} (${studentForHistory.admissionId || 'N/A'})</h2>
+                            <h3>Class: ${studentForHistory.classLabel}</h3>
+                            ${printContent.innerHTML}
+                        </body>
+                    </html>
+                `);
+                newWindow.document.close();
+                resolve(newWindow);
+            }
+        }).then(newWindow => {
+            (newWindow as Window).print();
+        });
     }
   };
 
@@ -401,6 +408,34 @@ export default function FeeManagementPage() {
       toast({ variant: "destructive", title: "PDF Error", description: "Could not generate fee report PDF."});
     } finally {
       setIsDownloadingFeePdf(false);
+    }
+  };
+
+  const handleDownloadStudentList = () => {
+    if (!selectedClass || studentsInSelectedClass.length === 0) {
+      toast({ title: 'No Data', description: 'No student data available to download for the selected class.' });
+      return;
+    }
+    setIsDownloadingStudentList(true);
+    try {
+      const dataToExport = studentsInSelectedClass.map(student => ({
+        'Student Name': student.name,
+        'Admission No.': student.admissionId || 'N/A',
+        'School Fee': student.totalAnnualTuitionFee,
+        'Bus Fee': student.totalAnnualBusFee,
+        'Concessions': student.totalConcessions,
+        'Amount Paid': student.paidAmount,
+        'Amount Due': student.dueAmount,
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, `Fee Details - ${selectedClass.className}`);
+      XLSX.writeFile(workbook, `Fee_Details_${selectedClass.className.replace(/\s+/g, '_')}_${filterAcademicYear}.xlsx`);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Download Error", description: "Could not prepare the file for download." });
+    } finally {
+      setIsDownloadingStudentList(false);
     }
   };
   
@@ -452,7 +487,7 @@ export default function FeeManagementPage() {
             <div className="flex items-center gap-2">
               <Button onClick={scrollPrev} variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
               <Button onClick={scrollNext} variant="outline" size="icon"><ArrowRight className="h-4 w-4" /></Button>
-              <Button onClick={handleDownloadFeePdf} variant="outline" size="sm" disabled={isLoading || isDownloadingFeePdf}>{isDownloadingFeePdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}Download</Button>
+              <Button onClick={handleDownloadFeePdf} variant="outline" size="sm" disabled={isLoading || isDownloadingFeePdf}>{isDownloadingFeePdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}Download Report</Button>
             </div>
           </div>
         </CardHeader>
@@ -463,7 +498,6 @@ export default function FeeManagementPage() {
             <div className="overflow-hidden" ref={emblaRef}>
               <div className="flex">
                 <div className="flex-[0_0_100%] min-w-0 pr-4">
-                  {/* Overall Summary Card */}
                    <div id="feeReportContent" className="p-4 bg-card rounded-md">
                       <Card className="mb-6 bg-secondary/30 border-none"><CardHeader><CardTitle className="text-lg">Overall Summary for {filterAcademicYear}</CardTitle></CardHeader><CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center"><div><p className="text-sm text-muted-foreground">Expected</p><p className="text-2xl font-bold"><span className="font-sans">₹</span>{feeOverallSummary?.grandTotalExpected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Concessions</p><p className="text-2xl font-bold text-blue-600"><span className="font-sans">₹</span>{feeOverallSummary?.grandTotalConcessions.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collected</p><p className="text-2xl font-bold text-green-600"><span className="font-sans">₹</span>{feeOverallSummary?.grandTotalCollected.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Due</p><p className="text-2xl font-bold text-red-600"><span className="font-sans">₹</span>{feeOverallSummary?.grandTotalDue.toLocaleString()}</p></div><div><p className="text-sm text-muted-foreground">Collection %</p><p className="text-2xl font-bold text-blue-600">{feeOverallSummary?.overallCollectionPercentage}%</p><Progress value={feeOverallSummary?.overallCollectionPercentage} className="h-2 mt-1" /></div></CardContent></Card>
                       <Table><TableHeader><TableRow><TableHead>Class Name</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Due</TableHead><TableHead className="text-right">Collection %</TableHead></TableRow></TableHeader>
@@ -471,7 +505,6 @@ export default function FeeManagementPage() {
                   </div>
                 </div>
                 <div className="flex-[0_0_100%] min-w-0 pr-4">
-                  {/* Bus Fee Summary Card */}
                   <Card>
                     <CardHeader>
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2">
@@ -505,20 +538,26 @@ export default function FeeManagementPage() {
             <CardHeader>
                 <div className="flex justify-between items-center">
                     <CardTitle>Fee Details for Class: {selectedClass.className}</CardTitle>
-                    <Button variant="ghost" size="icon" onClick={() => setSelectedClass(null)}><X className="h-5 w-5"/></Button>
+                    <div className="flex items-center gap-2">
+                       <Button onClick={handleDownloadStudentList} variant="outline" size="sm" disabled={isDownloadingStudentList}>
+                            {isDownloadingStudentList ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}
+                            Download List
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setSelectedClass(null)}><X className="h-5 w-5"/></Button>
+                    </div>
                 </div>
                 <CardDescription>Detailed fee breakdown for each student in the selected class.</CardDescription>
             </CardHeader>
             <CardContent>
                 {studentsInSelectedClass.length > 0 ? (
                     <Table>
-                        <TableHeader><TableRow><TableHead>Student Name</TableHead><TableHead>Admission No.</TableHead><TableHead className="text-right">Total Fees</TableHead><TableHead className="text-right">Bus Fees</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Amount Paid</TableHead><TableHead className="text-right">Amount Due</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>Student Name</TableHead><TableHead>Admission No.</TableHead><TableHead className="text-right">School Fee</TableHead><TableHead className="text-right">Bus Fee</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Amount Paid</TableHead><TableHead className="text-right">Amount Due</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
                         <TableBody>
                             {studentsInSelectedClass.map(student => (
                                 <TableRow key={student._id}>
                                     <TableCell className="font-medium">{student.name}</TableCell>
                                     <TableCell>{student.admissionId || 'N/A'}</TableCell>
-                                    <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualFee.toLocaleString()}</TableCell>
+                                    <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualTuitionFee.toLocaleString()}</TableCell>
                                     <TableCell className="text-right"><span className="font-sans">₹</span>{student.totalAnnualBusFee.toLocaleString()}</TableCell>
                                     <TableCell className="text-right text-blue-600"><span className="font-sans">₹</span>{student.totalConcessions.toLocaleString()}</TableCell>
                                     <TableCell className="text-right text-green-600"><span className="font-sans">₹</span>{student.paidAmount.toLocaleString()}</TableCell>
@@ -578,8 +617,8 @@ export default function FeeManagementPage() {
       <Dialog open={!!studentToRecordPayment} onOpenChange={(isOpen) => !isOpen && setStudentToRecordPayment(null)}>
         <DialogContent>
             <DialogHeader>
-                <DialogTitle>Record Payment for {studentToRecordPayment?.name}</DialogTitle>
-                <DialogDescription>Class: {studentToRecordPayment?.classLabel} | Amount Due: <span className="font-sans">₹</span>{studentToRecordPayment?.dueAmount.toLocaleString()}</DialogDescription>
+                <DialogTitle>Record Payment for {studentToRecordPayment?.name} ({studentToRecordPayment?.admissionId || 'N/A'})</DialogTitle>
+                <DialogDescription>Class: {studentToRecordPayment?.classLabel} | Total Due: <span className="font-sans">₹</span>{studentToRecordPayment?.dueAmount.toLocaleString()}</DialogDescription>
             </DialogHeader>
             <div className="pt-2 space-y-3">
                 <div><Label htmlFor="payment-towards">Payment Towards</Label><Select value={paymentTowards} onValueChange={(v) => setPaymentTowards(v as PaymentTowards)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select purpose..."/></SelectTrigger><SelectContent>{PAYMENT_TOWARDS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select></div>
@@ -601,10 +640,9 @@ export default function FeeManagementPage() {
       <Dialog open={!!studentForHistory} onOpenChange={(isOpen) => !isOpen && setStudentForHistory(null)}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
-                <DialogTitle className="flex items-center"><History className="mr-2 h-5 w-5"/>Payment History for {studentForHistory?.name}</DialogTitle>
+                <DialogTitle className="flex items-center"><History className="mr-2 h-5 w-5"/>Payment History for {studentForHistory?.name} ({studentForHistory?.admissionId || 'N/A'})</DialogTitle>
                 <DialogDescription>
-                    Total Paid: <span className="font-sans font-semibold">₹</span>{studentForHistory?.paidAmount.toLocaleString()} | 
-                    Total Due: <span className="font-sans font-semibold">₹</span>{studentForHistory?.dueAmount.toLocaleString()}
+                    Class: {studentForHistory?.classLabel} | Total Due: <span className="font-sans font-semibold">₹</span>{studentForHistory?.dueAmount.toLocaleString()}
                     {historyFilterType === 'bus_fees_only' && <span className="ml-2 font-bold text-primary">(Showing Bus Fees Only)</span>}
                 </DialogDescription>
             </DialogHeader>
