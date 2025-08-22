@@ -163,9 +163,13 @@ export interface SubjectForTeacher {
   subjectName: string;
 }
 
-export async function getSubjectsForTeacher(teacherId: string, schoolId: string): Promise<SubjectForTeacher[]> {
+export async function getSubjectsForTeacher(teacherId: string, schoolId: string, academicYear: string): Promise<SubjectForTeacher[]> {
     if (!ObjectId.isValid(teacherId) || !ObjectId.isValid(schoolId)) {
         console.warn("getSubjectsForTeacher: Invalid teacherId or schoolId format provided.");
+        return [];
+    }
+     if (!academicYear) {
+        console.warn("getSubjectsForTeacher: Academic Year is required.");
         return [];
     }
     try {
@@ -175,7 +179,10 @@ export async function getSubjectsForTeacher(teacherId: string, schoolId: string)
         const teacherObjectId = new ObjectId(teacherId);
         const schoolObjectId = new ObjectId(schoolId);
 
-        const classesInSchool = await schoolClassesCollection.find({ schoolId: schoolObjectId }).toArray();
+        const classesInSchool = await schoolClassesCollection.find({ 
+            schoolId: schoolObjectId,
+            academicYear: academicYear // Filter by academic year
+        }).toArray();
 
         const taughtSubjects: SubjectForTeacher[] = [];
 
