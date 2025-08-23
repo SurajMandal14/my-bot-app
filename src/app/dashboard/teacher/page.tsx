@@ -187,28 +187,31 @@ export default function TeacherDashboardPage() {
   const groupedMarks = useMemo(() => {
     if (!reportData?.marks) return {};
     // First, group by main assessment type (FA1, FA2, SA1, etc.)
-    const groupedByAssessment = reportData.marks.reduce((acc, mark) => {
-      const assessmentBase = mark.assessmentName.split('-')[0];
-      if (!acc[assessmentBase]) {
-        acc[assessmentBase] = [];
+    const groupedBySubject = reportData.marks.reduce((acc, mark) => {
+      const subjectName = mark.subjectName;
+      if (!acc[subjectName]) {
+        acc[subjectName] = [];
       }
-      acc[assessmentBase].push(mark);
+      acc[subjectName].push(mark);
       return acc;
     }, {} as Record<string, MarkEntry[]>);
+    
+    return groupedBySubject;
 
-    // Then, group those by subject
-    const finalGroup: Record<string, Record<string, MarkEntry[]>> = {};
-    for(const assessment in groupedByAssessment) {
-        finalGroup[assessment] = groupedByAssessment[assessment].reduce((acc, mark) => {
-            if(!acc[mark.subjectName]) {
-                acc[mark.subjectName] = [];
-            }
-            acc[mark.subjectName].push(mark);
-            return acc;
-        }, {} as Record<string, MarkEntry[]>);
-    }
-    return finalGroup;
   }, [reportData]);
+
+  const isBirthday = (dob: string | undefined): boolean => {
+    if (!dob) return false;
+    const today = new Date();
+    // DOB can be in different formats, try to parse it. 'yyyy-MM-dd' is most reliable.
+    const birthDate = new Date(dob);
+    // Adjust for timezone differences when comparing dates
+    const todayMonth = today.getUTCMonth();
+    const todayDate = today.getUTCDate();
+    const birthMonth = birthDate.getUTCMonth();
+    const birthDateOfMonth = birthDate.getUTCDate();
+    return todayMonth === birthMonth && todayDate === birthDateOfMonth;
+  };
 
 
   if (isLoading) {
@@ -262,7 +265,9 @@ export default function TeacherDashboardPage() {
                     <TableBody>
                         {classStudents.map(student => (
                             <TableRow key={student._id}>
-                                <TableCell className="font-medium">{student.name}</TableCell>
+                                <TableCell className="font-medium flex items-center">
+                                  {student.name} {isBirthday(student.dob) && <span className="ml-2">🎂</span>}
+                                </TableCell>
                                 <TableCell>{student.admissionId || 'N/A'}</TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-2">
@@ -307,7 +312,9 @@ export default function TeacherDashboardPage() {
                 <>
                 {reportType === 'info' && studentForReport && (
                     <div className="details-section space-y-4">
-                        <h3 className="font-semibold text-base mb-2 border-b pb-1">Student Information: {studentForReport.name} ({primaryClass?.name} - {primaryClass?.section}, Adm. No: {studentForReport.admissionId})</h3>
+                        <h3 className="font-semibold text-lg mb-2 border-b pb-1">
+                          {studentForReport.name} ({primaryClass?.name} - {primaryClass?.section}, Adm. No: {studentForReport.admissionId})
+                        </h3>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 border rounded-md">
                             <DetailItem label="Date of Birth" value={studentForReport.dob ? format(new Date(studentForReport.dob), 'PP') : null} />
                             <DetailItem label="Gender" value={studentForReport.gender} />
@@ -341,25 +348,20 @@ export default function TeacherDashboardPage() {
                 {reportType === 'marks' && (
                   <div className="space-y-4">
                     {Object.keys(groupedMarks).length > 0 ? (
-                      Object.entries(groupedMarks).map(([assessment, subjectMarks]) => (
-                        <div key={assessment}>
-                          <h3 className="font-semibold text-lg mb-2 border-b pb-1">{assessment}</h3>
-                          {Object.entries(subjectMarks).map(([subject, marks]) => (
-                            <div key={subject} className="mb-3">
-                              <h4 className="font-medium text-base mb-1">{subject}</h4>
-                              <Table>
-                                <TableHeader><TableRow><TableHead>Assessment Detail</TableHead><TableHead className="text-right">Marks</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                  {marks.map(mark => (
-                                    <TableRow key={mark._id?.toString()}>
-                                      <TableCell>{mark.assessmentName.replace(`${assessment}-`, '')}</TableCell>
-                                      <TableCell className="text-right">{mark.marksObtained} / {mark.maxMarks}</TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          ))}
+                      Object.entries(groupedMarks).map(([subject, marks]) => (
+                        <div key={subject}>
+                          <h3 className="font-semibold text-lg mb-2 border-b pb-1">{subject}</h3>
+                          <Table>
+                            <TableHeader><TableRow><TableHead>Assessment Detail</TableHead><TableHead className="text-right">Marks</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                              {marks.map(mark => (
+                                <TableRow key={mark._id?.toString()}>
+                                  <TableCell>{mark.assessmentName.split('-').slice(0).join('-')}</TableCell>
+                                  <TableCell className="text-right">{mark.marksObtained} / {mark.maxMarks}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
                         </div>
                       ))
                     ) : <p className="text-sm text-muted-foreground">No marks found for this student.</p>}
