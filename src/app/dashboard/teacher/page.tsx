@@ -26,15 +26,12 @@ interface StudentWithAttendance extends AppUser {
     overallAttendance?: number;
 }
 
-const DetailItem = ({ label, value, icon: Icon }: { label: string; value?: string | null; icon: React.ElementType }) => {
+const DetailItem = ({ label, value }: { label: string; value?: string | null; }) => {
     if (!value) return null;
     return (
-        <div className="flex items-start">
-            <Icon className="h-4 w-4 text-muted-foreground mr-2 mt-1 flex-shrink-0" />
-            <div>
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="text-sm font-medium">{value}</p>
-            </div>
+        <div>
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="text-sm font-medium">{value}</p>
         </div>
     );
 };
@@ -134,7 +131,6 @@ export default function TeacherDashboardPage() {
     const printContent = document.getElementById('student-report-printable-area');
     if (printContent && studentForReport) {
       const studentName = studentForReport.name || 'Student';
-      const schoolName = primaryClass?.name || 'School';
       const newWindow = window.open('', '_blank');
       if (newWindow) {
         newWindow.document.write(`
@@ -144,11 +140,14 @@ export default function TeacherDashboardPage() {
               <style>
                 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.5; }
                 table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 0.8rem; }
                 th { background-color: #f2f2f2; }
-                h1, h2, h3 { color: #333; }
+                h1, h2, h3 { color: #333; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+                h1 { font-size: 1.5rem; text-align: center; }
+                h2 { font-size: 1.2rem; }
+                h3 { font-size: 1rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
                 .grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-                .details-section h3 { margin-bottom: 0.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+                .details-section h3 { margin-bottom: 0.5rem; }
               </style>
             </head>
             <body>
@@ -166,11 +165,12 @@ export default function TeacherDashboardPage() {
   const groupedMarks = useMemo(() => {
     if (!reportData?.marks) return {};
     return reportData.marks.reduce((acc, mark) => {
-      const key = mark.assessmentName;
-      if (!acc[key]) {
-        acc[key] = [];
+      // Group by the main assessment type (e.g., "FA1", "SA1")
+      const assessmentType = mark.assessmentName.split('-')[0];
+      if (!acc[assessmentType]) {
+        acc[assessmentType] = [];
       }
-      acc[key].push(mark);
+      acc[assessmentType].push(mark);
       return acc;
     }, {} as Record<string, MarkEntry[]>);
   }, [reportData]);
@@ -254,23 +254,26 @@ export default function TeacherDashboardPage() {
                                                 <div className="details-section">
                                                     <h3 className="font-semibold text-base mb-2 border-b pb-2">Student Information</h3>
                                                     <div className="grid-container">
-                                                        <DetailItem label="Date of Birth" value={studentForReport.dob ? format(new Date(studentForReport.dob), 'PP') : null} icon={Calendar} />
-                                                        <DetailItem label="Gender" value={studentForReport.gender} icon={UsersIcon} />
-                                                        <DetailItem label="Blood Group" value={studentForReport.bloodGroup} icon={Heart} />
-                                                        <DetailItem label="Religion" value={studentForReport.religion} icon={ShieldHalf} />
-                                                        <DetailItem label="Caste" value={studentForReport.caste} icon={ShieldHalf} />
-                                                        <DetailItem label="Aadhar No." value={studentForReport.aadharNo} icon={Contact} />
-                                                        <DetailItem label="Date of Joining" value={studentForReport.dateOfJoining ? format(new Date(studentForReport.dateOfJoining), 'PP') : null} icon={Calendar} />
+                                                        <DetailItem label="Student Name" value={studentForReport.name} />
+                                                        <DetailItem label="Admission No." value={studentForReport.admissionId} />
+                                                        <DetailItem label="Class" value={`${primaryClass?.name} - ${primaryClass?.section}`} />
+                                                        <DetailItem label="Date of Birth" value={studentForReport.dob ? format(new Date(studentForReport.dob), 'PP') : null} />
+                                                        <DetailItem label="Gender" value={studentForReport.gender} />
+                                                        <DetailItem label="Blood Group" value={studentForReport.bloodGroup} />
+                                                        <DetailItem label="Religion" value={studentForReport.religion} />
+                                                        <DetailItem label="Caste" value={studentForReport.caste} />
+                                                        <DetailItem label="Aadhar No." value={studentForReport.aadharNo} />
+                                                        <DetailItem label="Date of Joining" value={studentForReport.dateOfJoining ? format(new Date(studentForReport.dateOfJoining), 'PP') : null} />
                                                     </div>
                                                 </div>
 
                                                 <div className="details-section">
                                                     <h3 className="font-semibold text-base mb-2 border-b pb-2">Parent Information</h3>
                                                     <div className="grid-container">
-                                                        <DetailItem label="Father's Name" value={studentForReport.fatherName} icon={User} />
-                                                        <DetailItem label="Mother's Name" value={studentForReport.motherName} icon={User} />
-                                                        <DetailItem label="Father's Mobile" value={studentForReport.fatherMobile} icon={Contact} />
-                                                        <DetailItem label="Mother's Mobile" value={studentForReport.motherMobile} icon={Contact} />
+                                                        <DetailItem label="Father's Name" value={studentForReport.fatherName} />
+                                                        <DetailItem label="Mother's Name" value={studentForReport.motherName} />
+                                                        <DetailItem label="Father's Mobile" value={studentForReport.fatherMobile} />
+                                                        <DetailItem label="Mother's Mobile" value={studentForReport.motherMobile} />
                                                     </div>
                                                 </div>
                                                 <div className="details-section">
