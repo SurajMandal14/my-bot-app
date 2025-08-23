@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -169,6 +170,8 @@ export default function TeacherDashboardPage() {
               </style>
             </head>
             <body>
+              <h1>Student Report for ${studentName}</h1>
+              <h2>Class: ${primaryClass?.name || ''} - ${primaryClass?.section || ''} | Adm. No: ${studentForReport?.admissionId || 'N/A'}</h2>
               ${printContent.innerHTML}
             </body>
           </html>
@@ -183,11 +186,11 @@ export default function TeacherDashboardPage() {
   const groupedMarks = useMemo(() => {
     if (!reportData?.marks) return {};
     return reportData.marks.reduce((acc, mark) => {
-      const assessmentType = mark.assessmentName.split('-')[0];
-      if (!acc[assessmentType]) {
-        acc[assessmentType] = [];
+      const subject = mark.subjectName;
+      if (!acc[subject]) {
+        acc[subject] = [];
       }
-      acc[assessmentType].push(mark);
+      acc[subject].push(mark);
       return acc;
     }, {} as Record<string, MarkEntry[]>);
   }, [reportData]);
@@ -237,7 +240,7 @@ export default function TeacherDashboardPage() {
                         <TableRow>
                             <TableHead>Student Name</TableHead>
                             <TableHead>Admission ID</TableHead>
-                            <TableHead>Attendance</TableHead>
+                            <TableHead>Overall Attendance</TableHead>
                             <TableHead className="text-right">Reports</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -246,7 +249,12 @@ export default function TeacherDashboardPage() {
                             <TableRow key={student._id}>
                                 <TableCell className="font-medium">{student.name}</TableCell>
                                 <TableCell>{student.admissionId || 'N/A'}</TableCell>
-                                <TableCell>{student.overallAttendance}%</TableCell>
+                                <TableCell>
+                                    <div className="flex items-center gap-2">
+                                        <Progress value={student.overallAttendance} className="w-24 h-2" />
+                                        <span>{student.overallAttendance}%</span>
+                                    </div>
+                                </TableCell>
                                 <TableCell className="text-right space-x-1">
                                     <Button variant="outline" size="sm" onClick={() => handleOpenReport(student, 'info')}>Info</Button>
                                     <Button variant="outline" size="sm" onClick={() => handleOpenReport(student, 'attendance')}>Attendance</Button>
@@ -268,12 +276,12 @@ export default function TeacherDashboardPage() {
         <DialogContent className="max-w-4xl">
             <DialogHeader>
             <DialogTitle>
-                {reportType === 'info' && `Student Information: ${studentForReport?.name}`}
-                {reportType === 'attendance' && `Attendance Report: ${studentForReport?.name}`}
-                {reportType === 'marks' && `Marks Report: ${studentForReport?.name}`}
+                {reportType === 'info' && `Student Information`}
+                {reportType === 'attendance' && `Attendance Report`}
+                {reportType === 'marks' && `Marks Report`}
             </DialogTitle>
             <DialogDescription>
-                Class: {primaryClass?.name} - {primaryClass?.section} | Adm. No: {studentForReport?.admissionId}
+                Viewing report for <span className="font-semibold">{studentForReport?.name}</span> (Adm. No: {studentForReport?.admissionId})
             </DialogDescription>
             </DialogHeader>
             <ScrollArea className="max-h-[70vh]">
@@ -284,8 +292,7 @@ export default function TeacherDashboardPage() {
                 <>
                 {reportType === 'info' && studentForReport && (
                     <div className="details-section space-y-4">
-                        <h3 className="font-semibold text-base mb-2 border-b pb-2">Student Information</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 border rounded-md">
                             <DetailItem label="Student Name" value={studentForReport.name} />
                             <DetailItem label="Admission No." value={studentForReport.admissionId} />
                             <DetailItem label="Class" value={`${primaryClass?.name} - ${primaryClass?.section}`} />
@@ -297,31 +304,20 @@ export default function TeacherDashboardPage() {
                             <DetailItem label="Aadhar No." value={studentForReport.aadharNo} />
                             <DetailItem label="Date of Joining" value={studentForReport.dateOfJoining ? format(new Date(studentForReport.dateOfJoining), 'PP') : null} />
                         </div>
-                        <Separator />
-                        <h3 className="font-semibold text-base mb-2 pt-2 border-b pb-2">Parent Information</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-md">
                             <DetailItem label="Father's Name" value={studentForReport.fatherName} />
                             <DetailItem label="Mother's Name" value={studentForReport.motherName} />
                             <DetailItem label="Father's Mobile" value={studentForReport.fatherMobile} />
                             <DetailItem label="Mother's Mobile" value={studentForReport.motherMobile} />
                         </div>
-                        <Separator />
-                        <h3 className="font-semibold text-base mb-2 pt-2 border-b pb-2">Address</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <p className="text-sm font-medium text-muted-foreground">Present Address</p>
-                                <p className="text-sm">{Object.values(studentForReport.presentAddress || {}).filter(Boolean).join(', ')}</p>
-                            </div>
-                            <div className="space-y-1">
-                                <p className="text-sm font-medium text-muted-foreground">Permanent Address</p>
-                                <p className="text-sm">{Object.values(studentForReport.permanentAddress || {}).filter(Boolean).join(', ')}</p>
-                            </div>
+                         <div className="p-4 border rounded-md space-y-2">
+                           <h4 className="font-medium">Present Address</h4>
+                           <p className="text-sm">{Object.values(studentForReport.presentAddress || {}).filter(Boolean).join(', ')}</p>
                         </div>
                     </div>
                 )}
                 {reportType === 'attendance' && (
                     <div>
-                        <h3 className="font-semibold mb-2">Monthly Attendance</h3>
                         {reportData?.attendance.length ? (
                         <Table><TableHeader><TableRow><TableHead>Month</TableHead><TableHead className="text-right">Attendance</TableHead></TableRow></TableHeader>
                             <TableBody>{reportData.attendance.map(att => <TableRow key={att._id.toString()}><TableCell>{format(new Date(att.year, att.month), 'MMMM yyyy')}</TableCell><TableCell className="text-right">{att.daysPresent} / {att.totalWorkingDays}</TableCell></TableRow>)}</TableBody>
@@ -330,15 +326,14 @@ export default function TeacherDashboardPage() {
                     </div>
                 )}
                 {reportType === 'marks' && (
-                    <div>
-                        <h3 className="font-semibold mb-2">Assessment Marks</h3>
+                    <div className="space-y-4">
                         {Object.keys(groupedMarks).length > 0 ? (
-                            Object.entries(groupedMarks).map(([assessmentName, marks]) => (
-                            <div key={assessmentName} className="mb-4">
-                                <h4 className="font-medium text-primary mb-1">{assessmentName}</h4>
+                            Object.entries(groupedMarks).map(([subject, marks]) => (
+                            <div key={subject}>
+                                <h4 className="font-semibold text-base mb-2 border-b pb-1">{subject}</h4>
                                 <Table>
-                                    <TableHeader><TableRow><TableHead>Subject</TableHead><TableHead className="text-right">Marks</TableHead></TableRow></TableHeader>
-                                    <TableBody>{marks.map(mark => <TableRow key={mark._id?.toString()}><TableCell>{mark.subjectName}</TableCell><TableCell className="text-right">{mark.marksObtained} / {mark.maxMarks}</TableCell></TableRow>)}</TableBody>
+                                    <TableHeader><TableRow><TableHead>Assessment Detail</TableHead><TableHead className="text-right">Marks Obtained</TableHead><TableHead className="text-right">Max Marks</TableHead></TableRow></TableHeader>
+                                    <TableBody>{marks.map(mark => <TableRow key={mark._id?.toString()}><TableCell>{mark.assessmentName}</TableCell><TableCell className="text-right">{mark.marksObtained}</TableCell><TableCell className="text-right">{mark.maxMarks}</TableCell></TableRow>)}</TableBody>
                                 </Table>
                             </div>
                             ))
@@ -353,7 +348,7 @@ export default function TeacherDashboardPage() {
             <Button variant="outline" onClick={() => handlePrintReport(reportType!)}>
                 <Printer className="mr-2 h-4 w-4"/>Print
             </Button>
-            <Button variant="outline" onClick={() => setReportType(null)}>Close</Button>
+            <Button variant="secondary" onClick={() => setReportType(null)}>Close</Button>
             </DialogFooter>
         </DialogContent>
       </Dialog>
