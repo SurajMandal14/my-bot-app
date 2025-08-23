@@ -42,7 +42,6 @@ export default function StudentResultsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [targetAcademicYear, setTargetAcademicYear] = useState<string>("");
-  const [showBackSide, setShowBackSide] = useState(false);
   const [availableYears, setAvailableYears] = useState<string[]>([]);
 
 
@@ -118,12 +117,6 @@ export default function StudentResultsPage() {
   }, [authUser, targetAcademicYear, fetchReport, isContextLoading]);
 
 
-  const handlePrint = () => {
-    if (typeof window !== "undefined") {
-      window.print();
-    }
-  };
-
   const frontProps = reportCardData ? {
     studentData: reportCardData.studentInfo,
     academicSubjects: (reportCardData.formativeAssessments || []).map(fa => ({ name: fa.subjectName, teacherId: undefined, teacherName: undefined })),
@@ -169,32 +162,7 @@ export default function StudentResultsPage() {
 
   return (
     <div className="space-y-6">
-       <style jsx global>{`
-        @page {
-            size: landscape;
-            margin: 0;
-        }
-        @media print {
-          body * { visibility: hidden; }
-          .printable-report-card, .printable-report-card * { visibility: visible !important; }
-          .printable-report-card { 
-            display: block !important;
-            position: absolute !important; 
-            left: 0 !important; 
-            top: 0 !important; 
-            width: 100% !important; 
-            height: 100% !important;
-            margin: 0 !important; 
-            padding: 0.25in !important;
-            page-break-after: always;
-          }
-          .printable-report-card:last-child {
-            page-break-after: avoid;
-          }
-          .no-print { display: none !important; }
-        }
-      `}</style>
-      <Card className="no-print">
+      <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
             <Award className="mr-2 h-6 w-6" /> My Exam Results
@@ -234,7 +202,7 @@ export default function StudentResultsPage() {
       )}
 
       {error && !isLoading && (
-         <Card className="no-print border-destructive">
+         <Card className="border-destructive">
             <CardHeader className="flex-row items-center gap-2">
                 <AlertTriangle className="h-6 w-6 text-destructive"/>
                 <CardTitle className="text-destructive">Report Not Available</CardTitle>
@@ -246,7 +214,7 @@ export default function StudentResultsPage() {
       )}
 
       {!isLoading && !error && !reportCardData && authUser && ( // Only show "No Report Found" if user is logged in and no error
-        <Card className="no-print">
+        <Card>
           <CardContent className="p-10 text-center">
             <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-lg font-semibold">No Report Card Found</p>
@@ -259,22 +227,15 @@ export default function StudentResultsPage() {
       )}
 
       {reportCardData && frontProps && backProps && !isLoading && !error &&(
-        <>
-          <div className="flex justify-end gap-2 no-print mb-4">
-             <Button onClick={() => setShowBackSide(prev => !prev)} variant="outline">
-                {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
-                {showBackSide ? "View Front" : "View Back"}
-            </Button>
-            <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/> Print Report Card</Button>
-          </div>
-          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide && 'hidden'}`}>
+        <div className="space-y-4">
+          <div className="printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md">
             <CBSEStateFront {...frontProps} />
           </div>
           
-          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide && 'hidden'}`}>
+          <div className="printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md">
             <CBSEStateBack {...backProps} />
           </div>
-        </>
+        </div>
       )}
     </div>
   );
