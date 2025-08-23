@@ -4,13 +4,20 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { CheckSquare, BookOpen, MessageSquare, CalendarDays, User, Loader2, Info, ChevronRight, FileUp } from "lucide-react";
+import { CheckSquare, BookOpen, MessageSquare, CalendarDays, User, Loader2, Info, ChevronRight, FileUp, Users, BarChart2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
-import type { AuthUser } from "@/types/user";
+import type { AuthUser, User as AppUser } from "@/types/user";
 import { useToast } from "@/hooks/use-toast";
 import { getSubjectsForTeacher, type SubjectForTeacher } from "@/app/actions/marks";
 import { getClassDetailsById } from "@/app/actions/classes";
 import type { SchoolClass } from "@/types/classes";
+import { getStudentsByClass } from "@/app/actions/schoolUsers";
+import { getMonthlyAttendanceForClass } from "@/app/actions/attendance";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+interface StudentWithAttendance extends AppUser {
+    overallAttendance?: number;
+}
 
 
 export default function TeacherDashboardPage() {
@@ -18,6 +25,7 @@ export default function TeacherDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [assignedSubjects, setAssignedSubjects] = useState<SubjectForTeacher[]>([]);
   const [primaryClass, setPrimaryClass] = useState<SchoolClass | null>(null);
+  const [classStudents, setClassStudents] = useState<StudentWithAttendance[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -39,20 +47,41 @@ export default function TeacherDashboardPage() {
     } else {
       setAuthUser(null);
     }
-    setIsLoading(false);
   }, [toast]);
 
   const fetchTeacherData = useCallback(async () => {
-      if (!authUser || !authUser.schoolId) return;
+      if (!authUser || !authUser.schoolId || !authUser._id) return;
 
       setIsLoading(true);
-      const subjectsResult = await getSubjectsForTeacher(authUser._id, authUser.schoolId);
+      
+      const academicYear = new Date().getFullYear().toString(); // Simplified for now
+      const subjectsResult = await getSubjectsForTeacher(authUser._id, authUser.schoolId, academicYear);
       setAssignedSubjects(subjectsResult);
 
       if (authUser.classId) {
           const classResult = await getClassDetailsById(authUser.classId, authUser.schoolId);
           if (classResult.success && classResult.classDetails) {
               setPrimaryClass(classResult.classDetails);
+              
+              const studentsResult = await getStudentsByClass(authUser.schoolId, authUser.classId, classResult.classDetails.academicYear);
+
+              if (studentsResult.success && studentsResult.users) {
+                  const students = studentsResult.users;
+                  
+                  const attendancePromises = students.map(async (student) => {
+                      const attendanceRes = await getMonthlyAttendanceForClass(authUser.schoolId!, authUser.classId!, new Date().getMonth(), new Date().getFullYear());
+                      if(attendanceRes.success && attendanceRes.records) {
+                        const studentRecord = attendanceRes.records.find(r => r.studentId === student._id);
+                        if(studentRecord && studentRecord.totalWorkingDays > 0) {
+                            return { ...student, overallAttendance: Math.round((studentRecord.daysPresent / studentRecord.totalWorkingDays) * 100) };
+                        }
+                      }
+                      return { ...student, overallAttendance: undefined };
+                  });
+                  
+                  const studentsWithAttendance = await Promise.all(attendancePromises);
+                  setClassStudents(studentsWithAttendance);
+              }
           } else {
               toast({variant: "warning", title: "Primary Class", description: "Could not load details for your primary assigned class."})
           }
@@ -63,6 +92,8 @@ export default function TeacherDashboardPage() {
   useEffect(() => {
     if (authUser) {
         fetchTeacherData();
+    } else {
+        setIsLoading(false);
     }
   }, [authUser, fetchTeacherData]);
 
@@ -99,25 +130,66 @@ export default function TeacherDashboardPage() {
           <CardDescription>Welcome, {teacherName}. Here is an overview of your responsibilities.</CardDescription>
         </CardHeader>
       </Card>
+      
+      {primaryClass && (
+        <Card>
+          <CardHeader>
+             <CardTitle className="text-lg">Class Teacher for {primaryClass.name} - {primaryClass.section}</CardTitle>
+             <CardDescription>You are the primary contact and attendance marker for these {classStudents.length} students.</CardDescription>
+          </CardHeader>
+          <CardContent>
+             {classStudents.length > 0 ? (
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Student Name</TableHead>
+                            <TableHead>Admission ID</TableHead>
+                            <TableHead>This Month's Attendance</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {classStudents.map(student => (
+                            <TableRow key={student._id}>
+                                <TableCell className="font-medium">{student.name}</TableCell>
+                                <TableCell>{student.admissionId || 'N/A'}</TableCell>
+                                <TableCell>{student.overallAttendance !== undefined ? `${student.overallAttendance}%` : 'N/A'}</TableCell>
+                                <TableCell className="text-right">
+                                    <Button asChild variant="outline" size="sm">
+                                        <Link href={`/dashboard/admin/reports/generate-cbse-state?admissionId=${student.admissionId}&academicYear=${student.academicYear}`}>
+                                            <BarChart2 className="mr-2 h-4 w-4"/> View Report
+                                        </Link>
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+             ) : (
+                <p className="text-muted-foreground">No students currently enrolled in this class.</p>
+             )}
+          </CardContent>
+        </Card>
+      )}
+
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-         {primaryClass && (
-            <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <CheckSquare className="h-10 w-10 text-primary mb-2" />
-                        <span className="text-sm font-bold bg-green-100 text-green-800 px-2 py-1 rounded-full">Primary Class</span>
-                    </div>
-                    <CardTitle>Attendance Duty</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <CardDescription>You are the class teacher for <span className="font-semibold">{primaryClass.name} - {primaryClass.section}</span>. You can mark monthly attendance for these {primaryClass.studentCount || 0} students.</CardDescription>
-                    <Button asChild className="mt-4">
-                      <Link href="/dashboard/teacher/attendance">Mark Attendance</Link>
-                    </Button>
-                </CardContent>
-            </Card>
-         )}
+         <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <CheckSquare className="h-10 w-10 text-primary mb-2" />
+                    {primaryClass && <span className="text-sm font-bold bg-green-100 text-green-800 px-2 py-1 rounded-full">Primary Class Duty</span>}
+                </div>
+                <CardTitle>Attendance</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <CardDescription>You can mark monthly attendance for your primary assigned class, if any.</CardDescription>
+                <Button asChild className="mt-4" disabled={!primaryClass}>
+                  <Link href="/dashboard/teacher/attendance">Mark Attendance</Link>
+                </Button>
+            </CardContent>
+        </Card>
+
 
          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>

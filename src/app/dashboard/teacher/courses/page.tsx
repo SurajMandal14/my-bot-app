@@ -10,7 +10,7 @@ import { BookOpen, PlusCircle, Trash2, Loader2, Info, FileUp } from "lucide-reac
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { getSubjectsForTeacher, type SubjectForTeacher } from "@/app/actions/marks";
 import { createCourseMaterial, getCourseMaterialsForClass, deleteCourseMaterial } from "@/app/actions/courses";
@@ -19,6 +19,8 @@ import { courseMaterialSchema } from "@/types/course";
 import type { AuthUser } from "@/types/user";
 import { useEffect, useState, useCallback } from "react";
 import { format } from 'date-fns';
+import { getAcademicYears } from "@/app/actions/academicYears";
+import type { AcademicYear } from "@/types/academicYear";
 
 type CourseMaterialFormClient = Omit<CourseMaterialFormData, 'schoolId' | 'classId' | 'subjectName'>;
 
@@ -30,6 +32,8 @@ export default function TeacherCoursesPage() {
   const [assignedSubjects, setAssignedSubjects] = useState<SubjectForTeacher[]>([]);
   const [materials, setMaterials] = useState<CourseMaterial[]>([]);
   const [materialToDelete, setMaterialToDelete] = useState<CourseMaterial | null>(null);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
 
   const [isLoadingSubjects, setIsLoadingSubjects] = useState(true);
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(false);
@@ -55,19 +59,30 @@ export default function TeacherCoursesPage() {
     }
   }, []);
 
-  const fetchInitialData = useCallback(async () => {
-    if (!authUser?.schoolId || !authUser?._id) return;
-    setIsLoadingSubjects(true);
-    const subjectsResult = await getSubjectsForTeacher(authUser._id, authUser.schoolId);
-    setAssignedSubjects(subjectsResult);
-    setIsLoadingSubjects(false);
-  }, [authUser]);
-
-  useEffect(() => {
-    if (authUser?.schoolId) {
-      fetchInitialData();
+  const fetchAcademicYearsData = useCallback(async () => {
+    const result = await getAcademicYears();
+    if(result.success && result.academicYears) {
+      setAcademicYears(result.academicYears);
+      const defaultYear = result.academicYears.find(y => y.isDefault) || result.academicYears[0];
+      if (defaultYear) {
+        setSelectedAcademicYear(defaultYear.year);
+      }
     }
-  }, [authUser, fetchInitialData]);
+  }, []);
+
+  const fetchSubjectsForYear = useCallback(async () => {
+    if (!authUser?.schoolId || !authUser?._id || !selectedAcademicYear) return;
+    setIsLoadingSubjects(true);
+    const subjectsResult = await getSubjectsForTeacher(authUser._id, authUser.schoolId, selectedAcademicYear);
+    setAssignedSubjects(subjectsResult);
+    if(subjectsResult.length === 0) setSelectedSubjectInfo(null);
+    setIsLoadingSubjects(false);
+  }, [authUser, selectedAcademicYear]);
+
+
+  useEffect(() => { fetchAcademicYearsData(); }, [fetchAcademicYearsData]);
+  useEffect(() => { fetchSubjectsForYear(); }, [fetchSubjectsForYear]);
+
 
   const fetchMaterialsForClass = useCallback(async (classId: string) => {
     if (!classId || !authUser?.schoolId) {
@@ -203,9 +218,16 @@ export default function TeacherCoursesPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <FormItem>
+                    <FormLabel>Academic Year</FormLabel>
+                    <Select onValueChange={setSelectedAcademicYear} value={selectedAcademicYear} disabled={academicYears.length === 0}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select year"/></SelectTrigger></FormControl>
+                        <SelectContent>{academicYears.map(y => <SelectItem key={y._id} value={y.year}>{y.year}</SelectItem>)}</SelectContent>
+                    </Select>
+                 </FormItem>
+                 <FormItem>
                     <FormLabel>Select Subject (and Class)</FormLabel>
                     <Select onValueChange={handleSubjectSelection} value={selectedSubjectInfo?.value || ""} disabled={isLoadingSubjects || assignedSubjects.length === 0}>
-                      <FormControl><SelectTrigger><SelectValue placeholder={isLoadingSubjects ? "Loading subjects..." : "Select a subject"} /></SelectTrigger></FormControl>
+                      <FormControl><SelectTrigger><SelectValue placeholder={isLoadingSubjects ? "Loading subjects..." : (assignedSubjects.length === 0 ? `No subjects for ${selectedAcademicYear}` : "Select a subject")} /></SelectTrigger></FormControl>
                       <SelectContent>{assignedSubjects.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
                     </Select>
                   </FormItem>
