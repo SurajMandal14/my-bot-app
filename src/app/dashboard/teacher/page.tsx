@@ -111,7 +111,7 @@ export default function TeacherDashboardPage() {
     
     setReportData({
       attendance: attendanceRes.success ? attendanceRes.records || [] : [],
-      marks: marksRes.success ? marks.marks || [] : []
+      marks: marksRes.success ? marksRes.marks || [] : []
     });
     
     setIsReportLoading(false);
