@@ -38,6 +38,19 @@ export default function MasterAdminDashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-4">
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
+            <UserSearch className="h-10 w-10 text-primary mb-2" />
+            <CardTitle>Student Report</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CardDescription>Search for a student to view their complete academic report.</CardDescription>
+            <Button asChild className="mt-4" variant="outline">
+              <Link href="/dashboard/reports/student">View Student Report</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
             <Users className="h-10 w-10 text-primary mb-2" />
             <CardTitle>School Admin Management</CardTitle>
           </CardHeader>
@@ -126,19 +139,6 @@ export default function MasterAdminDashboardPage() {
             </Button>
           </CardContent>
         </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <UserSearch className="h-10 w-10 text-primary mb-2" />
-            <CardTitle>Student Report</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CardDescription>Search for a student to view their complete academic report.</CardDescription>
-            <Button asChild className="mt-4" variant="outline">
-              <Link href="/dashboard/reports/student">View Student Report</Link>
-            </Button>
-          </CardContent>
-        </Card>
         
         <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
@@ -156,5 +156,3 @@ export default function MasterAdminDashboardPage() {
     </div>
   );
 }
-
-    
