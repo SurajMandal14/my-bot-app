@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { CheckSquare, BookOpen, MessageSquare, CalendarDays, User, Loader2, Info, ChevronRight, FileUp, Users, BarChart2, NotebookText } from "lucide-react";
+import { CheckSquare, BookOpen, MessageSquare, CalendarDays, User, Loader2, Info, ChevronRight, FileUp, Users, BarChart2, NotebookText, Contact, BookUser, Home, Users as UsersIcon, Calendar, Heart, ShieldHalf, School } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import type { AuthUser, User as AppUser } from "@/types/user";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface StudentWithAttendance extends AppUser {
     overallAttendance?: number;
 }
+
+const DetailItem = ({ label, value, icon: Icon }: { label: string; value?: string | null; icon: React.ElementType }) => {
+    if (!value) return null;
+    return (
+        <div className="flex items-start">
+            <Icon className="h-4 w-4 text-muted-foreground mr-2 mt-1 flex-shrink-0" />
+            <div>
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="text-sm font-medium">{value}</p>
+            </div>
+        </div>
+    );
+};
 
 
 export default function TeacherDashboardPage() {
@@ -188,13 +201,45 @@ export default function TeacherDashboardPage() {
                                             </DialogDescription>
                                           </DialogHeader>
                                           <ScrollArea className="max-h-[70vh]">
-                                            <div className="p-4 space-y-4">
+                                            <div className="p-4 space-y-6">
                                             {isReportLoading ? (
                                               <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
                                             ) : (
                                               <>
+                                                {/* Full Student Details Section */}
+                                                <div className="space-y-4">
+                                                    <h3 className="font-semibold text-base mb-2 border-b pb-2">Student Information</h3>
+                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-2">
+                                                        <DetailItem label="Date of Birth" value={studentForReport.dob ? format(new Date(studentForReport.dob), 'PP') : null} icon={Calendar} />
+                                                        <DetailItem label="Gender" value={studentForReport.gender} icon={UsersIcon} />
+                                                        <DetailItem label="Blood Group" value={studentForReport.bloodGroup} icon={Heart} />
+                                                        <DetailItem label="Religion" value={studentForReport.religion} icon={ShieldHalf} />
+                                                        <DetailItem label="Caste" value={studentForReport.caste} icon={ShieldHalf} />
+                                                        <DetailItem label="Aadhar No." value={studentForReport.aadharNo} icon={Contact} />
+                                                        <DetailItem label="Date of Joining" value={studentForReport.dateOfJoining ? format(new Date(studentForReport.dateOfJoining), 'PP') : null} icon={Calendar} />
+                                                    </div>
+                                                    <h3 className="font-semibold text-base mb-2 border-b pb-2 pt-4">Parent Information</h3>
+                                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-2">
+                                                        <DetailItem label="Father's Name" value={studentForReport.fatherName} icon={User} />
+                                                        <DetailItem label="Mother's Name" value={studentForReport.motherName} icon={User} />
+                                                        <DetailItem label="Father's Mobile" value={studentForReport.fatherMobile} icon={Contact} />
+                                                        <DetailItem label="Mother's Mobile" value={studentForReport.motherMobile} icon={Contact} />
+                                                    </div>
+                                                    <h3 className="font-semibold text-base mb-2 border-b pb-2 pt-4">Address</h3>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div className="space-y-1">
+                                                            <p className="text-sm font-medium text-muted-foreground">Present Address</p>
+                                                            <p className="text-sm">{Object.values(studentForReport.presentAddress || {}).filter(Boolean).join(', ')}</p>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p className="text-sm font-medium text-muted-foreground">Permanent Address</p>
+                                                            <p className="text-sm">{Object.values(studentForReport.permanentAddress || {}).filter(Boolean).join(', ')}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
                                                 <div>
-                                                  <h3 className="font-semibold mb-2">Monthly Attendance</h3>
+                                                  <h3 className="font-semibold mb-2  border-b pb-2 pt-4">Monthly Attendance</h3>
                                                   {reportData?.attendance.length ? (
                                                     <Table><TableHeader><TableRow><TableHead>Month</TableHead><TableHead>Days Present</TableHead><TableHead>Total Days</TableHead></TableRow></TableHeader>
                                                       <TableBody>{reportData.attendance.map(att => <TableRow key={att._id.toString()}><TableCell>{format(new Date(att.year, att.month), 'MMMM yyyy')}</TableCell><TableCell>{att.daysPresent}</TableCell><TableCell>{att.totalWorkingDays}</TableCell></TableRow>)}</TableBody>
@@ -202,7 +247,7 @@ export default function TeacherDashboardPage() {
                                                   ) : <p className="text-sm text-muted-foreground">No attendance data found.</p>}
                                                 </div>
                                                 <div>
-                                                  <h3 className="font-semibold mb-2">Assessment Marks</h3>
+                                                  <h3 className="font-semibold mb-2 border-b pb-2 pt-4">Assessment Marks</h3>
                                                   {reportData?.marks.length ? (
                                                     <Table><TableHeader><TableRow><TableHead>Subject</TableHead><TableHead>Assessment</TableHead><TableHead>Marks</TableHead></TableRow></TableHeader>
                                                       <TableBody>{reportData.marks.map(mark => <TableRow key={mark._id?.toString()}><TableCell>{mark.subjectName}</TableCell><TableCell>{mark.assessmentName}</TableCell><TableCell>{mark.marksObtained} / {mark.maxMarks}</TableCell></TableRow>)}</TableBody>
