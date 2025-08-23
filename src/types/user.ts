@@ -28,6 +28,7 @@ export interface User {
   admissionId?: string; 
   avatarUrl?: string;
   phone?: string;
+  designation?: string; // Added designation
   busRouteLocation?: string; 
   busClassCategory?: string; 
   subjectsTaught?: string[]; 
@@ -86,6 +87,8 @@ export const schoolAdminFormSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }).optional().or(z.literal('')), 
   schoolId: z.string().min(1, { message: "School selection is required." }),
+  designation: z.string().optional(),
+  phone: z.string().optional(),
 });
 export type SchoolAdminFormData = z.infer<typeof schoolAdminFormSchema>;
 

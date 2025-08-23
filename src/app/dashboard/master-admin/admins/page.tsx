@@ -49,9 +49,9 @@ export default function MasterAdminManageAdminsPage() {
   const [adminToDelete, setAdminToDelete] = useState<SchoolAdmin | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const form = useForm<Omit<SchoolAdminFormData, 'schoolId'>>({
-    resolver: zodResolver(schoolAdminFormSchema.omit({ schoolId: true })),
-    defaultValues: { name: "", email: "", password: "" },
+  const form = useForm<SchoolAdminFormData>({
+    resolver: zodResolver(schoolAdminFormSchema),
+    defaultValues: { name: "", email: "", password: "", schoolId: "", designation: "", phone: "" },
   });
 
   useEffect(() => {
@@ -93,8 +93,9 @@ export default function MasterAdminManageAdminsPage() {
   useEffect(() => { 
     if (authUser) {
       fetchAdminsForSchool(); 
+      form.setValue('schoolId', authUser.schoolId || "");
     }
-  }, [authUser, fetchAdminsForSchool]);
+  }, [authUser, fetchAdminsForSchool, form]);
 
   useEffect(() => {
     if (editingAdmin) {
@@ -102,24 +103,25 @@ export default function MasterAdminManageAdminsPage() {
         name: editingAdmin.name || "",
         email: editingAdmin.email || "",
         password: "",
+        schoolId: authUser?.schoolId || "",
+        designation: editingAdmin.designation || "",
+        phone: editingAdmin.phone || ""
       });
     } else {
-      form.reset({ name: "", email: "", password: "" });
+      form.reset({ name: "", email: "", password: "", schoolId: authUser?.schoolId || "", designation: "", phone: "" });
     }
-  }, [editingAdmin, form]);
+  }, [editingAdmin, form, authUser]);
 
-  async function onSubmit(values: Omit<SchoolAdminFormData, 'schoolId'>) {
+  async function onSubmit(values: SchoolAdminFormData) {
     if (!authUser?.schoolId) {
         toast({ variant: "destructive", title: "Error", description: "Master admin is not assigned to a school." });
         return;
     }
     setIsSubmitting(true);
     
-    const payload: SchoolAdminFormData = { ...values, schoolId: authUser.schoolId.toString() };
-
     const result = editingAdmin && editingAdmin._id
-      ? await updateSchoolAdmin(editingAdmin._id.toString(), payload)
-      : await createSchoolAdmin(payload);
+      ? await updateSchoolAdmin(editingAdmin._id.toString(), values)
+      : await createSchoolAdmin(values);
     
     setIsSubmitting(false);
 
@@ -164,7 +166,7 @@ export default function MasterAdminManageAdminsPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <FormField control={form.control} name="name" render={({ field }) => (
                   <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., Jane Doe" {...field} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>
                 )}/>
@@ -176,6 +178,12 @@ export default function MasterAdminManageAdminsPage() {
                     {editingAdmin && <FormDescription className="text-xs">Leave blank to keep current password.</FormDescription>}
                     <FormMessage />
                   </FormItem>
+                )}/>
+                <FormField control={form.control} name="designation" render={({ field }) => (
+                  <FormItem><FormLabel>Designation</FormLabel><FormControl><Input placeholder="e.g., Office Manager" {...field} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>
+                )}/>
+                <FormField control={form.control} name="phone" render={({ field }) => (
+                  <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input placeholder="e.g., 9876543210" {...field} disabled={isSubmitting} /></FormControl><FormMessage /></FormItem>
                 )}/>
               </div>
               <div className="flex gap-2 items-center">
@@ -196,12 +204,14 @@ export default function MasterAdminManageAdminsPage() {
           {isLoading ? (<div className="flex items-center justify-center py-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading administrators...</p></div>)
           : admins.length > 0 ? (
           <Table>
-            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Date Created</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Designation</TableHead><TableHead>Phone</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
             <TableBody>
               {admins.map((admin) => (
                 <TableRow key={admin._id?.toString()}>
-                  <TableCell>{admin.name}</TableCell><TableCell>{admin.email}</TableCell>
-                  <TableCell>{admin.createdAt ? format(new Date(admin.createdAt as string), "PP") : 'N/A'}</TableCell>
+                  <TableCell>{admin.name}</TableCell>
+                  <TableCell>{admin.email}</TableCell>
+                  <TableCell>{admin.designation || 'N/A'}</TableCell>
+                  <TableCell>{admin.phone || 'N/A'}</TableCell>
                   <TableCell className="space-x-1">
                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setEditingAdmin(admin)} disabled={isSubmitting || isDeleting}><Edit3 className="h-4 w-4" /></Button>
                     <AlertDialog open={adminToDelete?._id === admin._id} onOpenChange={(open) => !open && setAdminToDelete(null)}>

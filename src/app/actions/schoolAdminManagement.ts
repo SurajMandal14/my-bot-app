@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -29,7 +30,7 @@ export async function createSchoolAdmin(values: SchoolAdminFormData): Promise<Cr
       return { success: false, message: 'Validation failed', error: errors || 'Invalid fields!' };
     }
 
-    const { name, email, password, schoolId } = validatedFields.data;
+    const { name, email, password, schoolId, designation, phone } = validatedFields.data;
 
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<Omit<User, '_id'>>('users');
@@ -59,6 +60,8 @@ export async function createSchoolAdmin(values: SchoolAdminFormData): Promise<Cr
       password: hashedPassword,
       role: 'admin',
       schoolId: newUserObjectIdForSchool,
+      designation,
+      phone,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -109,7 +112,7 @@ export async function updateSchoolAdmin(userId: string, values: SchoolAdminFormD
       return { success: false, message: 'Validation failed', error: errors || 'Invalid fields!' };
     }
 
-    const { name, email, password, schoolId } = validatedFields.data;
+    const { name, email, password, schoolId, designation, phone } = validatedFields.data;
 
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<User>('users');
@@ -134,6 +137,8 @@ export async function updateSchoolAdmin(userId: string, values: SchoolAdminFormD
       name,
       email,
       schoolId: new ObjectId(schoolId),
+      designation,
+      phone,
       updatedAt: new Date(),
     };
 
@@ -222,7 +227,9 @@ export async function getSchoolAdmins(schoolId: string): Promise<GetSchoolAdmins
           email: 1,
           role: 1,
           schoolId: 1, 
-          schoolName: '$schoolInfo.schoolName', 
+          schoolName: '$schoolInfo.schoolName',
+          designation: 1,
+          phone: 1,
           createdAt: 1,
           updatedAt: 1,
         }
