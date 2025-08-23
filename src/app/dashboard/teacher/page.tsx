@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { format } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 
 interface StudentWithAttendance extends AppUser {
     overallAttendance?: number;
@@ -185,14 +186,28 @@ export default function TeacherDashboardPage() {
   
   const groupedMarks = useMemo(() => {
     if (!reportData?.marks) return {};
-    return reportData.marks.reduce((acc, mark) => {
-      const subject = mark.subjectName;
-      if (!acc[subject]) {
-        acc[subject] = [];
+    // First, group by main assessment type (FA1, FA2, SA1, etc.)
+    const groupedByAssessment = reportData.marks.reduce((acc, mark) => {
+      const assessmentBase = mark.assessmentName.split('-')[0];
+      if (!acc[assessmentBase]) {
+        acc[assessmentBase] = [];
       }
-      acc[subject].push(mark);
+      acc[assessmentBase].push(mark);
       return acc;
     }, {} as Record<string, MarkEntry[]>);
+
+    // Then, group those by subject
+    const finalGroup: Record<string, Record<string, MarkEntry[]>> = {};
+    for(const assessment in groupedByAssessment) {
+        finalGroup[assessment] = groupedByAssessment[assessment].reduce((acc, mark) => {
+            if(!acc[mark.subjectName]) {
+                acc[mark.subjectName] = [];
+            }
+            acc[mark.subjectName].push(mark);
+            return acc;
+        }, {} as Record<string, MarkEntry[]>);
+    }
+    return finalGroup;
   }, [reportData]);
 
 
@@ -256,9 +271,9 @@ export default function TeacherDashboardPage() {
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right space-x-1">
-                                    <Button variant="outline" size="sm" onClick={() => handleOpenReport(student, 'info')}>Info</Button>
-                                    <Button variant="outline" size="sm" onClick={() => handleOpenReport(student, 'attendance')}>Attendance</Button>
-                                    <Button variant="outline" size="sm" onClick={() => handleOpenReport(student, 'marks')}>Marks</Button>
+                                  <Button variant="outline" size="sm" onClick={() => handleOpenReport(student, 'info')}>Info</Button>
+                                  <Button variant="outline" size="sm" onClick={() => handleOpenReport(student, 'attendance')}>Attendance</Button>
+                                  <Button variant="outline" size="sm" onClick={() => handleOpenReport(student, 'marks')}>Marks</Button>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -292,10 +307,8 @@ export default function TeacherDashboardPage() {
                 <>
                 {reportType === 'info' && studentForReport && (
                     <div className="details-section space-y-4">
+                        <h3 className="font-semibold text-base mb-2 border-b pb-1">Student Information: {studentForReport.name} ({primaryClass?.name} - {primaryClass?.section}, Adm. No: {studentForReport.admissionId})</h3>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 border rounded-md">
-                            <DetailItem label="Student Name" value={studentForReport.name} />
-                            <DetailItem label="Admission No." value={studentForReport.admissionId} />
-                            <DetailItem label="Class" value={`${primaryClass?.name} - ${primaryClass?.section}`} />
                             <DetailItem label="Date of Birth" value={studentForReport.dob ? format(new Date(studentForReport.dob), 'PP') : null} />
                             <DetailItem label="Gender" value={studentForReport.gender} />
                             <DetailItem label="Blood Group" value={studentForReport.bloodGroup} />
@@ -326,19 +339,31 @@ export default function TeacherDashboardPage() {
                     </div>
                 )}
                 {reportType === 'marks' && (
-                    <div className="space-y-4">
-                        {Object.keys(groupedMarks).length > 0 ? (
-                            Object.entries(groupedMarks).map(([subject, marks]) => (
-                            <div key={subject}>
-                                <h4 className="font-semibold text-base mb-2 border-b pb-1">{subject}</h4>
-                                <Table>
-                                    <TableHeader><TableRow><TableHead>Assessment Detail</TableHead><TableHead className="text-right">Marks Obtained</TableHead><TableHead className="text-right">Max Marks</TableHead></TableRow></TableHeader>
-                                    <TableBody>{marks.map(mark => <TableRow key={mark._id?.toString()}><TableCell>{mark.assessmentName}</TableCell><TableCell className="text-right">{mark.marksObtained}</TableCell><TableCell className="text-right">{mark.maxMarks}</TableCell></TableRow>)}</TableBody>
-                                </Table>
+                  <div className="space-y-4">
+                    {Object.keys(groupedMarks).length > 0 ? (
+                      Object.entries(groupedMarks).map(([assessment, subjectMarks]) => (
+                        <div key={assessment}>
+                          <h3 className="font-semibold text-lg mb-2 border-b pb-1">{assessment}</h3>
+                          {Object.entries(subjectMarks).map(([subject, marks]) => (
+                            <div key={subject} className="mb-3">
+                              <h4 className="font-medium text-base mb-1">{subject}</h4>
+                              <Table>
+                                <TableHeader><TableRow><TableHead>Assessment Detail</TableHead><TableHead className="text-right">Marks</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                  {marks.map(mark => (
+                                    <TableRow key={mark._id?.toString()}>
+                                      <TableCell>{mark.assessmentName.replace(`${assessment}-`, '')}</TableCell>
+                                      <TableCell className="text-right">{mark.marksObtained} / {mark.maxMarks}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
                             </div>
-                            ))
-                        ) : <p className="text-sm text-muted-foreground">No marks found for this student.</p>}
-                    </div>
+                          ))}
+                        </div>
+                      ))
+                    ) : <p className="text-sm text-muted-foreground">No marks found for this student.</p>}
+                  </div>
                 )}
                 </>
                 )}
