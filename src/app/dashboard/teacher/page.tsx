@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { CheckSquare, BookOpen, MessageSquare, CalendarDays, User, Loader2, Info, ChevronRight, FileUp, Users, BarChart2 } from "lucide-react";
+import { CheckSquare, BookOpen, MessageSquare, CalendarDays, User, Loader2, Info, ChevronRight, FileUp, Users, BarChart2, NotebookText } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import type { AuthUser, User as AppUser } from "@/types/user";
 import { useToast } from "@/hooks/use-toast";
@@ -12,8 +12,15 @@ import { getSubjectsForTeacher, type SubjectForTeacher } from "@/app/actions/mar
 import { getClassDetailsById } from "@/app/actions/classes";
 import type { SchoolClass } from "@/types/classes";
 import { getStudentsByClass } from "@/app/actions/schoolUsers";
-import { getMonthlyAttendanceForClass } from "@/app/actions/attendance";
+import { getStudentMonthlyAttendance } from "@/app/actions/attendance";
+import { getStudentMarksForReportCard } from "@/app/actions/marks";
+import type { MarkEntry } from "@/types/marks";
+import type { MonthlyAttendanceRecord } from "@/types/attendance";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { format } from "date-fns";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 interface StudentWithAttendance extends AppUser {
     overallAttendance?: number;
@@ -27,6 +34,11 @@ export default function TeacherDashboardPage() {
   const [primaryClass, setPrimaryClass] = useState<SchoolClass | null>(null);
   const [classStudents, setClassStudents] = useState<StudentWithAttendance[]>([]);
   const { toast } = useToast();
+  
+  const [studentForReport, setStudentForReport] = useState<AppUser | null>(null);
+  const [reportData, setReportData] = useState<{ attendance: MonthlyAttendanceRecord[], marks: MarkEntry[] } | null>(null);
+  const [isReportLoading, setIsReportLoading] = useState(false);
+
 
   useEffect(() => {
     setIsLoading(true);
@@ -67,20 +79,7 @@ export default function TeacherDashboardPage() {
 
               if (studentsResult.success && studentsResult.users) {
                   const students = studentsResult.users;
-                  
-                  const attendancePromises = students.map(async (student) => {
-                      const attendanceRes = await getMonthlyAttendanceForClass(authUser.schoolId!, authUser.classId!, new Date().getMonth(), new Date().getFullYear());
-                      if(attendanceRes.success && attendanceRes.records) {
-                        const studentRecord = attendanceRes.records.find(r => r.studentId === student._id);
-                        if(studentRecord && studentRecord.totalWorkingDays > 0) {
-                            return { ...student, overallAttendance: Math.round((studentRecord.daysPresent / studentRecord.totalWorkingDays) * 100) };
-                        }
-                      }
-                      return { ...student, overallAttendance: undefined };
-                  });
-                  
-                  const studentsWithAttendance = await Promise.all(attendancePromises);
-                  setClassStudents(studentsWithAttendance);
+                  setClassStudents(students);
               }
           } else {
               toast({variant: "warning", title: "Primary Class", description: "Could not load details for your primary assigned class."})
@@ -96,6 +95,27 @@ export default function TeacherDashboardPage() {
         setIsLoading(false);
     }
   }, [authUser, fetchTeacherData]);
+  
+  const handleViewReportClick = async (student: AppUser) => {
+    if(!student._id || !student.schoolId || !student.academicYear) {
+      toast({variant: "destructive", title: "Error", description: "Student data is incomplete."});
+      return;
+    }
+    setStudentForReport(student);
+    setIsReportLoading(true);
+    
+    const [attendanceRes, marksRes] = await Promise.all([
+      getStudentMonthlyAttendance(student._id.toString()),
+      getStudentMarksForReportCard(student._id.toString(), student.schoolId.toString(), student.academicYear)
+    ]);
+    
+    setReportData({
+      attendance: attendanceRes.success ? attendanceRes.records || [] : [],
+      marks: marksRes.success ? marks.marks || [] : []
+    });
+    
+    setIsReportLoading(false);
+  };
 
 
   if (isLoading) {
@@ -144,7 +164,6 @@ export default function TeacherDashboardPage() {
                         <TableRow>
                             <TableHead>Student Name</TableHead>
                             <TableHead>Admission ID</TableHead>
-                            <TableHead>This Month's Attendance</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -153,13 +172,53 @@ export default function TeacherDashboardPage() {
                             <TableRow key={student._id}>
                                 <TableCell className="font-medium">{student.name}</TableCell>
                                 <TableCell>{student.admissionId || 'N/A'}</TableCell>
-                                <TableCell>{student.overallAttendance !== undefined ? `${student.overallAttendance}%` : 'N/A'}</TableCell>
                                 <TableCell className="text-right">
-                                    <Button asChild variant="outline" size="sm">
-                                        <Link href={`/dashboard/teacher/reports/generate-cbse-state?admissionId=${student.admissionId}&academicYear=${student.academicYear}`}>
-                                            <BarChart2 className="mr-2 h-4 w-4"/> View Report
-                                        </Link>
-                                    </Button>
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm" onClick={() => handleViewReportClick(student)}>
+                                          <NotebookText className="mr-2 h-4 w-4"/> View Report
+                                        </Button>
+                                      </DialogTrigger>
+                                      {studentForReport?._id === student._id && (
+                                        <DialogContent className="max-w-4xl">
+                                          <DialogHeader>
+                                            <DialogTitle>Student Summary: {studentForReport.name}</DialogTitle>
+                                            <DialogDescription>
+                                              Class: {primaryClass.name} - {primaryClass.section} | Adm. No: {studentForReport.admissionId}
+                                            </DialogDescription>
+                                          </DialogHeader>
+                                          <ScrollArea className="max-h-[70vh]">
+                                            <div className="p-4 space-y-4">
+                                            {isReportLoading ? (
+                                              <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
+                                            ) : (
+                                              <>
+                                                <div>
+                                                  <h3 className="font-semibold mb-2">Monthly Attendance</h3>
+                                                  {reportData?.attendance.length ? (
+                                                    <Table><TableHeader><TableRow><TableHead>Month</TableHead><TableHead>Days Present</TableHead><TableHead>Total Days</TableHead></TableRow></TableHeader>
+                                                      <TableBody>{reportData.attendance.map(att => <TableRow key={att._id.toString()}><TableCell>{format(new Date(att.year, att.month), 'MMMM yyyy')}</TableCell><TableCell>{att.daysPresent}</TableCell><TableCell>{att.totalWorkingDays}</TableCell></TableRow>)}</TableBody>
+                                                    </Table>
+                                                  ) : <p className="text-sm text-muted-foreground">No attendance data found.</p>}
+                                                </div>
+                                                <div>
+                                                  <h3 className="font-semibold mb-2">Assessment Marks</h3>
+                                                  {reportData?.marks.length ? (
+                                                    <Table><TableHeader><TableRow><TableHead>Subject</TableHead><TableHead>Assessment</TableHead><TableHead>Marks</TableHead></TableRow></TableHeader>
+                                                      <TableBody>{reportData.marks.map(mark => <TableRow key={mark._id?.toString()}><TableCell>{mark.subjectName}</TableCell><TableCell>{mark.assessmentName}</TableCell><TableCell>{mark.marksObtained} / {mark.maxMarks}</TableCell></TableRow>)}</TableBody>
+                                                    </Table>
+                                                  ) : <p className="text-sm text-muted-foreground">No marks found for this student.</p>}
+                                                </div>
+                                              </>
+                                            )}
+                                            </div>
+                                          </ScrollArea>
+                                          <DialogFooter>
+                                            <Button variant="outline" onClick={() => setStudentForReport(null)}>Close</Button>
+                                          </DialogFooter>
+                                        </DialogContent>
+                                      )}
+                                    </Dialog>
                                 </TableCell>
                             </TableRow>
                         ))}

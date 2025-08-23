@@ -1,791 +1,310 @@
-
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
-import CBSEStateFront, { 
-    type StudentData as FrontStudentData, 
-    type SubjectFAData as FrontSubjectFAData, 
-    type MarksEntry as FrontMarksEntryTypeImport, 
-} from '@/components/report-cards/CBSEStateFront';
-import CBSEStateBack, { 
-    type ReportCardSASubjectEntry, 
-    type ReportCardAttendanceMonth, 
-    type SAPaperData
-} from '@/components/report-cards/CBSEStateBack';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { CheckSquare, BookOpen, MessageSquare, CalendarDays, User, Loader2, Info, ChevronRight, FileUp, Users, BarChart2, NotebookText } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import type { AuthUser, User as AppUser } from "@/types/user";
+import { useToast } from "@/hooks/use-toast";
+import { getSubjectsForTeacher, type SubjectForTeacher } from "@/app/actions/marks";
+import { getClassDetailsById } from "@/app/actions/classes";
+import type { SchoolClass } from "@/types/classes";
+import { getStudentsByClass } from "@/app/actions/schoolUsers";
+import { getStudentMonthlyAttendance } from "@/app/actions/attendance";
+import { getStudentMarksForReportCard } from "@/app/actions/marks";
+import type { MarkEntry } from "@/types/marks";
+import type { MonthlyAttendanceRecord } from "@/types/attendance";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { format } from "date-fns";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Printer, RotateCcw, Eye, EyeOff, Save, Loader2, User, School as SchoolIconUI, Search as SearchIcon, AlertTriangle, UploadCloud, XOctagon } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { useToast } from '@/hooks/use-toast';
-import type { AuthUser, UserRole } from '@/types/user';
-import { saveReportCard, getStudentReportCard, setReportCardPublicationStatus } from '@/app/actions/reports';
-import type { ReportCardData, FormativeAssessmentEntryForStorage } from '@/types/report';
-import { Input } from '@/components/ui/input'; 
-import { Label } from '@/components/ui/label'; 
-import { getStudentDetailsForReportCard, type StudentDetailsForReportCard } from '@/app/actions/schoolUsers';
-import { getClassDetailsById } from '@/app/actions/classes';
-import type { SchoolClassSubject } from '@/types/classes';
-import type { School } from '@/types/school';
-import { getStudentMarksForReportCard } from '@/app/actions/marks'; 
-import type { MarkEntry as MarkEntryType } from '@/types/marks'; 
-import { getAcademicYears } from '@/app/actions/academicYears';
-import type { AcademicYear } from '@/types/academicYear';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { getSchoolById } from '@/app/actions/schools';
-import { useSearchParams } from 'next/navigation';
-
-type FrontMarksEntry = FrontMarksEntryTypeImport;
-type FaToolKey = keyof FrontMarksEntry;
-
-const getDefaultSaPaperData = (): SAPaperData => ({
-    as1: { marks: null, maxMarks: 20 },
-    as2: { marks: null, maxMarks: 20 },
-    as3: { marks: null, maxMarks: 20 },
-    as4: { marks: null, maxMarks: 20 },
-    as5: { marks: null, maxMarks: 20 },
-    as6: { marks: null, maxMarks: 20 },
-});
-
-const getDefaultFaMarksEntryFront = (): FrontMarksEntry => ({ tool1: null, tool2: null, tool3: null, tool4: null });
-const getDefaultSubjectFaDataFront = (subjects: SchoolClassSubject[]): Record<string, FrontSubjectFAData> => {
-    const initialFaMarks: Record<string, FrontSubjectFAData> = {};
-    (subjects || []).forEach(subject => {
-        initialFaMarks[subject.name] = {
-            fa1: getDefaultFaMarksEntryFront(),
-            fa2: getDefaultFaMarksEntryFront(),
-            fa3: getDefaultFaMarksEntryFront(),
-            fa4: getDefaultFaMarksEntryFront(),
-        };
-    });
-    return initialFaMarks;
-};
-
-const defaultCoMarksFront: any[] = []; 
-
-const defaultStudentDataFront: FrontStudentData = {
-  udiseCodeSchoolName: '', studentName: '', fatherName: '', motherName: '',
-  class: '', section: '', studentIdNo: '', rollNo: '', medium: 'English',
-  dob: '', admissionNo: '', examNo: '', aadharNo: '',
-};
-
-const defaultAttendanceDataBack: ReportCardAttendanceMonth[] = Array(11).fill(null).map(() => ({ workingDays: null, presentDays: null }));
-
-const calculateFaTotal200MForRow = (subjectNameForBack: string, paperNameForBack: string, currentFaMarks: Record<string, FrontSubjectFAData>): number | null => {
-  const faSubjectKey = (subjectNameForBack === "Science") ? "Science" : subjectNameForBack;
-  const subjectFaData = currentFaMarks[faSubjectKey];
-
-  if (!subjectFaData) return null;
-
-  let overallTotal = 0;
-  (['fa1', 'fa2', 'fa3', 'fa4'] as const).forEach(faPeriodKey => {
-    const periodMarks = subjectFaData[faPeriodKey];
-    if (periodMarks) {
-      overallTotal += (periodMarks.tool1 || 0) + (periodMarks.tool2 || 0) + (periodMarks.tool3 || 0) + (periodMarks.tool4 || 0);
-    }
-  });
-  
-  return overallTotal > 200 ? 200 : overallTotal; 
-};
+interface StudentWithAttendance extends AppUser {
+    overallAttendance?: number;
+}
 
 
-export default function TeacherGenerateReportPage() {
-  const { toast } = useToast();
-  const searchParams = useSearchParams();
+export default function TeacherDashboardPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [assignedSubjects, setAssignedSubjects] = useState<SubjectForTeacher[]>([]);
+  const [primaryClass, setPrimaryClass] = useState<SchoolClass | null>(null);
+  const [classStudents, setClassStudents] = useState<StudentWithAttendance[]>([]);
+  const { toast } = useToast();
   
-  const [admissionIdInput, setAdmissionIdInput] = useState<string>(""); 
-  const [loadedStudent, setLoadedStudent] = useState<StudentDetailsForReportCard | null>(null);
-  const [loadedClassSubjects, setLoadedClassSubjects] = useState<SchoolClassSubject[]>([]);
-  const [teacherEditableSubjects, setTeacherEditableSubjects] = useState<string[]>([]);
-  const [loadedSchool, setLoadedSchool] = useState<School | null>(null);
-  const [isLoadingStudentAndClassData, setIsLoadingStudentAndClassData] = useState(false);
-
-  const [studentData, setStudentData] = useState<FrontStudentData>(defaultStudentDataFront);
-  const [faMarks, setFaMarks] = useState<Record<string, FrontSubjectFAData>>(getDefaultSubjectFaDataFront([])); 
-  const [coMarks, setCoMarks] = useState<any[]>(defaultCoMarksFront); 
-  const [frontSecondLanguage, setFrontSecondLanguage] = useState<'Hindi' | 'Telugu'>('Hindi');
-  
-  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
-  const [frontAcademicYear, setFrontAcademicYear] = useState<string>("");
-
-  const [saData, setSaData] = useState<ReportCardSASubjectEntry[]>([]); 
-  const [attendanceData, setAttendanceData] = useState<ReportCardAttendanceMonth[]>(defaultAttendanceDataBack);
-  const [finalOverallGradeInput, setFinalOverallGradeInput] = useState<string | null>(null);
-
-  const [showBackSide, setShowBackSide] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  
-  const [loadedReportId, setLoadedReportId] = useState<string | null>(null);
-  const [loadedReportIsPublished, setLoadedReportIsPublished] = useState<boolean | null>(null);
-  const [isPublishing, setIsPublishing] = useState(false);
-  
-  const [actionToConfirm, setActionToConfirm] = useState<'publish' | 'unpublish' | null>(null);
+  const [studentForReport, setStudentForReport] = useState<AppUser | null>(null);
+  const [reportData, setReportData] = useState<{ attendance: MonthlyAttendanceRecord[], marks: MarkEntry[] } | null>(null);
+  const [isReportLoading, setIsReportLoading] = useState(false);
 
 
   useEffect(() => {
+    setIsLoading(true);
     const storedUser = localStorage.getItem('loggedInUser');
     if (storedUser && storedUser !== "undefined" && storedUser !== "null") {
       try {
         const parsedUser: AuthUser = JSON.parse(storedUser);
-        if (parsedUser && (parsedUser.role === 'admin' || parsedUser.role === 'teacher') && parsedUser.schoolId) { 
+        if (parsedUser && parsedUser.role === 'teacher') {
           setAuthUser(parsedUser);
         } else {
-          toast({ variant: "destructive", title: "Access Denied", description: "You must be an admin or teacher." });
+          setAuthUser(null);
         }
-      } catch (e) {
-        toast({ variant: "destructive", title: "Session Error", description: "Failed to load user data." });
-      }
-    }
-  }, [toast]);
-  
-  const fetchAcademicYearsData = useCallback(async () => {
-    const result = await getAcademicYears();
-    if(result.success && result.academicYears) {
-      setAcademicYears(result.academicYears);
-      const defaultYear = result.academicYears.find(y => y.isDefault) || result.academicYears[0];
-      if (defaultYear) {
-        setFrontAcademicYear(defaultYear.year);
+      } catch(e) {
+        console.error("TeacherDashboard: Failed to parse user from localStorage", e);
+        setAuthUser(null);
+        toast({ variant: "destructive", title: "Session Error", description: "Could not load user data."});
       }
     } else {
-      toast({ variant: 'warning', title: 'Could not load academic years' });
+      setAuthUser(null);
     }
   }, [toast]);
 
-  useEffect(() => {
-    fetchAcademicYearsData();
-  }, [fetchAcademicYearsData]);
-  
-  const initializeReportState = (subjects: SchoolClassSubject[] = []) => {
-    setLoadedStudent(null);
-    setLoadedClassSubjects(subjects);
-    setTeacherEditableSubjects([]);
-    setLoadedSchool(null);
-    setStudentData(defaultStudentDataFront);
-    setFaMarks(getDefaultSubjectFaDataFront(subjects));
-    setCoMarks(defaultCoMarksFront);
-    setSaData([]); 
-    setAttendanceData(defaultAttendanceDataBack);
-    setFinalOverallGradeInput(null);
-    setLoadedReportId(null);
-    setLoadedReportIsPublished(null);
-  };
-  
-  const handleLoadStudentAndClassData = useCallback(async (admId?: string, acadYear?: string) => {
-    const admissionIdToLoad = admId || admissionIdInput;
-    const academicYearToLoad = acadYear || frontAcademicYear;
+  const fetchTeacherData = useCallback(async () => {
+      if (!authUser || !authUser.schoolId || !authUser._id) return;
 
-    if (!admissionIdToLoad.trim()) {
-      toast({ variant: "destructive", title: "Missing Input", description: "Please enter an Admission ID." });
-      return;
-    }
-    if (!authUser || !authUser.schoolId || !authUser._id) {
-        toast({ variant: "destructive", title: "Error", description: "Admin/Teacher session or school ID missing." });
-        return;
-    }
-     if (!academicYearToLoad) {
-      toast({ variant: "destructive", title: "Missing Input", description: "Please select an Academic Year." });
-      return;
-    }
-
-    setIsLoadingStudentAndClassData(true);
-    initializeReportState();
-    
-    try {
-      const studentRes = await getStudentDetailsForReportCard(admissionIdToLoad, authUser.schoolId.toString(), academicYearToLoad);
+      setIsLoading(true);
       
-      if (!studentRes.success || !studentRes.student) {
-        toast({ variant: "destructive", title: "Student Not Found", description: studentRes.message || `Could not find student with Admission ID: ${admissionIdToLoad} for the selected academic year.` });
-        setIsLoadingStudentAndClassData(false);
-        return;
-      }
-      const currentStudent = studentRes.student;
-      setLoadedStudent(currentStudent);
-      
-      const schoolRes = await getSchoolById(currentStudent.schoolId!);
-      if(schoolRes.success && schoolRes.school) {
-        setLoadedSchool(schoolRes.school);
-      } else {
-        toast({variant: "warning", title: "School Info", description: "Could not load school details for report header."});
-      }
+      const academicYear = new Date().getFullYear().toString(); // Simplified for now
+      const subjectsResult = await getSubjectsForTeacher(authUser._id, authUser.schoolId, academicYear);
+      setAssignedSubjects(subjectsResult);
 
-      let currentLoadedClassSubjects: SchoolClassSubject[] = [];
-      if (currentStudent.classId) {
-        const classRes = await getClassDetailsById(currentStudent.classId, currentStudent.schoolId!);
-        if (classRes.success && classRes.classDetails && classRes.classDetails.academicYear === academicYearToLoad) {
-          currentLoadedClassSubjects = classRes.classDetails.subjects || [];
-          setLoadedClassSubjects(currentLoadedClassSubjects);
-          setFrontSecondLanguage(classRes.classDetails.secondLanguageSubjectName === "Telugu" ? "Telugu" : "Hindi");
-          
-          if (authUser.role === 'teacher' && classRes.classDetails.subjects) {
-            const editableSubs = classRes.classDetails.subjects
-              .filter(sub => sub.teacherId === authUser._id)
-              .map(sub => sub.name);
-            setTeacherEditableSubjects(editableSubs);
+      if (authUser.classId) {
+          const classResult = await getClassDetailsById(authUser.classId, authUser.schoolId);
+          if (classResult.success && classResult.classDetails) {
+              setPrimaryClass(classResult.classDetails);
+              
+              const studentsResult = await getStudentsByClass(authUser.schoolId, authUser.classId, classResult.classDetails.academicYear);
+
+              if (studentsResult.success && studentsResult.users) {
+                  const students = studentsResult.users;
+                  setClassStudents(students);
+              }
+          } else {
+              toast({variant: "warning", title: "Primary Class", description: "Could not load details for your primary assigned class."})
           }
-
-          setStudentData(prev => ({
-            ...prev,
-            udiseCodeSchoolName: schoolRes.school?.schoolName || '', 
-            studentName: currentStudent.name || '',
-            fatherName: currentStudent.fatherName || '',
-            motherName: currentStudent.motherName || '',
-            class: classRes.classDetails?.name || '', 
-            section: currentStudent.section || '',
-            studentIdNo: currentStudent._id || '', 
-            rollNo: currentStudent.rollNo || '',
-            dob: currentStudent.dob || '',
-            admissionNo: currentStudent.admissionId || '',
-            examNo: currentStudent.examNo || '',
-            aadharNo: currentStudent.aadharNo || '',
-          }));
-        } else {
-          toast({ variant: "destructive", title: "Class Details Error", description: classRes.message || `Could not load correct class details for student's assigned class for academic year ${academicYearToLoad}.`});
-          setIsLoadingStudentAndClassData(false);
-          return; 
-        }
-      } else {
-         toast({ variant: "destructive", title: "Class Missing", description: `Student ${currentStudent.name} is not assigned to a class for this academic year.`});
-         setIsLoadingStudentAndClassData(false);
-         return;
       }
-      
-      const existingReportRes = await getStudentReportCard(
-          currentStudent._id, 
-          currentStudent.schoolId!, 
-          academicYearToLoad,
-          "Annual", 
-          false 
-      );
-
-      if (existingReportRes.success && existingReportRes.reportCard) {
-          const report = existingReportRes.reportCard;
-          toast({title: "Existing Report Loaded", description: `Report for ${report.studentInfo.studentName} (${report.academicYear}) loaded.`});
-          setStudentData(report.studentInfo);
-          setFrontSecondLanguage(report.secondLanguage || 'Hindi');
-          setFrontAcademicYear(report.academicYear);
-
-          const loadedFaMarksState: Record<string, FrontSubjectFAData> = getDefaultSubjectFaDataFront(currentLoadedClassSubjects);
-          report.formativeAssessments.forEach(reportSubjectFa => {
-              if (loadedFaMarksState[reportSubjectFa.subjectName]) {
-                loadedFaMarksState[reportSubjectFa.subjectName] = {
-                    fa1: reportSubjectFa.fa1, fa2: reportSubjectFa.fa2,
-                    fa3: reportSubjectFa.fa3, fa4: reportSubjectFa.fa4,
-                };
-              }
-          });
-          setFaMarks(loadedFaMarksState);
-          setCoMarks(report.coCurricularAssessments || defaultCoMarksFront);
-          
-          let tempSaData = report.summativeAssessments;
-          tempSaData = tempSaData.map(row => ({
-              ...row,
-              faTotal200M: calculateFaTotal200MForRow(row.subjectName, row.paper, loadedFaMarksState)
-          }));
-          setSaData(tempSaData);
-
-          setAttendanceData(report.attendance.length > 0 ? report.attendance : defaultAttendanceDataBack);
-          setFinalOverallGradeInput(report.finalOverallGrade);
-          setLoadedReportId(report._id!.toString());
-          setLoadedReportIsPublished(report.isPublished || false);
-
-      } else { 
-          setLoadedReportId(null);
-          setLoadedReportIsPublished(null);
-          toast({title: "Generating New Report", description: "Fetching all available marks..."});
-
-          const marksResult = await getStudentMarksForReportCard(
-            currentStudent._id,
-            currentStudent.schoolId!,
-            academicYearToLoad
-          );
-          
-          const newFaMarksForState: Record<string, FrontSubjectFAData> = getDefaultSubjectFaDataFront(currentLoadedClassSubjects);
-          let tempSaDataForNewReport: ReportCardSASubjectEntry[] = [];
-          
-          if (marksResult.success && marksResult.marks) {
-            const allFetchedMarks = marksResult.marks;
-
-            const paperNamesUsedBySubject = new Map<string, Set<string>>();
-            allFetchedMarks.forEach(mark => {
-                if (mark.assessmentName.startsWith("SA")) {
-                    const parts = mark.assessmentName.split('-');
-                    if (parts.length === 3) {
-                        const subjectName = mark.subjectName;
-                        const paperName = parts[1]; // "Paper1" or "Paper2"
-                        if (!paperNamesUsedBySubject.has(subjectName)) {
-                            paperNamesUsedBySubject.set(subjectName, new Set());
-                        }
-                        paperNamesUsedBySubject.get(subjectName)!.add(paperName);
-                    }
-                }
-            });
-
-            currentLoadedClassSubjects.forEach(subject => {
-              tempSaDataForNewReport.push({
-                  subjectName: subject.name,
-                  paper: subject.name === "Science" ? "Physics" : "I",
-                  sa1: getDefaultSaPaperData(),
-                  sa2: getDefaultSaPaperData(),
-                  faTotal200M: null,
-              });
-
-              const papersForThisSubject = paperNamesUsedBySubject.get(subject.name);
-              const hasPaper2 = papersForThisSubject?.has('Paper2') || subject.name === 'Science';
-              if(hasPaper2) {
-                tempSaDataForNewReport.push({
-                    subjectName: subject.name,
-                    paper: subject.name === "Science" ? "Biology" : "II",
-                    sa1: getDefaultSaPaperData(),
-                    sa2: getDefaultSaPaperData(),
-                    faTotal200M: null,
-                });
-              }
-            });
-
-            allFetchedMarks.forEach(mark => {
-              const subjectIdentifier = mark.subjectName;
-              const assessmentName = mark.assessmentName;
-              const assessmentNameParts = assessmentName.split('-');
-
-              if (assessmentName.startsWith("FA") && assessmentNameParts.length === 2) {
-                  const faPeriodKey = assessmentNameParts[0].toLowerCase() as keyof SubjectFAData;
-                  const toolKeyRaw = assessmentNameParts[1]; // e.g., "Tool1"
-                  const toolKey = toolKeyRaw.toLowerCase().replace('tool', 'tool') as FaToolKey; // e.g. "tool1"
-
-                  if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
-                      (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
-                  }
-              } else if (assessmentName.startsWith("SA") && assessmentNameParts.length === 3) {
-                  const saPeriod = (assessmentNameParts[0].toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
-                  const dbPaperPart = assessmentNameParts[1];
-                  const asKey = assessmentNameParts[2].toLowerCase() as keyof SAPaperData;
-                  
-                  let displayPaperName: string;
-                  if (mark.subjectName === "Science") {
-                      displayPaperName = dbPaperPart === 'Paper1' ? 'Physics' : 'Biology';
-                  } else {
-                      displayPaperName = dbPaperPart === 'Paper1' ? 'I' : 'II';
-                  }
-                  
-                  const targetRow = tempSaDataForNewReport.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
-                  
-                  if (targetRow && targetRow[saPeriod]?.[asKey]) {
-                      (targetRow[saPeriod] as any)[asKey] = {
-                          marks: mark.marksObtained,
-                          maxMarks: mark.maxMarks,
-                      };
-                  }
-              }
-            });
-
-            setFaMarks(newFaMarksForState);
-          } else { 
-            if (marksResult.message) {
-                toast({ variant: "info", title: "Marks Info", description: marksResult.message });
-            }
-            setFaMarks(getDefaultSubjectFaDataFront(currentLoadedClassSubjects)); 
-          }
-          
-          tempSaDataForNewReport = tempSaDataForNewReport.map(row => ({
-              ...row,
-              faTotal200M: calculateFaTotal200MForRow(row.subjectName, row.paper, newFaMarksForState)
-          }));
-          setSaData(tempSaDataForNewReport);
-          setCoMarks(defaultCoMarksFront);
-          setAttendanceData(defaultAttendanceDataBack);
-          setFinalOverallGradeInput(null);
-          await handleSaveReportCard(true);
-      }
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error Loading Data", description: "An unexpected error occurred."});
-      console.error("Error loading student/class data:", error);
-      initializeReportState();
-    } finally {
-      setIsLoadingStudentAndClassData(false);
-    }
-  }, [admissionIdInput, frontAcademicYear, authUser, toast]);
+      setIsLoading(false);
+  }, [authUser, toast]);
 
   useEffect(() => {
-    const admId = searchParams.get('admissionId');
-    const acadYear = searchParams.get('academicYear');
-    if (admId && acadYear) {
-      setAdmissionIdInput(admId);
-      setFrontAcademicYear(acadYear);
-      handleLoadStudentAndClassData(admId, acadYear);
+    if (authUser) {
+        fetchTeacherData();
+    } else {
+        setIsLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-  const handleStudentDataChange = (field: keyof FrontStudentData, value: string) => {
-    if (isFieldDisabledForRole()) return; 
-    setStudentData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleFaMarksChange = (subjectIdentifier: string, faPeriod: keyof SubjectFAData, toolKey: keyof FrontMarksEntry, value: string) => {
-    if (isFieldDisabledForRole(subjectIdentifier)) return; 
-
-    const numValue = parseInt(value, 10);
-    const maxMark = toolKey === 'tool4' ? 20 : 10; 
-    const validatedValue = isNaN(numValue) ? null : Math.min(Math.max(numValue, 0), maxMark);
+  }, [authUser, fetchTeacherData]);
+  
+  const handleViewReportClick = async (student: AppUser) => {
+    if(!student._id || !student.schoolId || !student.academicYear) {
+      toast({variant: "destructive", title: "Error", description: "Student data is incomplete."});
+      return;
+    }
+    setStudentForReport(student);
+    setIsReportLoading(true);
     
-    setFaMarks(prevFaMarks => {
-      const currentSubjectMarks = prevFaMarks[subjectIdentifier] || {
-        fa1: getDefaultFaMarksEntryFront(), fa2: getDefaultFaMarksEntryFront(),
-        fa3: getDefaultFaMarksEntryFront(), fa4: getDefaultFaMarksEntryFront(),
-      };
-      const updatedPeriodMarks = { 
-        ...(currentSubjectMarks[faPeriod] || getDefaultFaMarksEntryFront()), 
-        [toolKey]: validatedValue 
-      };
-      const newFaMarks = { ...prevFaMarks, [subjectIdentifier]: { ...currentSubjectMarks, [faPeriod]: updatedPeriodMarks }};
-      
-      setSaData(currentSaData =>
-        currentSaData.map(row => ({
-          ...row,
-          faTotal200M: calculateFaTotal200MForRow(row.subjectName, row.paper, newFaMarks)
-        }))
-      );
-      return newFaMarks;
+    const [attendanceRes, marksRes] = await Promise.all([
+      getStudentMonthlyAttendance(student._id.toString()),
+      getStudentMarksForReportCard(student._id.toString(), student.schoolId.toString(), student.academicYear)
+    ]);
+    
+    setReportData({
+      attendance: attendanceRes.success ? attendanceRes.records || [] : [],
+      marks: marksRes.success ? marks.marks || [] : []
     });
+    
+    setIsReportLoading(false);
   };
 
-  const handleCoMarksChange = (subjectIndex: number, saPeriodKey: 'sa1' | 'sa2' | 'sa3', type: 'Marks' | 'Max', value: string) => {
-    if (isFieldDisabledForRole("CoCurricular")) return;
-  };
 
-  const handleSaDataChange = (rowIndex: number, period: 'sa1' | 'sa2', fieldKey: keyof SAPaperData, value: string) => {
-    const subjectName = saData[rowIndex]?.subjectName;
-    if (isFieldDisabledForRole(subjectName)) return;
-
-    const numValue = parseInt(value, 10);
-    const validatedValue = isNaN(numValue) ? null : Math.max(numValue, 0);
-
-    setSaData(prev => prev.map((row, idx) => {
-        if (idx === rowIndex) {
-            const updatedRow = { ...row };
-            const paperData = updatedRow[period];
-            const skillData = paperData[fieldKey];
-
-            if (skillData) {
-                skillData.marks = validatedValue;
-            }
-            return updatedRow;
-        }
-        return row;
-    }));
-  };
-  
-  const handleFaTotalChangeBack = (rowIndex: number, value: string) => {
-    const subjectName = saData[rowIndex]?.subjectName;
-    if (isFieldDisabledForRole(subjectName)) return; 
-     const numValue = parseInt(value, 10);
-     const validatedValue = isNaN(numValue) ? null : Math.min(Math.max(numValue, 0), 200);
-     setSaData(prev => prev.map((row, idx) => 
-        idx === rowIndex ? { ...row, faTotal200M: validatedValue } : row
-     ));
-  };
-
-  const handleAttendanceDataChange = (monthIndex: number, type: 'workingDays' | 'presentDays', value: string) => {
-    if (isFieldDisabledForRole()) return;
-    const numValue = parseInt(value, 10);
-    const validatedValue = isNaN(numValue) ? null : Math.max(numValue, 0);
-    setAttendanceData(prev => prev.map((month, idx) => 
-        idx === monthIndex ? { ...month, [type]: validatedValue } : month
-    ));
-  };
-  
-  const isFieldDisabledForRole = (subjectName?: string): boolean => {
-    if (currentUserRole === 'student') return true;
-    if (currentUserRole === 'admin' && !!loadedStudent) return false; 
-    if (currentUserRole === 'teacher') {
-      if (!subjectName) return true; 
-      if (subjectName === "Science" && (teacherEditableSubjects.includes("Physics") || teacherEditableSubjects.includes("Biology"))) return false;
-      return !teacherEditableSubjects.includes(subjectName);
-    }
-    return true; 
-  };
-
-  const handlePrint = () => window.print();
-  
-  const handleResetData = () => {
-    setAdmissionIdInput("");
-    initializeReportState(loadedClassSubjects);
-    toast({ title: "Data Reset", description: "All fields have been reset for current view."});
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center py-10">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
   }
 
-  const handleSaveReportCard = async (isAutoSave = false) => {
-    if (!authUser || !authUser.schoolId || !authUser._id) {
-      if(!isAutoSave) toast({ variant: "destructive", title: "Error", description: "Admin/Teacher session not found." });
-      return;
-    }
-    if (!loadedStudent || !loadedStudent._id) {
-       if(!isAutoSave) toast({ variant: "destructive", title: "Missing Student ID", description: "Please load student data first using Admission ID." });
-      return;
-    }
-    setIsSaving(true);
-    const formativeAssessmentsForStorage: FormativeAssessmentEntryForStorage[] = Object.entries(faMarks)
-      .map(([subjectName, marksData]) => ({ subjectName, ...marksData }));
-    
-    for (const row of saData) {
-        for (const saPeriod of ['sa1', 'sa2'] as const) {
-            for (const asKey of ['as1', 'as2', 'as3', 'as4', 'as5', 'as6'] as const) {
-                const skill = row[saPeriod]?.[asKey];
-                if (skill && skill.marks !== null && skill.maxMarks !== null && skill.marks > skill.maxMarks) {
-                    if(!isAutoSave) toast({ variant: "destructive", title: "Validation Error", description: `${row.subjectName} (${row.paper}) ${saPeriod.toUpperCase()}-${asKey.toUpperCase()} marks (${skill.marks}) exceed max marks (${skill.maxMarks}).` });
-                    setIsSaving(false); return;
-                }
-            }
-        }
-    }
+  if (!authUser) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center"><Info className="mr-2 h-6 w-6 text-destructive"/>Access Denied</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p>You must be logged in as a teacher to view this page.</p>
+           <Button asChild className="mt-4"><Link href="/">Go to Login</Link></Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
-
-    const reportPayload: Omit<ReportCardData, '_id' | 'createdAt' | 'updatedAt' | 'isPublished'> = {
-      studentId: loadedStudent._id, 
-      schoolId: (loadedSchool?._id || authUser.schoolId).toString(),
-      academicYear: frontAcademicYear, 
-      reportCardTemplateKey: 'cbse_state', 
-      studentInfo: studentData,
-      formativeAssessments: formativeAssessmentsForStorage, 
-      coCurricularAssessments: coMarks,
-      secondLanguage: frontSecondLanguage, 
-      summativeAssessments: saData, 
-      attendance: attendanceData,
-      finalOverallGrade: finalOverallGradeInput, 
-      generatedByAdminId: authUser._id.toString(), 
-      term: "Annual",
-    };
-    const result = await saveReportCard(reportPayload);
-    setIsSaving(false);
-    if (result.success) {
-      if(!isAutoSave) toast({ title: "Report Card Saved", description: result.message + (result.reportCardId ? ` ID: ${result.reportCardId}` : '') });
-      if(result.reportCardId) setLoadedReportId(result.reportCardId);
-      if(result.isPublished !== undefined) setLoadedReportIsPublished(result.isPublished);
-    } else {
-      if(!isAutoSave) toast({ variant: "destructive", title: "Save Failed", description: result.error || result.message });
-    }
-  };
-
-  const handleConfirmPublishAction = async () => {
-    if (!loadedReportId || !authUser || !authUser.schoolId || loadedReportIsPublished === null || !actionToConfirm) {
-        toast({ variant: "destructive", title: "Error", description: "No report loaded or publication status unknown."});
-        return;
-    }
-    await handleSaveReportCard(true); // Auto-save before publishing
-    setIsPublishing(true);
-    const result = await setReportCardPublicationStatus(loadedReportId, authUser.schoolId.toString(), actionToConfirm === 'publish');
-    setIsPublishing(false);
-    setActionToConfirm(null);
-    if (result.success && result.isPublished !== undefined) {
-        setLoadedReportIsPublished(result.isPublished);
-        toast({ title: "Status Updated", description: result.message });
-    } else {
-        toast({ variant: "destructive", title: "Update Failed", description: result.error || result.message });
-    }
-  };
-
-  const currentUserRole = authUser?.role as UserRole;
-  const canPublish = authUser?.role === 'admin' && !!loadedStudent && !!loadedReportId && !isPublishing;
+  const teacherName = authUser.name || "Teacher";
 
   return (
     <div className="space-y-6">
-      <style jsx global>{`
-        @page {
-            size: landscape;
-            margin: 0.5cm;
-        }
-        @media print {
-          body { 
-            -webkit-print-color-adjust: exact; 
-            print-color-adjust: exact;
-          }
-          .printable-report-card {
-            display: block !important; /* Ensure both are visible for print */
-            width: 100%;
-            height: auto;
-            box-shadow: none !important;
-            border: none !important;
-            page-break-after: always; /* Ensure each card is on a new page */
-          }
-          .printable-report-card:last-child {
-            page-break-after: avoid;
-          }
-          .no-print {
-            display: none !important;
-          }
-        }
-      `}</style>
-      <Card className="no-print">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-2xl font-headline flex items-center">
-            <FileText className="mr-2 h-6 w-6" /> Generate CBSE State Pattern Report Card
-          </CardTitle>
-          <CardDescription>
-            Logged in as: <span className="font-semibold capitalize">{authUser?.role || 'N/A'}</span>. 
-            Enter Student's Admission ID and select an academic year to load data.
-          </CardDescription>
+          <CardTitle className="text-2xl font-headline">Teacher Dashboard</CardTitle>
+          <CardDescription>Welcome, {teacherName}. Here is an overview of your responsibilities.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row gap-2 items-end">
-            <div className="w-full sm:w-auto">
-              <Label htmlFor="admissionIdInput" className="mb-1 flex items-center"><User className="mr-2 h-4 w-4 text-muted-foreground"/>Enter Admission ID</Label>
-              <Input 
-                id="admissionIdInput" placeholder="Enter Admission ID" value={admissionIdInput}
-                onChange={(e) => setAdmissionIdInput(e.target.value)} className="w-full sm:min-w-[200px]"
-                disabled={isLoadingStudentAndClassData || isSaving || isPublishing}
-              />
-            </div>
-             {authUser?.schoolId && authUser.role === 'admin' && (
-              <div className="w-full sm:w-auto">
-                <Label className="mb-1 flex items-center"><SchoolIconUI className="mr-2 h-4 w-4 text-muted-foreground"/>School ID (Auto)</Label>
-                <Input value={authUser.schoolId.toString()} disabled className="w-full sm:min-w-[180px]" />
-              </div>
-            )}
-             <div className="w-full sm:w-auto">
-                <Label htmlFor="academicYearInput">Academic Year</Label>
-                <Select
-                  value={frontAcademicYear}
-                  onValueChange={setFrontAcademicYear}
-                  disabled={academicYears.length === 0}
-                >
-                  <SelectTrigger id="academicYearInput" className="w-full sm:min-w-[150px]">
-                    <SelectValue placeholder="Select Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {academicYears.map((year) => (
-                      <SelectItem key={year._id} value={year.year}>
-                        {year.year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-            </div>
-            <Button onClick={() => handleLoadStudentAndClassData()} disabled={isLoadingStudentAndClassData || isSaving || isPublishing || !admissionIdInput.trim() || !authUser || !authUser.schoolId}>
-                {isLoadingStudentAndClassData ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchIcon className="mr-2 h-4 w-4"/>}
-                Load Student Data
-            </Button>
-          </div>
-          {loadedReportId && loadedReportIsPublished !== null && (
-             <p className="text-sm font-medium">
-                Current Report Status: <span className={loadedReportIsPublished ? "text-green-600 font-semibold" : "text-destructive font-semibold"}>
-                    {loadedReportIsPublished ? "Published" : "Not Published"}
-                </span>
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={()=>handleSaveReportCard(false)} disabled={isSaving || !loadedStudent}>
-              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
-              {isSaving ? 'Saving...' : 'Save Report'}
-            </Button>
-            {currentUserRole === 'admin' && (
-                <AlertDialog open={!!actionToConfirm} onOpenChange={(open) => !open && setActionToConfirm(null)}>
-                  <AlertDialogTrigger asChild>
-                    <Button 
-                      onClick={() => setActionToConfirm(loadedReportIsPublished ? 'unpublish' : 'publish')}
-                      disabled={!canPublish}
-                    >
-                      {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (loadedReportIsPublished ? <XOctagon className="mr-2 h-4 w-4"/> : <UploadCloud className="mr-2 h-4 w-4"/>)}
-                      {isPublishing ? "Updating..." : (loadedReportIsPublished ? "Unpublish Report" : "Publish Report")}
-                    </Button>
-                  </AlertDialogTrigger>
-                  {actionToConfirm && (
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Confirm Action: {actionToConfirm === 'publish' ? 'Publish' : 'Unpublish'} Report?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will make the report card for <strong>{studentData.studentName}</strong> {actionToConfirm === 'publish' ? 'VISIBLE' : 'HIDDEN'} to the student. Are you sure you want to proceed?
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={handleConfirmPublishAction}
-                        className={actionToConfirm === 'unpublish' ? 'bg-destructive hover:bg-destructive/90' : ''}
-                      >
-                        Confirm {actionToConfirm === 'publish' ? 'Publish' : 'Unpublish'}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                  )}
-                </AlertDialog>
-            )}
-            <Button onClick={handlePrint} variant="outline" disabled={!loadedStudent}><Printer className="mr-2 h-4 w-4"/> Print Preview</Button>
-            <Button onClick={() => setShowBackSide(prev => !prev)} variant="secondary" className="ml-auto mr-2" disabled={!loadedStudent}>
-                {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
-                {showBackSide ? "View Front" : "View Back"}
-            </Button>
-            <Button onClick={handleResetData} variant="destructive"><RotateCcw className="mr-2 h-4 w-4"/> Reset All</Button>
-          </div>
-        </CardContent>
       </Card>
-
-      {isLoadingStudentAndClassData && (
-        <div className="flex justify-center items-center p-10">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="ml-4 text-lg">Loading student and class information...</p>
-        </div>
+      
+      {primaryClass && (
+        <Card>
+          <CardHeader>
+             <CardTitle className="text-lg">Class Teacher for {primaryClass.name} - {primaryClass.section}</CardTitle>
+             <CardDescription>You are the primary contact and attendance marker for these {classStudents.length} students.</CardDescription>
+          </CardHeader>
+          <CardContent>
+             {classStudents.length > 0 ? (
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Student Name</TableHead>
+                            <TableHead>Admission ID</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {classStudents.map(student => (
+                            <TableRow key={student._id}>
+                                <TableCell className="font-medium">{student.name}</TableCell>
+                                <TableCell>{student.admissionId || 'N/A'}</TableCell>
+                                <TableCell className="text-right">
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm" onClick={() => handleViewReportClick(student)}>
+                                          <NotebookText className="mr-2 h-4 w-4"/> View Report
+                                        </Button>
+                                      </DialogTrigger>
+                                      {studentForReport?._id === student._id && (
+                                        <DialogContent className="max-w-4xl">
+                                          <DialogHeader>
+                                            <DialogTitle>Student Summary: {studentForReport.name}</DialogTitle>
+                                            <DialogDescription>
+                                              Class: {primaryClass.name} - {primaryClass.section} | Adm. No: {studentForReport.admissionId}
+                                            </DialogDescription>
+                                          </DialogHeader>
+                                          <ScrollArea className="max-h-[70vh]">
+                                            <div className="p-4 space-y-4">
+                                            {isReportLoading ? (
+                                              <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
+                                            ) : (
+                                              <>
+                                                <div>
+                                                  <h3 className="font-semibold mb-2">Monthly Attendance</h3>
+                                                  {reportData?.attendance.length ? (
+                                                    <Table><TableHeader><TableRow><TableHead>Month</TableHead><TableHead>Days Present</TableHead><TableHead>Total Days</TableHead></TableRow></TableHeader>
+                                                      <TableBody>{reportData.attendance.map(att => <TableRow key={att._id.toString()}><TableCell>{format(new Date(att.year, att.month), 'MMMM yyyy')}</TableCell><TableCell>{att.daysPresent}</TableCell><TableCell>{att.totalWorkingDays}</TableCell></TableRow>)}</TableBody>
+                                                    </Table>
+                                                  ) : <p className="text-sm text-muted-foreground">No attendance data found.</p>}
+                                                </div>
+                                                <div>
+                                                  <h3 className="font-semibold mb-2">Assessment Marks</h3>
+                                                  {reportData?.marks.length ? (
+                                                    <Table><TableHeader><TableRow><TableHead>Subject</TableHead><TableHead>Assessment</TableHead><TableHead>Marks</TableHead></TableRow></TableHeader>
+                                                      <TableBody>{reportData.marks.map(mark => <TableRow key={mark._id?.toString()}><TableCell>{mark.subjectName}</TableCell><TableCell>{mark.assessmentName}</TableCell><TableCell>{mark.marksObtained} / {mark.maxMarks}</TableCell></TableRow>)}</TableBody>
+                                                    </Table>
+                                                  ) : <p className="text-sm text-muted-foreground">No marks found for this student.</p>}
+                                                </div>
+                                              </>
+                                            )}
+                                            </div>
+                                          </ScrollArea>
+                                          <DialogFooter>
+                                            <Button variant="outline" onClick={() => setStudentForReport(null)}>Close</Button>
+                                          </DialogFooter>
+                                        </DialogContent>
+                                      )}
+                                    </Dialog>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+             ) : (
+                <p className="text-muted-foreground">No students currently enrolled in this class.</p>
+             )}
+          </CardContent>
+        </Card>
       )}
 
-      {/* Report Card Display Area */}
-      {!isLoadingStudentAndClassData && loadedStudent && authUser && (
-        <div className="space-y-4">
-            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide && 'hidden lg:block'}`}>
-                <CBSEStateFront
-                  studentData={studentData} onStudentDataChange={handleStudentDataChange}
-                  academicSubjects={loadedClassSubjects} 
-                  faMarks={faMarks} onFaMarksChange={handleFaMarksChange} 
-                  coMarks={coMarks} onCoMarksChange={handleCoMarksChange} 
-                  secondLanguage={frontSecondLanguage} onSecondLanguageChange={(val) => { if(!isFieldDisabledForRole()) setFrontSecondLanguage(val)}}
-                  academicYear={frontAcademicYear} onAcademicYearChange={(val) => {if(!isFieldDisabledForRole()) setFrontAcademicYear(val)}}
-                  currentUserRole={currentUserRole}
-                  editableSubjects={teacherEditableSubjects}
-                />
-            </div>
-          
-            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide && 'hidden lg:block'}`}>
-                <CBSEStateBack
-                  saData={saData}
-                  onSaDataChange={handleSaDataChange}
-                  onFaTotalChange={handleFaTotalChangeBack}
-                  attendanceData={attendanceData} onAttendanceDataChange={handleAttendanceDataChange}
-                  finalOverallGradeInput={finalOverallGradeInput} onFinalOverallGradeInputChange={setFinalOverallGradeInput}
-                  secondLanguageSubjectName={frontSecondLanguage} 
-                  currentUserRole={currentUserRole}
-                  editableSubjects={teacherEditableSubjects} 
-                />
-            </div>
-        </div>
-      )}
-      {!isLoadingStudentAndClassData && !loadedStudent && admissionIdInput && (
-          <Card className="no-print border-destructive">
-            <CardHeader className="flex-row items-center gap-2">
-                <AlertTriangle className="h-6 w-6 text-destructive"/>
-                <CardTitle className="text-destructive">Student Data Not Loaded</CardTitle>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+         <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <CheckSquare className="h-10 w-10 text-primary mb-2" />
+                    {primaryClass && <span className="text-sm font-bold bg-green-100 text-green-800 px-2 py-1 rounded-full">Primary Class Duty</span>}
+                </div>
+                <CardTitle>Attendance</CardTitle>
             </CardHeader>
             <CardContent>
-                <p>Student data could not be loaded for Admission ID: <span className="font-semibold">{admissionIdInput}</span> for academic year <span className="font-semibold">{frontAcademicYear}</span>.</p>
-                <p className="mt-1">Please ensure the Admission ID and Academic Year are correct and the student is properly configured in the system (assigned to a class, etc.).</p>
+                <CardDescription>You can mark monthly attendance for your primary assigned class, if any.</CardDescription>
+                <Button asChild className="mt-4" disabled={!primaryClass}>
+                  <Link href="/dashboard/teacher/attendance">Mark Attendance</Link>
+                </Button>
             </CardContent>
-          </Card>
-      )}
-       {!isLoadingStudentAndClassData && !admissionIdInput && (
-          <Card className="no-print">
-            <CardContent className="p-6 text-center">
-                <p className="text-muted-foreground">Enter an Admission ID and Academic Year, then click "Load Student Data" to begin.</p>
+        </Card>
+
+
+         <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <BookOpen className="h-10 w-10 text-primary mb-2" />
+                    <span className="text-sm font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{assignedSubjects.length} Subject(s)</span>
+                </div>
+                <CardTitle>My Subjects</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <CardDescription>You are assigned to teach the following subjects. Click to enter marks.</CardDescription>
+                {isLoading ? <Loader2 className="my-4 h-6 w-6 animate-spin" /> : 
+                assignedSubjects.length > 0 ? (
+                    <div className="mt-4 space-y-2">
+                        {assignedSubjects.map(sub => (
+                            <Link href="/dashboard/teacher/marks" key={sub.value} className="flex items-center justify-between p-3 rounded-md bg-muted hover:bg-muted/80 transition-colors">
+                                <span>{sub.label}</span>
+                                <ChevronRight className="h-5 w-5 text-muted-foreground"/>
+                            </Link>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="mt-4 text-center text-muted-foreground">No subjects assigned yet.</p>
+                )}
             </CardContent>
-          </Card>
-      )}
+         </Card>
+         
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <FileUp className="h-10 w-10 text-primary mb-2" />
+            <CardTitle>Course Materials</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CardDescription>Upload and manage course materials (PDFs) for your subjects.</CardDescription>
+            <Button asChild className="mt-4" variant="outline">
+              <Link href="/dashboard/teacher/courses">Manage Materials</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+            <CardTitle>Quick Links</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            <Button variant="outline" className="w-full justify-start" asChild>
+                <Link href="/dashboard/teacher/schedule"><CalendarDays className="mr-2 h-5 w-5"/> My Schedule</Link>
+            </Button>
+            <Button variant="outline" className="w-full justify-start" asChild>
+                <Link href="/dashboard/teacher/messages"><MessageSquare className="mr-2 h-5 w-5"/> Communication</Link>
+            </Button>
+            <Button variant="outline" className="w-full justify-start" asChild>
+                <Link href="/dashboard/teacher/profile"><User className="mr-2 h-5 w-5"/> My Profile</Link>
+            </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
