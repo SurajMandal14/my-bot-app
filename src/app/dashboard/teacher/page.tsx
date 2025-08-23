@@ -156,7 +156,7 @@ export default function TeacherDashboardPage() {
                                 <TableCell>{student.overallAttendance !== undefined ? `${student.overallAttendance}%` : 'N/A'}</TableCell>
                                 <TableCell className="text-right">
                                     <Button asChild variant="outline" size="sm">
-                                        <Link href={`/dashboard/admin/reports/generate-cbse-state?admissionId=${student.admissionId}&academicYear=${student.academicYear}`}>
+                                        <Link href={`/dashboard/teacher/reports/generate-cbse-state?admissionId=${student.admissionId}&academicYear=${student.academicYear}`}>
                                             <BarChart2 className="mr-2 h-4 w-4"/> View Report
                                         </Link>
                                     </Button>
