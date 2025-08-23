@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChartBig, Loader2, Info, Users, ShieldCheck, ShieldOff, CheckCircle2, XCircleIcon, ChevronLeft, ChevronRight, AlertTriangle, FileSignature, FileText, UserSearch } from "lucide-react";
+import { BarChartBig, Loader2, Info, Users, ShieldCheck, ShieldOff, CheckCircle2, XCircleIcon, AlertTriangle, FileSignature, FileText, UserSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,39 +17,31 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/attendance";
 import { getReportCardsForClass, setReportPublicationStatusForClass, generateAllReportsForClass } from "@/app/actions/reports";
 import type { BulkPublishReportInfo } from "@/types/report";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
-import { getMonthlyAttendanceForAdmin } from "@/app/actions/attendance";
-import type { MonthlyAttendanceRecord } from "@/types/attendance";
 import Link from "next/link";
-import { format } from "date-fns";
 import { getAcademicYears } from "@/app/actions/academicYears";
 import type { AcademicYear } from "@/types/academicYear";
 
 interface ClassOption {
   value: string; // class _id
   label: string; // "ClassName - Section"
-  name?: string;
+  academicYear: string;
 }
 
 export default function AdminReportsPage() {
-  const [attendanceRecords, setAttendanceRecords] = useState<MonthlyAttendanceRecord[]>([]);
-  const [isLoadingAttendance, setIsLoadingAttendance] = useState(false);
-  const [attendanceMonth, setAttendanceMonth] = useState<number>(new Date().getMonth());
-  const [attendanceYear, setAttendanceYear] = useState<number>(new Date().getFullYear());
-
-
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
 
   // States for Bulk Report Publishing
-  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
+  const [allClassOptions, setAllClassOptions] = useState<ClassOption[]>([]);
+  const [filteredClassOptions, setFilteredClassOptions] = useState<ClassOption[]>([]);
   const [selectedClassForBulkPublish, setSelectedClassForBulkPublish] = useState<string>("");
   const [academicYearForBulkPublish, setAcademicYearForBulkPublish] = useState<string>("");
   const [reportsForBulkPublish, setReportsForBulkPublish] = useState<BulkPublishReportInfo[]>([]);
@@ -89,7 +81,14 @@ export default function AdminReportsPage() {
       getAcademicYears()
     ]);
     
-    setClassOptions(classOptionsResult);
+    // Process class options to separate academic year
+    const processedClasses = classOptionsResult.map(c => {
+        const match = c.label.match(/\((\d{4}-\d{4})\)/);
+        const year = match ? match[1] : '';
+        const label = c.label.replace(` (${year})`, '').trim();
+        return { value: c.value, label, academicYear: year };
+    });
+    setAllClassOptions(processedClasses);
 
     if (academicYearsResult.success && academicYearsResult.academicYears) {
       setAcademicYears(academicYearsResult.academicYears);
@@ -107,26 +106,23 @@ export default function AdminReportsPage() {
     fetchOptions();
   }, [fetchOptions]);
 
-  const fetchAttendance = useCallback(async () => {
-    if (!authUser || !authUser.schoolId) return;
-
-    setIsLoadingAttendance(true);
-    const result = await getMonthlyAttendanceForAdmin(authUser.schoolId.toString(), attendanceMonth, attendanceYear);
-    if (result.success && result.records) {
-      setAttendanceRecords(result.records);
-    } else {
-      setAttendanceRecords([]);
-      toast({ variant: "warning", title: "Attendance Report", description: result.message || "Could not fetch attendance data."});
-    }
-    setIsLoadingAttendance(false);
-  }, [authUser, attendanceMonth, attendanceYear, toast]);
-
-
+  // Filter classes when academic year changes
   useEffect(() => {
-    if (authUser && authUser.schoolId) {
-      fetchAttendance();
+    if (academicYearForBulkPublish) {
+      const filtered = allClassOptions.filter(c => c.academicYear === academicYearForBulkPublish);
+      setFilteredClassOptions(filtered);
+      // Reset selected class if it's not in the new list of options
+      if (!filtered.some(c => c.value === selectedClassForBulkPublish)) {
+          setSelectedClassForBulkPublish("");
+          setReportsForBulkPublish([]);
+      }
+    } else {
+      setFilteredClassOptions([]);
+      setSelectedClassForBulkPublish("");
+      setReportsForBulkPublish([]);
     }
-  }, [authUser, fetchAttendance]);
+  }, [academicYearForBulkPublish, allClassOptions, selectedClassForBulkPublish]);
+
 
   const handleLoadReportsForBulkPublish = async () => {
     if (!authUser?.schoolId || !selectedClassForBulkPublish || !academicYearForBulkPublish) {
@@ -196,21 +192,6 @@ export default function AdminReportsPage() {
 
 
   const reportsThatExistCount = reportsForBulkPublish.filter(r => r.hasReport).length;
-  
-  const handleAttendanceMonthChange = (direction: 'prev' | 'next') => {
-    let newMonth = attendanceMonth;
-    let newYear = attendanceYear;
-    if (direction === 'prev') {
-        newMonth = newMonth === 0 ? 11 : newMonth - 1;
-        newYear = newMonth === 11 ? newYear - 1 : newYear;
-    } else {
-        newMonth = newMonth === 11 ? 0 : newMonth + 1;
-        newYear = newMonth === 0 ? newYear + 1 : newYear;
-    }
-    setAttendanceMonth(newMonth);
-    setAttendanceYear(newYear);
-    fetchAttendance();
-  };
 
 
   return (
@@ -257,24 +238,24 @@ export default function AdminReportsPage() {
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4 items-end">
             <div className="flex-grow">
-              <Label htmlFor="bulk-class-select">Select Class</Label>
-              <Select onValueChange={setSelectedClassForBulkPublish} value={selectedClassForBulkPublish} disabled={isLoadingBulkReports || isBulkPublishing || classOptions.length === 0}>
-                <SelectTrigger id="bulk-class-select">
-                  <SelectValue placeholder={classOptions.length > 0 ? "Select class" : "No classes available"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {classOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex-grow">
               <Label htmlFor="bulk-academic-year">Academic Year</Label>
-              <Select onValueChange={setAcademicYearForBulkPublish} value={academicYearForBulkPublish} disabled={isLoadingBulkReports || isBulkPublishing || academicYears.length === 0}>
+              <Select onValueChange={setAcademicYearForBulkPublish} value={academicYearForBulkPublish} disabled={isLoading || isBulkPublishing || academicYears.length === 0}>
                 <SelectTrigger id="bulk-academic-year">
                   <SelectValue placeholder="Select Year" />
                 </SelectTrigger>
                 <SelectContent>
                   {academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-grow">
+              <Label htmlFor="bulk-class-select">Select Class</Label>
+              <Select onValueChange={setSelectedClassForBulkPublish} value={selectedClassForBulkPublish} disabled={isLoading || isBulkPublishing || filteredClassOptions.length === 0}>
+                <SelectTrigger id="bulk-class-select">
+                  <SelectValue placeholder={!academicYearForBulkPublish ? "Select year first" : (filteredClassOptions.length > 0 ? "Select class" : "No classes in year")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredClassOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -372,62 +353,6 @@ export default function AdminReportsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-
-      <Card>
-        <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-                <div>
-                    <CardTitle>Attendance Report</CardTitle>
-                    <CardDescription>Monthly attendance summary for the school.</CardDescription>
-                </div>
-                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" onClick={() => handleAttendanceMonthChange('prev')}><ChevronLeft className="h-4 w-4" /></Button>
-                    <span className="text-lg font-semibold w-32 text-center">{format(new Date(attendanceYear, attendanceMonth), 'MMM yyyy')}</span>
-                    <Button variant="outline" size="icon" onClick={() => handleAttendanceMonthChange('next')}><ChevronRight className="h-4 w-4" /></Button>
-                 </div>
-            </div>
-        </CardHeader>
-        <CardContent>
-             {isLoadingAttendance ? (
-                 <div className="flex items-center justify-center py-10">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="ml-2">Loading attendance report...</p>
-                </div>
-             ) : attendanceRecords.length > 0 ? (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Student Name</TableHead>
-                            <TableHead>Class</TableHead>
-                            <TableHead>Days Present</TableHead>
-                            <TableHead>Total Working Days</TableHead>
-                            <TableHead>Percentage</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {attendanceRecords.map((record) => (
-                            <TableRow key={record._id.toString()}>
-                                <TableCell>{record.studentName}</TableCell>
-                                <TableCell>{record.className}</TableCell>
-                                <TableCell>{record.daysPresent}</TableCell>
-                                <TableCell>{record.totalWorkingDays}</TableCell>
-                                <TableCell>{record.totalWorkingDays > 0 ? `${Math.round((record.daysPresent / record.totalWorkingDays) * 100)}%` : 'N/A'}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-             ) : (
-                <div className="text-center py-10">
-                    <Info className="mx-auto h-12 w-12 text-muted-foreground" />
-                    <p className="mt-4 text-lg font-semibold">No Attendance Data</p>
-                    <p className="text-muted-foreground">No attendance has been submitted for this month.</p>
-                </div>
-             )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
-
-    
