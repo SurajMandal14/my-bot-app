@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, Settings, BarChart3, Loader2, TicketPercent, GraduationCap, School, BookCopy, CalendarClock, Lock, UserCog, CheckSquare, FileQuestion } from "lucide-react";
+import { Users, Settings, BarChart3, Loader2, TicketPercent, GraduationCap, School, BookCopy, CalendarClock, Lock, UserCog, CheckSquare, FileQuestion, UserSearch } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { AuthUser } from "@/types/user";
 
@@ -123,6 +123,19 @@ export default function MasterAdminDashboardPage() {
             <CardDescription>View and monitor student attendance for your assigned school.</CardDescription>
             <Button asChild className="mt-4" variant="outline">
               <Link href="/dashboard/master-admin/attendance">View Attendance</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader>
+            <UserSearch className="h-10 w-10 text-primary mb-2" />
+            <CardTitle>Student Report</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CardDescription>Search for a student to view their complete academic report.</CardDescription>
+            <Button asChild className="mt-4" variant="outline">
+              <Link href="/dashboard/admin/reports/student-report">View Student Report</Link>
             </Button>
           </CardContent>
         </Card>

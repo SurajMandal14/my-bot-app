@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChartBig, Loader2, Info, Users, ShieldCheck, ShieldOff, CheckCircle2, XCircleIcon, ChevronLeft, ChevronRight, AlertTriangle, FileSignature, FileText } from "lucide-react";
+import { BarChartBig, Loader2, Info, Users, ShieldCheck, ShieldOff, CheckCircle2, XCircleIcon, ChevronLeft, ChevronRight, AlertTriangle, FileSignature, FileText, UserSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -226,14 +226,20 @@ export default function AdminReportsPage() {
 
       <Card>
         <CardHeader>
-            <CardTitle className="text-lg">Report Card Generation</CardTitle>
-            <CardDescription>Select a template to start generating student report cards.</CardDescription>
+            <CardTitle className="text-lg">Report Generation & Search</CardTitle>
+            <CardDescription>Select a template to start generating student report cards, or use the master search to find a specific student's full report.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <Link href="/dashboard/admin/reports/generate-cbse-state" passHref>
                  <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
                     <FileText className="h-6 w-6 mb-1"/>
                     <span>CBSE State Template</span>
+                 </Button>
+            </Link>
+             <Link href="/dashboard/admin/reports/student-report" passHref>
+                 <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
+                    <UserSearch className="h-6 w-6 mb-1"/>
+                    <span>Student Master Search</span>
                  </Button>
             </Link>
             <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center" disabled>
