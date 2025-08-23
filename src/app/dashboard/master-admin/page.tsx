@@ -135,7 +135,7 @@ export default function MasterAdminDashboardPage() {
           <CardContent>
             <CardDescription>Search for a student to view their complete academic report.</CardDescription>
             <Button asChild className="mt-4" variant="outline">
-              <Link href="/dashboard/admin/reports/student-report">View Student Report</Link>
+              <Link href="/dashboard/reports/student">View Student Report</Link>
             </Button>
           </CardContent>
         </Card>
@@ -156,3 +156,5 @@ export default function MasterAdminDashboardPage() {
     </div>
   );
 }
+
+    

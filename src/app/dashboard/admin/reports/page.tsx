@@ -236,7 +236,7 @@ export default function AdminReportsPage() {
                     <span>CBSE State Template</span>
                  </Button>
             </Link>
-             <Link href="/dashboard/admin/reports/student-report" passHref>
+             <Link href="/dashboard/reports/student" passHref>
                  <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center">
                     <UserSearch className="h-6 w-6 mb-1"/>
                     <span>Student Master Search</span>
@@ -429,3 +429,5 @@ export default function AdminReportsPage() {
     </div>
   );
 }
+
+    
