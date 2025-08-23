@@ -1,10 +1,9 @@
-
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { CheckSquare, BookOpen, MessageSquare, CalendarDays, User, Loader2, Info, ChevronRight, FileUp, Users, BarChart2, NotebookText, Contact, BookUser, Home, Users as UsersIcon, Calendar, Heart, ShieldHalf, School, Printer } from "lucide-react";
+import { CheckSquare, BookOpen, MessageSquare, CalendarDays, User, Loader2, Info, ChevronRight, FileUp, Users, BarChart2, NotebookText, Printer, FileText } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { AuthUser, User as AppUser } from "@/types/user";
 import { useToast } from "@/hooks/use-toast";
@@ -17,13 +16,14 @@ import { getStudentMarksForReportCard } from "@/app/actions/marks";
 import type { MarkEntry } from "@/types/marks";
 import type { MonthlyAttendanceRecord } from "@/types/attendance";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
+import { Separator } from "@/components/ui/separator";
 
 interface StudentWithAttendance extends AppUser {
     overallAttendance?: number;
+    attendanceRecords?: MonthlyAttendanceRecord[];
 }
 
 const DetailItem = ({ label, value }: { label: string; value?: string | null; }) => {
@@ -36,7 +36,6 @@ const DetailItem = ({ label, value }: { label: string; value?: string | null; })
     );
 };
 
-
 export default function TeacherDashboardPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,9 +45,9 @@ export default function TeacherDashboardPage() {
   const { toast } = useToast();
   
   const [studentForReport, setStudentForReport] = useState<AppUser | null>(null);
-  const [reportData, setReportData] = useState<{ attendance: MonthlyAttendanceRecord[], marks: MarkEntry[] } | null>(null);
+  const [reportType, setReportType] = useState<'info' | 'attendance' | 'marks' | null>(null);
+  const [reportData, setReportData] = useState<{ attendance: MonthlyAttendanceRecord[], marks: MarkEntry[] }>({ attendance: [], marks: [] });
   const [isReportLoading, setIsReportLoading] = useState(false);
-
 
   useEffect(() => {
     setIsLoading(true);
@@ -73,7 +72,6 @@ export default function TeacherDashboardPage() {
 
   const fetchTeacherData = useCallback(async () => {
       if (!authUser || !authUser.schoolId || !authUser._id) return;
-
       setIsLoading(true);
       
       const academicYear = new Date().getFullYear().toString(); // Simplified for now
@@ -89,7 +87,23 @@ export default function TeacherDashboardPage() {
 
               if (studentsResult.success && studentsResult.users) {
                   const students = studentsResult.users;
-                  setClassStudents(students);
+                  const studentAttendancePromises = students.map(s => getStudentMonthlyAttendance(s._id!.toString()));
+                  const allAttendanceResults = await Promise.all(studentAttendancePromises);
+                  
+                  const studentsWithAttendance = students.map((student, index) => {
+                      const attendanceRes = allAttendanceResults[index];
+                      if (attendanceRes.success && attendanceRes.records && attendanceRes.records.length > 0) {
+                          const totalWorking = attendanceRes.records.reduce((sum, r) => sum + r.totalWorkingDays, 0);
+                          const totalPresent = attendanceRes.records.reduce((sum, r) => sum + r.daysPresent, 0);
+                          return { 
+                              ...student, 
+                              overallAttendance: totalWorking > 0 ? Math.round((totalPresent / totalWorking) * 100) : 0,
+                              attendanceRecords: attendanceRes.records,
+                          };
+                      }
+                      return { ...student, overallAttendance: 0, attendanceRecords: [] };
+                  });
+                  setClassStudents(studentsWithAttendance);
               }
           } else {
               toast({variant: "warning", title: "Primary Class", description: "Could not load details for your primary assigned class."})
@@ -106,29 +120,33 @@ export default function TeacherDashboardPage() {
     }
   }, [authUser, fetchTeacherData]);
   
-  const handleViewReportClick = async (student: AppUser) => {
+  const handleOpenReport = async (student: AppUser, type: 'info' | 'attendance' | 'marks') => {
     if(!student._id || !student.schoolId || !student.academicYear) {
       toast({variant: "destructive", title: "Error", description: "Student data is incomplete."});
       return;
     }
     setStudentForReport(student);
+    setReportType(type);
+    
+    if (type === 'info') return;
+
     setIsReportLoading(true);
-    
-    const [attendanceRes, marksRes] = await Promise.all([
-      getStudentMonthlyAttendance(student._id.toString()),
-      getStudentMarksForReportCard(student._id.toString(), student.schoolId.toString(), student.academicYear)
-    ]);
-    
-    setReportData({
-      attendance: attendanceRes.success ? attendanceRes.records || [] : [],
-      marks: marksRes.success ? marksRes.marks || [] : []
-    });
+    setReportData({ attendance: [], marks: [] });
+
+    if(type === 'attendance') {
+      const attendanceRes = await getStudentMonthlyAttendance(student._id.toString());
+      setReportData(prev => ({ ...prev, attendance: attendanceRes.success ? attendanceRes.records || [] : [] }));
+    }
+    if(type === 'marks') {
+      const marksRes = await getStudentMarksForReportCard(student._id.toString(), student.schoolId!.toString(), student.academicYear);
+      setReportData(prev => ({ ...prev, marks: marksRes.success ? marksRes.marks || [] : [] }));
+    }
     
     setIsReportLoading(false);
   };
   
-  const handlePrintReport = () => {
-    const printContent = document.getElementById('student-report-printable-area');
+  const handlePrintReport = (dialogType: string) => {
+    const printContent = document.getElementById(`report-printable-area-${dialogType}`);
     if (printContent && studentForReport) {
       const studentName = studentForReport.name || 'Student';
       const newWindow = window.open('', '_blank');
@@ -136,7 +154,7 @@ export default function TeacherDashboardPage() {
         newWindow.document.write(`
           <html>
             <head>
-              <title>Student Summary - ${studentName}</title>
+              <title>${dialogType.charAt(0).toUpperCase() + dialogType.slice(1)} Report - ${studentName}</title>
               <style>
                 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.5; }
                 table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
@@ -165,7 +183,6 @@ export default function TeacherDashboardPage() {
   const groupedMarks = useMemo(() => {
     if (!reportData?.marks) return {};
     return reportData.marks.reduce((acc, mark) => {
-      // Group by the main assessment type (e.g., "FA1", "SA1")
       const assessmentType = mark.assessmentName.split('-')[0];
       if (!acc[assessmentType]) {
         acc[assessmentType] = [];
@@ -187,9 +204,7 @@ export default function TeacherDashboardPage() {
   if (!authUser) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center"><Info className="mr-2 h-6 w-6 text-destructive"/>Access Denied</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="flex items-center"><Info className="mr-2 h-6 w-6 text-destructive"/>Access Denied</CardTitle></CardHeader>
         <CardContent>
           <p>You must be logged in as a teacher to view this page.</p>
            <Button asChild className="mt-4"><Link href="/">Go to Login</Link></Button>
@@ -222,7 +237,8 @@ export default function TeacherDashboardPage() {
                         <TableRow>
                             <TableHead>Student Name</TableHead>
                             <TableHead>Admission ID</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                            <TableHead>Attendance</TableHead>
+                            <TableHead className="text-right">Reports</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -230,102 +246,11 @@ export default function TeacherDashboardPage() {
                             <TableRow key={student._id}>
                                 <TableCell className="font-medium">{student.name}</TableCell>
                                 <TableCell>{student.admissionId || 'N/A'}</TableCell>
-                                <TableCell className="text-right">
-                                    <Dialog>
-                                      <DialogTrigger asChild>
-                                        <Button variant="outline" size="sm" onClick={() => handleViewReportClick(student)}>
-                                          <NotebookText className="mr-2 h-4 w-4"/> View Report
-                                        </Button>
-                                      </DialogTrigger>
-                                      {studentForReport?._id === student._id && (
-                                        <DialogContent className="max-w-4xl">
-                                          <DialogHeader>
-                                            <DialogTitle>Student Summary: {studentForReport.name}</DialogTitle>
-                                            <DialogDescription>
-                                              Class: {primaryClass.name} - {primaryClass.section} | Adm. No: {studentForReport.admissionId}
-                                            </DialogDescription>
-                                          </DialogHeader>
-                                          <ScrollArea className="max-h-[70vh]">
-                                            <div id="student-report-printable-area" className="p-4 space-y-6">
-                                            {isReportLoading ? (
-                                              <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
-                                            ) : (
-                                              <>
-                                                <div className="details-section">
-                                                    <h3 className="font-semibold text-base mb-2 border-b pb-2">Student Information</h3>
-                                                    <div className="grid-container">
-                                                        <DetailItem label="Student Name" value={studentForReport.name} />
-                                                        <DetailItem label="Admission No." value={studentForReport.admissionId} />
-                                                        <DetailItem label="Class" value={`${primaryClass?.name} - ${primaryClass?.section}`} />
-                                                        <DetailItem label="Date of Birth" value={studentForReport.dob ? format(new Date(studentForReport.dob), 'PP') : null} />
-                                                        <DetailItem label="Gender" value={studentForReport.gender} />
-                                                        <DetailItem label="Blood Group" value={studentForReport.bloodGroup} />
-                                                        <DetailItem label="Religion" value={studentForReport.religion} />
-                                                        <DetailItem label="Caste" value={studentForReport.caste} />
-                                                        <DetailItem label="Aadhar No." value={studentForReport.aadharNo} />
-                                                        <DetailItem label="Date of Joining" value={studentForReport.dateOfJoining ? format(new Date(studentForReport.dateOfJoining), 'PP') : null} />
-                                                    </div>
-                                                </div>
-
-                                                <div className="details-section">
-                                                    <h3 className="font-semibold text-base mb-2 border-b pb-2">Parent Information</h3>
-                                                    <div className="grid-container">
-                                                        <DetailItem label="Father's Name" value={studentForReport.fatherName} />
-                                                        <DetailItem label="Mother's Name" value={studentForReport.motherName} />
-                                                        <DetailItem label="Father's Mobile" value={studentForReport.fatherMobile} />
-                                                        <DetailItem label="Mother's Mobile" value={studentForReport.motherMobile} />
-                                                    </div>
-                                                </div>
-                                                <div className="details-section">
-                                                     <h3 className="font-semibold text-base mb-2 border-b pb-2">Address</h3>
-                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        <div className="space-y-1">
-                                                            <p className="text-sm font-medium text-muted-foreground">Present Address</p>
-                                                            <p className="text-sm">{Object.values(studentForReport.presentAddress || {}).filter(Boolean).join(', ')}</p>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <p className="text-sm font-medium text-muted-foreground">Permanent Address</p>
-                                                            <p className="text-sm">{Object.values(studentForReport.permanentAddress || {}).filter(Boolean).join(', ')}</p>
-                                                        </div>
-                                                     </div>
-                                                </div>
-                                                
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    <div>
-                                                      <h3 className="font-semibold mb-2 border-b pb-2">Monthly Attendance</h3>
-                                                      {reportData?.attendance.length ? (
-                                                        <Table><TableHeader><TableRow><TableHead>Month</TableHead><TableHead className="text-right">Attendance</TableHead></TableRow></TableHeader>
-                                                          <TableBody>{reportData.attendance.map(att => <TableRow key={att._id.toString()}><TableCell>{format(new Date(att.year, att.month), 'MMMM yyyy')}</TableCell><TableCell className="text-right">{att.daysPresent} / {att.totalWorkingDays}</TableCell></TableRow>)}</TableBody>
-                                                        </Table>
-                                                      ) : <p className="text-sm text-muted-foreground">No attendance data found.</p>}
-                                                    </div>
-                                                    <div>
-                                                      <h3 className="font-semibold mb-2 border-b pb-2">Assessment Marks</h3>
-                                                      {Object.keys(groupedMarks).length > 0 ? (
-                                                          Object.entries(groupedMarks).map(([assessmentName, marks]) => (
-                                                            <div key={assessmentName} className="mb-3">
-                                                              <h4 className="font-medium text-sm text-primary">{assessmentName}</h4>
-                                                              <Table><TableHeader><TableRow><TableHead>Subject</TableHead><TableHead className="text-right">Marks</TableHead></TableRow></TableHeader>
-                                                                <TableBody>{marks.map(mark => <TableRow key={mark._id?.toString()}><TableCell>{mark.subjectName}</TableCell><TableCell className="text-right">{mark.marksObtained} / {mark.maxMarks}</TableCell></TableRow>)}</TableBody>
-                                                              </Table>
-                                                            </div>
-                                                          ))
-                                                      ) : <p className="text-sm text-muted-foreground">No marks found for this student.</p>}
-                                                    </div>
-                                                </div>
-                                              </>
-                                            )}
-                                            </div>
-                                          </ScrollArea>
-                                          <DialogFooter className="print:hidden">
-                                            <Button variant="outline" onClick={handlePrintReport}>
-                                              <Printer className="mr-2 h-4 w-4"/>Print
-                                            </Button>
-                                            <Button variant="outline" onClick={() => setStudentForReport(null)}>Close</Button>
-                                          </DialogFooter>
-                                        </DialogContent>
-                                      )}
-                                    </Dialog>
+                                <TableCell>{student.overallAttendance}%</TableCell>
+                                <TableCell className="text-right space-x-1">
+                                    <Button variant="outline" size="sm" onClick={() => handleOpenReport(student, 'info')}>Info</Button>
+                                    <Button variant="outline" size="sm" onClick={() => handleOpenReport(student, 'attendance')}>Attendance</Button>
+                                    <Button variant="outline" size="sm" onClick={() => handleOpenReport(student, 'marks')}>Marks</Button>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -337,6 +262,101 @@ export default function TeacherDashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Dialog for Reports */}
+      <Dialog open={!!reportType} onOpenChange={(isOpen) => !isOpen && setReportType(null)}>
+        <DialogContent className="max-w-4xl">
+            <DialogHeader>
+            <DialogTitle>
+                {reportType === 'info' && `Student Information: ${studentForReport?.name}`}
+                {reportType === 'attendance' && `Attendance Report: ${studentForReport?.name}`}
+                {reportType === 'marks' && `Marks Report: ${studentForReport?.name}`}
+            </DialogTitle>
+            <DialogDescription>
+                Class: {primaryClass?.name} - {primaryClass?.section} | Adm. No: {studentForReport?.admissionId}
+            </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[70vh]">
+            <div id={`report-printable-area-${reportType}`} className="p-4 space-y-6">
+                {isReportLoading ? (
+                    <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin"/></div>
+                ) : (
+                <>
+                {reportType === 'info' && studentForReport && (
+                    <div className="details-section space-y-4">
+                        <h3 className="font-semibold text-base mb-2 border-b pb-2">Student Information</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <DetailItem label="Student Name" value={studentForReport.name} />
+                            <DetailItem label="Admission No." value={studentForReport.admissionId} />
+                            <DetailItem label="Class" value={`${primaryClass?.name} - ${primaryClass?.section}`} />
+                            <DetailItem label="Date of Birth" value={studentForReport.dob ? format(new Date(studentForReport.dob), 'PP') : null} />
+                            <DetailItem label="Gender" value={studentForReport.gender} />
+                            <DetailItem label="Blood Group" value={studentForReport.bloodGroup} />
+                            <DetailItem label="Religion" value={studentForReport.religion} />
+                            <DetailItem label="Caste" value={studentForReport.caste} />
+                            <DetailItem label="Aadhar No." value={studentForReport.aadharNo} />
+                            <DetailItem label="Date of Joining" value={studentForReport.dateOfJoining ? format(new Date(studentForReport.dateOfJoining), 'PP') : null} />
+                        </div>
+                        <Separator />
+                        <h3 className="font-semibold text-base mb-2 pt-2 border-b pb-2">Parent Information</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <DetailItem label="Father's Name" value={studentForReport.fatherName} />
+                            <DetailItem label="Mother's Name" value={studentForReport.motherName} />
+                            <DetailItem label="Father's Mobile" value={studentForReport.fatherMobile} />
+                            <DetailItem label="Mother's Mobile" value={studentForReport.motherMobile} />
+                        </div>
+                        <Separator />
+                        <h3 className="font-semibold text-base mb-2 pt-2 border-b pb-2">Address</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <p className="text-sm font-medium text-muted-foreground">Present Address</p>
+                                <p className="text-sm">{Object.values(studentForReport.presentAddress || {}).filter(Boolean).join(', ')}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-sm font-medium text-muted-foreground">Permanent Address</p>
+                                <p className="text-sm">{Object.values(studentForReport.permanentAddress || {}).filter(Boolean).join(', ')}</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {reportType === 'attendance' && (
+                    <div>
+                        <h3 className="font-semibold mb-2">Monthly Attendance</h3>
+                        {reportData?.attendance.length ? (
+                        <Table><TableHeader><TableRow><TableHead>Month</TableHead><TableHead className="text-right">Attendance</TableHead></TableRow></TableHeader>
+                            <TableBody>{reportData.attendance.map(att => <TableRow key={att._id.toString()}><TableCell>{format(new Date(att.year, att.month), 'MMMM yyyy')}</TableCell><TableCell className="text-right">{att.daysPresent} / {att.totalWorkingDays}</TableCell></TableRow>)}</TableBody>
+                        </Table>
+                        ) : <p className="text-sm text-muted-foreground">No attendance data found.</p>}
+                    </div>
+                )}
+                {reportType === 'marks' && (
+                    <div>
+                        <h3 className="font-semibold mb-2">Assessment Marks</h3>
+                        {Object.keys(groupedMarks).length > 0 ? (
+                            Object.entries(groupedMarks).map(([assessmentName, marks]) => (
+                            <div key={assessmentName} className="mb-4">
+                                <h4 className="font-medium text-primary mb-1">{assessmentName}</h4>
+                                <Table>
+                                    <TableHeader><TableRow><TableHead>Subject</TableHead><TableHead className="text-right">Marks</TableHead></TableRow></TableHeader>
+                                    <TableBody>{marks.map(mark => <TableRow key={mark._id?.toString()}><TableCell>{mark.subjectName}</TableCell><TableCell className="text-right">{mark.marksObtained} / {mark.maxMarks}</TableCell></TableRow>)}</TableBody>
+                                </Table>
+                            </div>
+                            ))
+                        ) : <p className="text-sm text-muted-foreground">No marks found for this student.</p>}
+                    </div>
+                )}
+                </>
+                )}
+            </div>
+            </ScrollArea>
+            <DialogFooter className="print:hidden">
+            <Button variant="outline" onClick={() => handlePrintReport(reportType!)}>
+                <Printer className="mr-2 h-4 w-4"/>Print
+            </Button>
+            <Button variant="outline" onClick={() => setReportType(null)}>Close</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
