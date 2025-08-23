@@ -172,7 +172,7 @@ export default function StudentResultsPage() {
        <style jsx global>{`
         @page {
             size: landscape;
-            margin: 0.5cm;
+            margin: 0;
         }
         @media print {
           body * { visibility: hidden; }
@@ -183,10 +183,9 @@ export default function StudentResultsPage() {
             left: 0 !important; 
             top: 0 !important; 
             width: 100% !important; 
+            height: 100% !important;
             margin: 0 !important; 
-            padding: 0 !important; 
-            transform: scale(0.95); 
-            transform-origin: top left;
+            padding: 0.25in !important;
             page-break-after: always;
           }
           .printable-report-card:last-child {
