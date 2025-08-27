@@ -78,13 +78,14 @@ export async function getCourseMaterialsForClass(classId: string, schoolId: stri
       subjectName: doc.subjectName,
       title: doc.title,
       pdfUrl: doc.pdfUrl,
-      addedById: doc.addedById.toString(),
-      addedByName: doc.addedByName,
+      addedById: doc.addedById ? doc.addedById.toString() : 'N/A', // Safely handle older documents
+      addedByName: doc.addedByName || 'N/A', // Safely handle older documents
       createdAt: new Date(doc.createdAt).toISOString(),
     }));
 
     return { success: true, materials };
   } catch (error) {
+    console.error("Get Course Materials Error:", error);
     return { success: false, message: 'Failed to fetch course materials.' };
   }
 }
