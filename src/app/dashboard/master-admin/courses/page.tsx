@@ -245,7 +245,7 @@ export default function MasterAdminCoursesPage() {
                  <FormField
                     control={form.control}
                     name="pdfUrl"
-                    render={() => (
+                    render={() => ( // We don't use field here because we have a custom handler
                         <FormItem className="md:col-span-2">
                         <FormLabel>Upload PDF</FormLabel>
                         <FormControl>

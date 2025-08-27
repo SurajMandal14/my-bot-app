@@ -90,7 +90,7 @@ export default function TeacherCoursesPage() {
       return;
     }
     setIsLoadingMaterials(true);
-    const result = await getCourseMaterialsForClass(classId, authUser.schoolId);
+    const result = await getCourseMaterialsForClass(classId, authUser.schoolId.toString());
     if(result.success && result.materials) {
         setMaterials(result.materials);
     } else {
@@ -255,7 +255,7 @@ export default function TeacherCoursesPage() {
                  <FormField
                     control={form.control}
                     name="pdfUrl"
-                    render={() => (
+                    render={() => ( // We don't use field here because we have a custom handler
                         <FormItem className="md:col-span-2">
                         <FormLabel>Upload PDF</FormLabel>
                         <FormControl>
