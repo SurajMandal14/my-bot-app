@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 export const courseMaterialSchema = z.object({
@@ -6,6 +7,8 @@ export const courseMaterialSchema = z.object({
   subjectName: z.string().min(1, "Subject name is required."),
   title: z.string().min(3, "Title must be at least 3 characters."),
   pdfUrl: z.string().min(1, "A PDF file is required."),
+  addedById: z.string().min(1, "The user ID of the creator is required."),
+  addedByName: z.string().min(1, "The name of the creator is required."),
 });
 export type CourseMaterialFormData = z.infer<typeof courseMaterialSchema>;
 
@@ -17,6 +20,8 @@ export interface CourseMaterial {
   title: string;
   pdfUrl: string;
   createdAt: string;
+  addedById: string;
+  addedByName: string;
 }
 
 export interface CourseMaterialResult {

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileUp, PlusCircle, Trash2, Loader2, Info } from "lucide-react";
+import { FileUp, PlusCircle, Trash2, Loader2, Info, Download } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -42,8 +42,8 @@ export default function MasterAdminCoursesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  const form = useForm<CourseMaterialFormData>({
-    resolver: zodResolver(courseMaterialSchema),
+  const form = useForm<Omit<CourseMaterialFormData, 'addedById' | 'addedByName'>>({
+    resolver: zodResolver(courseMaterialSchema.omit({ addedById: true, addedByName: true })),
     defaultValues: { schoolId: "", classId: "", subjectName: "", title: "", pdfUrl: "" },
   });
 
@@ -142,10 +142,14 @@ export default function MasterAdminCoursesPage() {
     };
   };
 
-  async function onSubmit(values: CourseMaterialFormData) {
-    if (!authUser?.schoolId) return;
+  async function onSubmit(values: Omit<CourseMaterialFormData, 'addedById' | 'addedByName'>) {
+    if (!authUser?.schoolId || !authUser._id || !authUser.name) return;
     setIsSubmitting(true);
-    const payload = { ...values, schoolId: authUser.schoolId.toString() };
+    const payload: CourseMaterialFormData = { 
+        ...values,
+        addedById: authUser._id.toString(),
+        addedByName: authUser.name,
+    };
     const result = await createCourseMaterial(payload);
     setIsSubmitting(false);
     if (result.success) {
@@ -158,6 +162,24 @@ export default function MasterAdminCoursesPage() {
       toast({ variant: "destructive", title: "Failed to Add", description: result.error || result.message });
     }
   }
+  
+  const handleDownload = (pdfUrl: string, filename: string) => {
+    try {
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (error) {
+        console.error("Download failed:", error);
+        toast({
+            variant: "destructive",
+            title: "Download Failed",
+            description: "Could not initiate the file download. Please try again or contact support."
+        });
+    }
+  };
 
   const handleConfirmDelete = async () => {
     if (!materialToDelete || !authUser?.schoolId) return;
@@ -263,14 +285,28 @@ export default function MasterAdminCoursesPage() {
             <div className="text-center py-6"><Loader2 className="h-6 w-6 animate-spin"/></div>
           ) : materials.length > 0 ? (
             <Table>
-              <TableHeader><TableRow><TableHead>Subject</TableHead><TableHead>Title</TableHead><TableHead>URL</TableHead><TableHead>Added On</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Download</TableHead>
+                  <TableHead>Added On</TableHead>
+                  <TableHead>Added By</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 {materials.map(mat => (
                   <TableRow key={mat._id}>
                     <TableCell>{mat.subjectName}</TableCell>
                     <TableCell>{mat.title}</TableCell>
-                    <TableCell><a href={mat.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block max-w-xs">{mat.pdfUrl.startsWith('data:') ? 'View Uploaded PDF' : mat.pdfUrl}</a></TableCell>
+                    <TableCell>
+                      <Button variant="outline" size="sm" onClick={() => handleDownload(mat.pdfUrl, `${mat.subjectName}_${mat.title}.pdf`)}>
+                        <Download className="mr-2 h-4 w-4"/> PDF
+                      </Button>
+                    </TableCell>
                     <TableCell>{format(new Date(mat.createdAt), "PP")}</TableCell>
+                    <TableCell>{mat.addedByName || 'N/A'}</TableCell>
                     <TableCell>
                       <AlertDialog open={materialToDelete?._id === mat._id} onOpenChange={(open) => !open && setMaterialToDelete(null)}>
                         <AlertDialogTrigger asChild>
@@ -290,7 +326,7 @@ export default function MasterAdminCoursesPage() {
               </TableBody>
             </Table>
           ) : (
-             <p className="text-center text-muted-foreground py-4">{selectedClassId ? "No materials uploaded for this class yet." : "Select a subject to see materials."}</p>
+             <p className="text-center text-muted-foreground py-4">{selectedClassId ? "No materials uploaded for this class yet." : "Select a class to see materials."}</p>
           )}
         </CardContent>
       </Card>

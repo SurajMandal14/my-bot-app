@@ -16,7 +16,7 @@ export async function createCourseMaterial(values: CourseMaterialFormData): Prom
             return { success: false, message: 'Validation failed', error: 'Invalid fields!' };
         }
 
-        const { schoolId, classId, subjectName, title, pdfUrl } = validatedFields.data;
+        const { schoolId, classId, subjectName, title, pdfUrl, addedById, addedByName } = validatedFields.data;
 
         const { db } = await connectToDatabase();
         const materialsCollection = db.collection('course_materials');
@@ -27,6 +27,8 @@ export async function createCourseMaterial(values: CourseMaterialFormData): Prom
             subjectName,
             title,
             pdfUrl,
+            addedById: new ObjectId(addedById),
+            addedByName,
             createdAt: new Date(),
         };
 
@@ -36,6 +38,7 @@ export async function createCourseMaterial(values: CourseMaterialFormData): Prom
         }
 
         revalidatePath('/dashboard/master-admin/courses');
+        revalidatePath('/dashboard/teacher/courses');
         revalidatePath('/dashboard/student/courses');
 
         return {
@@ -46,6 +49,7 @@ export async function createCourseMaterial(values: CourseMaterialFormData): Prom
                 _id: result.insertedId.toString(),
                 schoolId: newMaterial.schoolId.toString(),
                 classId: newMaterial.classId.toString(),
+                addedById: newMaterial.addedById.toString(),
                 createdAt: newMaterial.createdAt.toISOString(),
             },
         };
@@ -74,6 +78,8 @@ export async function getCourseMaterialsForClass(classId: string, schoolId: stri
       subjectName: doc.subjectName,
       title: doc.title,
       pdfUrl: doc.pdfUrl,
+      addedById: doc.addedById.toString(),
+      addedByName: doc.addedByName,
       createdAt: new Date(doc.createdAt).toISOString(),
     }));
 
@@ -100,6 +106,7 @@ export async function deleteCourseMaterial(id: string, schoolId: string): Promis
         }
 
         revalidatePath('/dashboard/master-admin/courses');
+        revalidatePath('/dashboard/teacher/courses');
         revalidatePath('/dashboard/student/courses');
         return { success: true, message: 'Course material deleted successfully!' };
     } catch (error) {

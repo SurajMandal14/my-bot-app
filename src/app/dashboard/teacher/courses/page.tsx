@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookOpen, PlusCircle, Trash2, Loader2, Info, FileUp } from "lucide-react";
+import { BookOpen, PlusCircle, Trash2, Loader2, Info, FileUp, Download } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -22,9 +22,9 @@ import { format } from 'date-fns';
 import { getAcademicYears } from "@/app/actions/academicYears";
 import type { AcademicYear } from "@/types/academicYear";
 
-type CourseMaterialFormClient = Omit<CourseMaterialFormData, 'schoolId' | 'classId' | 'subjectName'>;
+type CourseMaterialFormClient = Omit<CourseMaterialFormData, 'schoolId' | 'classId' | 'subjectName' | 'addedById' | 'addedByName'>;
 
-const formClientSchema = courseMaterialSchema.omit({ schoolId: true, classId: true, subjectName: true });
+const formClientSchema = courseMaterialSchema.omit({ schoolId: true, classId: true, subjectName: true, addedById: true, addedByName: true });
 
 export default function TeacherCoursesPage() {
   const { toast } = useToast();
@@ -142,7 +142,7 @@ export default function TeacherCoursesPage() {
   };
 
   async function onSubmit(values: CourseMaterialFormClient) {
-    if (!authUser?.schoolId || !selectedSubjectInfo) {
+    if (!authUser?.schoolId || !selectedSubjectInfo || !authUser._id || !authUser.name) {
       toast({variant: "destructive", title: "Error", description: "User or subject selection is missing."});
       return;
     }
@@ -153,6 +153,8 @@ export default function TeacherCoursesPage() {
         schoolId: authUser.schoolId.toString(),
         classId: selectedSubjectInfo.classId,
         subjectName: selectedSubjectInfo.subjectName,
+        addedById: authUser._id.toString(),
+        addedByName: authUser.name,
     };
 
     const result = await createCourseMaterial(payload);
@@ -167,6 +169,24 @@ export default function TeacherCoursesPage() {
       toast({ variant: "destructive", title: "Failed to Add", description: result.error || result.message });
     }
   }
+  
+  const handleDownload = (pdfUrl: string, filename: string) => {
+    try {
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (error) {
+        console.error("Download failed:", error);
+        toast({
+            variant: "destructive",
+            title: "Download Failed",
+            description: "Could not initiate the file download. Please try again or contact support."
+        });
+    }
+  };
 
   const handleConfirmDelete = async () => {
     if (!materialToDelete || !authUser?.schoolId) return;
@@ -275,27 +295,43 @@ export default function TeacherCoursesPage() {
             <div className="text-center py-6"><Loader2 className="h-6 w-6 animate-spin"/></div>
           ) : materials.length > 0 ? (
             <Table>
-              <TableHeader><TableRow><TableHead>Subject</TableHead><TableHead>Title</TableHead><TableHead>URL</TableHead><TableHead>Added On</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Download</TableHead>
+                  <TableHead>Added On</TableHead>
+                  <TableHead>Added By</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
                 {materials.filter(mat => mat.subjectName === selectedSubjectInfo?.subjectName).map(mat => (
                   <TableRow key={mat._id}>
                     <TableCell>{mat.subjectName}</TableCell>
                     <TableCell>{mat.title}</TableCell>
-                    <TableCell><a href={mat.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block max-w-xs">{mat.pdfUrl.startsWith('data:') ? 'View Uploaded PDF' : mat.pdfUrl}</a></TableCell>
-                    <TableCell>{format(new Date(mat.createdAt), "PP")}</TableCell>
                     <TableCell>
-                      <AlertDialog open={materialToDelete?._id === mat._id} onOpenChange={(open) => !open && setMaterialToDelete(null)}>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setMaterialToDelete(mat)}><Trash2 className="h-4 w-4"/></Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader><AlertDialogTitle>Delete this material?</AlertDialogTitle><AlertDialogDescription>Delete "{materialToDelete?.title}"? This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel onClick={() => setMaterialToDelete(null)}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting} className="bg-destructive">{isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Delete</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <Button variant="outline" size="sm" onClick={() => handleDownload(mat.pdfUrl, `${mat.subjectName}_${mat.title}.pdf`)}>
+                        <Download className="mr-2 h-4 w-4"/> PDF
+                      </Button>
+                    </TableCell>
+                    <TableCell>{format(new Date(mat.createdAt), "PP")}</TableCell>
+                    <TableCell>{mat.addedByName || 'N/A'}</TableCell>
+                    <TableCell>
+                      {mat.addedById === authUser?._id && (
+                        <AlertDialog open={materialToDelete?._id === mat._id} onOpenChange={(open) => !open && setMaterialToDelete(null)}>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setMaterialToDelete(mat)}><Trash2 className="h-4 w-4"/></Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader><AlertDialogTitle>Delete this material?</AlertDialogTitle><AlertDialogDescription>Delete "{materialToDelete?.title}"? This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel onClick={() => setMaterialToDelete(null)}>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting} className="bg-destructive">{isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
