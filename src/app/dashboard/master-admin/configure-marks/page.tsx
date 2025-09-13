@@ -121,12 +121,7 @@ export default function ConfigureMarksPage() {
         getAcademicYears(),
       ]);
       
-      const processedClasses = classesResult.map(c => {
-        const match = c.label.match(/\((\d{4}-\d{4})\)/);
-        const year = match ? match[1] : '';
-        return { value: c.value, label: c.label, academicYear: year };
-      });
-      setAllClassOptions(processedClasses);
+      setAllClassOptions(classesResult);
       
       if(schemesResult.success && schemesResult.schemes) {
         setAssessmentSchemes(schemesResult.schemes);
@@ -162,16 +157,7 @@ export default function ConfigureMarksPage() {
   
   const filteredClassOptions = useMemo(() => {
     if (!selectedAcademicYear) return [];
-    const uniqueClasses = allClassOptions
-      .filter(opt => opt.academicYear === selectedAcademicYear)
-      .reduce((acc, current) => {
-        const className = current.label.split('(')[0].trim();
-        if (!acc.find(item => item.label.startsWith(className))) {
-          acc.push({ ...current, label: className });
-        }
-        return acc;
-      }, [] as ClassOption[]);
-    return uniqueClasses;
+    return allClassOptions.filter(opt => opt.academicYear === selectedAcademicYear);
   }, [allClassOptions, selectedAcademicYear]);
 
   const assessmentForm = useForm<AssessmentSchemeFormData>({
@@ -300,26 +286,13 @@ export default function ConfigureMarksPage() {
 
   const getSelectedClassesLabel = (classIds: string[] = []) => {
     if (classIds.length === 0) return "Select classes...";
-    if (filteredClassOptions.length > 0 && classIds.length === filteredClassOptions.length) return "All Classes";
-    if (classIds.length > 2) return `${classIds.length} classes selected`;
-    return classIds.join(', ');
+    const selectedLabels = classIds.map(id => filteredClassOptions.find(opt => opt.value === id)?.label).filter(Boolean);
+    if (filteredClassOptions.length > 0 && selectedLabels.length === filteredClassOptions.length) return "All Classes";
+    if (selectedLabels.length > 2) return `${selectedLabels.length} classes selected`;
+    return selectedLabels.join(', ');
   };
   
   const PREVIEW_COLORS = ['bg-green-500', 'bg-blue-500', 'bg-yellow-500', 'bg-orange-500', 'bg-red-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500'];
-
-  const filteredSchemes = useMemo(() => {
-    if (!selectedAcademicYear) return assessmentSchemes;
-    const classesForYear = allClassOptions.filter(c => c.academicYear === selectedAcademicYear).map(c => c.label.split('(')[0].trim());
-    return assessmentSchemes.filter(scheme => {
-      if (scheme._id === 'default_cbse_state') {
-        const defaultSchemeCopy = { ...scheme };
-        defaultSchemeCopy.classIds = ['All Classes']; 
-        return true;
-      }
-      return scheme.classIds.some(className => classesForYear.includes(className));
-    });
-  }, [assessmentSchemes, allClassOptions, selectedAcademicYear]);
-
 
   return (
     <div className="space-y-6">
@@ -345,7 +318,7 @@ export default function ConfigureMarksPage() {
                 <CardContent>
                   <Form {...assessmentForm}>
                     <form onSubmit={assessmentForm.handleSubmit(onAssessmentSubmit)} className="space-y-6">
-                      <FormField control={assessmentForm.control} name="classIds" render={({ field }) => (<FormItem><FormLabel>Apply to Classes</FormLabel><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="w-full justify-between">{getSelectedClassesLabel(selectedClasses)}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></DropdownMenuTrigger><DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">{isLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> : filteredClassOptions.map(option => (<DropdownMenuItem key={option.value} onSelect={(e) => e.preventDefault()}><Checkbox checked={field.value.includes(option.label)} onCheckedChange={(checked) => { return checked ? field.onChange([...field.value, option.label]) : field.onChange(field.value.filter(v => v !== option.label))}} className="mr-2"/>{option.label}</DropdownMenuItem>))}</DropdownMenuContent></DropdownMenu><FormMessage /></FormItem>)}/>
+                      <FormField control={assessmentForm.control} name="classIds" render={({ field }) => (<FormItem><FormLabel>Apply to Classes</FormLabel><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="w-full justify-between">{getSelectedClassesLabel(selectedClasses)}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></DropdownMenuTrigger><DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">{isLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> : filteredClassOptions.map(option => (<DropdownMenuItem key={option.value} onSelect={(e) => e.preventDefault()}><Checkbox checked={field.value.includes(option.value)} onCheckedChange={(checked) => { return checked ? field.onChange([...field.value, option.value]) : field.onChange(field.value.filter(v => v !== option.value))}} className="mr-2"/>{option.label}</DropdownMenuItem>))}</DropdownMenuContent></DropdownMenu><FormMessage /></FormItem>)}/>
                       
                       <div>
                         <FormLabel>Assessments</FormLabel>
@@ -396,16 +369,19 @@ export default function ConfigureMarksPage() {
                           <SelectContent>{academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
+                      <Button onClick={() => setIsSchemeFormOpen(true)} disabled={isSchemeFormOpen}>
+                        <PlusCircle className="mr-2 h-4 w-4"/> Create New
+                      </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? <div className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
-                  filteredSchemes.length > 0 ? (
+                  assessmentSchemes.length > 0 ? (
                     <Table>
                       <TableHeader><TableRow><TableHead>Applied to Class(es)</TableHead><TableHead>Last Updated</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
-                      <TableBody>{filteredSchemes.map((scheme) => (
+                      <TableBody>{assessmentSchemes.map((scheme) => (
                           <TableRow key={scheme._id.toString()}>
-                            <TableCell>{scheme.classIds.join(', ')}</TableCell>
+                            <TableCell>{scheme.classNames?.join(', ') || scheme.classIds.join(', ')}</TableCell>
                             <TableCell>{format(new Date(scheme.updatedAt), "PP")}</TableCell>
                             <TableCell className="text-right space-x-1">
                               <Button variant="ghost" size="icon" onClick={() => handleEditScheme(scheme)} disabled={!!isDeleting}><Edit className="h-4 w-4" /></Button>
@@ -477,5 +453,3 @@ export default function ConfigureMarksPage() {
     </div>
   );
 }
-
-    

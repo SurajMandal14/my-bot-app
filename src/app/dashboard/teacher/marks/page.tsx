@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,9 +40,13 @@ export default function TeacherMarksEntryPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
-  const [availableSubjects, setAvailableSubjects] = useState<SubjectForTeacher[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState<SubjectForTeacher | null>(null);
-
+  const [allTaughtSubjects, setAllTaughtSubjects] = useState<SubjectForTeacher[]>([]);
+  const [availableClasses, setAvailableClasses] = useState<{ value: string; label: string; }[]>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  
+  const [selectedClassId, setSelectedClassId] = useState<string>("");
+  const [selectedSubjectName, setSelectedSubjectName] = useState<string>("");
+  
   const [assessmentScheme, setAssessmentScheme] = useState<AssessmentScheme | null>(null);
   const [selectedAssessmentName, setSelectedAssessmentName] = useState<string>("");
   
@@ -54,7 +58,7 @@ export default function TeacherMarksEntryPage() {
   const [studentMarks, setStudentMarks] = useState<Record<string, StudentMarksCustomState | {}>>({});
   const [selectedStudentIds, setSelectedStudentIds] = useState<Record<string, boolean>>({});
 
-  const [isLoadingSubjects, setIsLoadingSubjects] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [isLoadingStudentsAndMarks, setIsLoadingStudentsAndMarks] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -76,7 +80,7 @@ export default function TeacherMarksEntryPage() {
 
   const fetchInitialData = useCallback(async () => {
     if (!authUser || !authUser._id || !authUser.schoolId) return;
-    setIsLoadingSubjects(true);
+    setIsLoading(true);
     const [schoolResult, academicYearsResult] = await Promise.all([
       getSchoolById(authUser.schoolId.toString()),
       getAcademicYears()
@@ -96,27 +100,71 @@ export default function TeacherMarksEntryPage() {
     if(academicYearsResult.success && academicYearsResult.academicYears) {
         setAcademicYears(academicYearsResult.academicYears);
     }
-    setIsLoadingSubjects(false);
+    setIsLoading(false);
   }, [authUser]);
-  
+
+  useEffect(() => { if (authUser) fetchInitialData(); }, [authUser, fetchInitialData]);
+
   const fetchSubjectsForYear = useCallback(async () => {
       if (!authUser || !authUser._id || !authUser.schoolId || !selectedAcademicYear) return;
-      setIsLoadingSubjects(true);
+      setIsLoading(true);
       const subjectsResult = await getSubjectsForTeacher(authUser._id, authUser.schoolId, selectedAcademicYear);
-      setAvailableSubjects(subjectsResult);
-      if (!subjectsResult.some(s => s.value === selectedSubject?.value)) {
-        setSelectedSubject(null);
+      setAllTaughtSubjects(subjectsResult);
+      
+      const uniqueClasses = Array.from(new Map(subjectsResult.map(s => [s.classId, {value: s.classId, label: s.label.split('(')[1].replace(')', '') }])).values());
+      setAvailableClasses(uniqueClasses);
+      
+      // Reset selections if they become invalid
+      if (!uniqueClasses.some(c => c.value === selectedClassId)) {
+        setSelectedClassId("");
+        setSelectedSubjectName("");
         setAssessmentScheme(null);
         setSelectedAssessmentName("");
       }
-      setIsLoadingSubjects(false);
-  }, [authUser, selectedAcademicYear, selectedSubject]);
+      
+      setIsLoading(false);
+  }, [authUser, selectedAcademicYear, selectedClassId]);
 
-  useEffect(() => { if (authUser) fetchInitialData(); }, [authUser, fetchInitialData]);
-  useEffect(() => { if (selectedAcademicYear && authUser) fetchSubjectsForYear(); }, [selectedAcademicYear, authUser, fetchSubjectsForYear]);
+  useEffect(() => {
+    if (selectedAcademicYear && authUser) fetchSubjectsForYear();
+  }, [selectedAcademicYear, authUser, fetchSubjectsForYear]);
+
+  // Update available subjects when class changes
+  useEffect(() => {
+    if (selectedClassId) {
+        const subjectsForClass = allTaughtSubjects.filter(s => s.classId === selectedClassId).map(s => s.subjectName);
+        setAvailableSubjects(Array.from(new Set(subjectsForClass)));
+        if (!subjectsForClass.includes(selectedSubjectName)) {
+            setSelectedSubjectName("");
+        }
+    } else {
+        setAvailableSubjects([]);
+        setSelectedSubjectName("");
+    }
+  }, [selectedClassId, allTaughtSubjects, selectedSubjectName]);
+
+  // Fetch assessment scheme when class changes
+  useEffect(() => {
+    const fetchScheme = async () => {
+      if (selectedClassId && authUser?.schoolId) {
+        const schemeResult = await getAssessmentSchemeForClass(selectedClassId, authUser.schoolId);
+        if (schemeResult.success && schemeResult.scheme) {
+          setAssessmentScheme(schemeResult.scheme);
+        } else {
+          toast({ variant: 'destructive', title: 'Scheme Error', description: schemeResult.message || "Could not fetch assessment scheme for this class." });
+          setAssessmentScheme(null);
+        }
+      } else {
+        setAssessmentScheme(null);
+      }
+      setSelectedAssessmentName(""); // Reset assessment selection
+    };
+    fetchScheme();
+  }, [selectedClassId, authUser?.schoolId, toast]);
+
 
   const fetchStudentsAndMarks = useCallback(async () => {
-    const isReadyForFetch = selectedSubject && selectedAssessmentName && selectedAcademicYear && authUser?.schoolId;
+    const isReadyForFetch = selectedClassId && selectedSubjectName && selectedAssessmentName && selectedAcademicYear && authUser?.schoolId;
     if (!isReadyForFetch || !currentAssessmentConfig) {
       setStudentsForMarks([]); setStudentMarks({}); setSelectedStudentIds({}); return;
     }
@@ -126,7 +174,7 @@ export default function TeacherMarksEntryPage() {
 
     setIsLoadingStudentsAndMarks(true);
     try {
-      const studentsResult = await getStudentsByClass(authUser!.schoolId!, selectedSubject!.classId, selectedAcademicYear);
+      const studentsResult = await getStudentsByClass(authUser!.schoolId!, selectedClassId, selectedAcademicYear);
       if (!studentsResult.success || !studentsResult.users) {
         toast({ variant: "destructive", title: "Error", description: studentsResult.message || "Failed to load students." });
         setIsLoadingStudentsAndMarks(false); return;
@@ -135,7 +183,7 @@ export default function TeacherMarksEntryPage() {
       setSelectedStudentIds(studentsResult.users.reduce((acc, s) => ({...acc, [s._id!]: true}), {}));
 
       const marksResult = await getMarksForAssessment(
-        authUser!.schoolId!, selectedSubject!.classId, selectedSubject!.subjectName,
+        authUser!.schoolId!, selectedClassId, selectedSubjectName,
         selectedAssessmentName, selectedAcademicYear
       );
 
@@ -167,24 +215,10 @@ export default function TeacherMarksEntryPage() {
     } finally {
       setIsLoadingStudentsAndMarks(false);
     }
-  }, [authUser, selectedSubject, selectedAssessmentName, selectedAcademicYear, toast, isMarksEntryLocked, currentAssessmentConfig]);
+  }, [authUser, selectedClassId, selectedSubjectName, selectedAssessmentName, selectedAcademicYear, toast, isMarksEntryLocked, currentAssessmentConfig]);
 
   useEffect(() => { fetchStudentsAndMarks(); }, [fetchStudentsAndMarks]);
 
-  const handleSubjectChange = async (value: string) => {
-    const subjectInfo = availableSubjects.find(s => s.value === value);
-    setSelectedSubject(subjectInfo || null);
-    setSelectedAssessmentName("");
-    setAssessmentScheme(null);
-    if (subjectInfo && authUser?.schoolId) {
-      const schemeResult = await getAssessmentSchemeForClass(subjectInfo.classId, authUser.schoolId);
-      if (schemeResult.success && schemeResult.scheme) {
-        setAssessmentScheme(schemeResult.scheme);
-      } else {
-        toast({variant: 'destructive', title: 'Scheme Error', description: schemeResult.message || "Could not fetch assessment scheme for this class."})
-      }
-    }
-  };
 
   const handleMarksChange = (studentId: string, fieldKey: string, value: string) => {
     const numValue = value === '' ? null : parseInt(value, 10);
@@ -201,7 +235,8 @@ export default function TeacherMarksEntryPage() {
   const selectAllCheckboxState = allStudentsSelected ? true : (someStudentsSelected ? 'indeterminate' : false);
 
   const handleSubmit = async () => {
-    if (!authUser || !selectedSubject || !selectedAssessmentName || !selectedAcademicYear || !currentAssessmentConfig) return;
+    const classInfo = allTaughtSubjects.find(s => s.classId === selectedClassId);
+    if (!authUser || !selectedClassId || !selectedSubjectName || !selectedAssessmentName || !selectedAcademicYear || !currentAssessmentConfig || !classInfo) return;
     
     const finalSelectedStudentIds = Object.keys(selectedStudentIds).filter(id => selectedStudentIds[id]);
     if (finalSelectedStudentIds.length === 0) { toast({ variant: "info", title: "No Students Selected" }); return; }
@@ -216,7 +251,7 @@ export default function TeacherMarksEntryPage() {
       if (!marksState) continue;
 
         for (const test of currentAssessmentConfig.tests) {
-            const marksObtained = (marksState as StudentMarksCustomState)[test.testName];
+            const marksObtained = (marksState as StudentMarksCustomState)?.[test.testName];
             if(marksObtained === null || marksObtained === undefined) continue;
 
             if (marksObtained > test.maxMarks) {
@@ -230,9 +265,13 @@ export default function TeacherMarksEntryPage() {
     if (marksToSubmit.length === 0) { toast({ variant: "info", title: "No Marks to Submit" }); setIsSubmitting(false); return; }
 
     const payload: MarksSubmissionPayload = {
-      classId: selectedSubject.classId, className: selectedSubject.className, subjectId: selectedSubject.subjectName,
-      subjectName: selectedSubject.subjectName, academicYear: selectedAcademicYear,
-      markedByTeacherId: authUser._id.toString(), schoolId: authUser.schoolId.toString(),
+      classId: selectedClassId, 
+      className: classInfo.className, 
+      subjectId: selectedSubjectName,
+      subjectName: selectedSubjectName, 
+      academicYear: selectedAcademicYear,
+      markedByTeacherId: authUser._id.toString(), 
+      schoolId: authUser.schoolId.toString(),
       studentMarks: marksToSubmit,
     };
 
@@ -248,14 +287,15 @@ export default function TeacherMarksEntryPage() {
 
   return (
     <div className="space-y-6">
-      <Card><CardHeader><CardTitle className="text-2xl font-headline flex items-center"><BookCopy className="mr-2 h-6 w-6" /> Enter Student Marks</CardTitle><CardDescription>Select the subject, assessment, and academic year to enter marks.</CardDescription></CardHeader></Card>
+      <Card><CardHeader><CardTitle className="text-2xl font-headline flex items-center"><BookCopy className="mr-2 h-6 w-6" /> Enter Student Marks</CardTitle><CardDescription>Select the class, subject, assessment, and academic year to enter marks.</CardDescription></CardHeader></Card>
 
       <Card>
         <CardHeader><CardTitle>Selection Criteria</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
-           <div><Label htmlFor="academic-year-select">Academic Year</Label><Select onValueChange={setSelectedAcademicYear} value={selectedAcademicYear} disabled={isLoadingSubjects || academicYears.length === 0}><SelectTrigger id="academic-year-select"><SelectValue placeholder="Select year"/></SelectTrigger><SelectContent>{academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}</SelectContent></Select></div>
-           <div><Label htmlFor="subject-select">Subject (Class)</Label><Select onValueChange={handleSubjectChange} value={selectedSubject?.value || ""} disabled={isLoadingSubjects || availableSubjects.length === 0}><SelectTrigger id="subject-select"><SelectValue placeholder={isLoadingSubjects ? "Loading..." : "Select subject"} /></SelectTrigger><SelectContent>{availableSubjects.map(subject => <SelectItem key={subject.value} value={subject.value}>{subject.label}</SelectItem>)}</SelectContent></Select></div>
-           <div><Label htmlFor="assessment-select">Assessment</Label><Select onValueChange={setSelectedAssessmentName} value={selectedAssessmentName} disabled={!selectedSubject || !assessmentScheme}><SelectTrigger id="assessment-select"><SelectValue placeholder="Select assessment" /></SelectTrigger><SelectContent>{(assessmentScheme?.assessments || []).map(a => <SelectItem key={a.groupName} value={a.groupName}>{a.groupName}</SelectItem>)}</SelectContent></Select></div>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+           <div><Label htmlFor="academic-year-select">Academic Year</Label><Select onValueChange={setSelectedAcademicYear} value={selectedAcademicYear} disabled={isLoading || academicYears.length === 0}><SelectTrigger id="academic-year-select"><SelectValue placeholder="Select year"/></SelectTrigger><SelectContent>{academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}</SelectContent></Select></div>
+           <div><Label htmlFor="class-select">Class</Label><Select onValueChange={setSelectedClassId} value={selectedClassId} disabled={isLoading || availableClasses.length === 0}><SelectTrigger id="class-select"><SelectValue placeholder={isLoading ? "Loading..." : "Select class"} /></SelectTrigger><SelectContent>{availableClasses.map(cls => <SelectItem key={cls.value} value={cls.value}>{cls.label}</SelectItem>)}</SelectContent></Select></div>
+           <div><Label htmlFor="subject-select">Subject</Label><Select onValueChange={setSelectedSubjectName} value={selectedSubjectName} disabled={!selectedClassId || availableSubjects.length === 0}><SelectTrigger id="subject-select"><SelectValue placeholder="Select subject" /></SelectTrigger><SelectContent>{availableSubjects.map(subject => <SelectItem key={subject} value={subject}>{subject}</SelectItem>)}</SelectContent></Select></div>
+           <div><Label htmlFor="assessment-select">Assessment</Label><Select onValueChange={setSelectedAssessmentName} value={selectedAssessmentName} disabled={!selectedClassId || !assessmentScheme}><SelectTrigger id="assessment-select"><SelectValue placeholder="Select assessment" /></SelectTrigger><SelectContent>{(assessmentScheme?.assessments || []).map(a => <SelectItem key={a.groupName} value={a.groupName}>{a.groupName}</SelectItem>)}</SelectContent></Select></div>
         </CardContent>
       </Card>
       
@@ -265,7 +305,7 @@ export default function TeacherMarksEntryPage() {
 
       {(studentsForMarks.length > 0 || isLoadingStudentsAndMarks) && !isMarksEntryLocked && (
         <Card>
-          <CardHeader><CardTitle>Enter Marks for: {selectedSubject?.label} - {selectedAssessmentName}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Enter Marks for: {availableClasses.find(c=>c.value === selectedClassId)?.label} - {selectedSubjectName} - {selectedAssessmentName}</CardTitle></CardHeader>
           <CardContent>
             {isLoadingStudentsAndMarks ? <div className="flex items-center justify-center py-6"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading...</p></div>
             : <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}><div className="overflow-x-auto"><Table>
@@ -290,11 +330,9 @@ export default function TeacherMarksEntryPage() {
         </Card>
       )}
 
-      {!isMarksEntryLocked && !isLoadingStudentsAndMarks && studentsForMarks.length === 0 && selectedSubject && (
-          <p className="text-center text-muted-foreground py-4">{`No students for ${selectedSubject.className} in ${selectedAcademicYear}.`}</p>
+      {!isMarksEntryLocked && !isLoadingStudentsAndMarks && studentsForMarks.length === 0 && selectedSubjectName && (
+          <p className="text-center text-muted-foreground py-4">{`No students for the selected class in ${selectedAcademicYear}.`}</p>
       )}
     </div>
   );
 }
-
-    

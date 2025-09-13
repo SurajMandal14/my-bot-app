@@ -41,7 +41,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
       const fieldsOnInsert = {
         studentId: new ObjectId(sm.studentId),
         studentName: sm.studentName,
-        classId: classId,
+        classId: new ObjectId(classId),
         className: className,
         subjectId: subjectId, 
         subjectName: subjectName,
@@ -129,7 +129,7 @@ export async function getMarksForAssessment(
 
     const marks = await marksCollection.find({
       schoolId: new ObjectId(schoolId),
-      classId: classId,
+      classId: new ObjectId(classId),
       subjectId: subjectNameParam,
       assessmentName: queryAssessmentFilter,
       academicYear: academicYear,

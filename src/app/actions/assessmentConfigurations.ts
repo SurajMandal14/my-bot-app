@@ -61,11 +61,11 @@ export async function createAssessmentScheme(
     // The form now sends class names. We need to get their IDs.
     const classDocs = await db.collection('school_classes').find({ 
         schoolId: new ObjectId(schoolId),
-        name: { $in: validatedFields.data.classIds } // Find classes by name
-    }).project({ _id: 1, name: 1 }).toArray();
+        _id: { $in: validatedFields.data.classIds.map(id => new ObjectId(id)) } 
+    }).project({ _id: 1, name: 1, section: 1 }).toArray();
     
     const classIdStrings = classDocs.map(c => c._id.toString());
-    const classNames = classDocs.map(c => c.name);
+    const classNames = classDocs.map(c => `${c.name} - ${c.section}`);
 
     if (classIdStrings.length !== validatedFields.data.classIds.length) {
         // This can happen if a class name from the form doesn't exist in the DB
@@ -170,7 +170,7 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
     // Find a scheme where the classId is included in the classIds array
     const schemeDoc = await db.collection('assessment_schemes').findOne({
       schoolId: new ObjectId(schoolId),
-      classIds: classId,
+      classIds: { $in: [classId] },
     });
 
     if (!schemeDoc) {
@@ -212,11 +212,11 @@ export async function updateAssessmentScheme(
         const { db } = await connectToDatabase();
         const classDocs = await db.collection('school_classes').find({ 
             schoolId: new ObjectId(schoolId),
-            name: { $in: validatedFields.data.classIds }
-        }).project({ _id: 1, name: 1 }).toArray();
+            _id: { $in: validatedFields.data.classIds.map(id => new ObjectId(id)) }
+        }).project({ _id: 1, name: 1, section: 1 }).toArray();
 
         const classIdStrings = classDocs.map(c => c._id.toString());
-        const classNames = classDocs.map(c => c.name);
+        const classNames = classDocs.map(c => `${c.name} - ${c.section}`);
 
         const updateData = {
             ...validatedFields.data,
@@ -379,5 +379,3 @@ export async function deleteGradingPattern(patternId: string, schoolId: string):
         return { success: false, message: 'An unexpected error occurred.' };
     }
 }
-
-    
