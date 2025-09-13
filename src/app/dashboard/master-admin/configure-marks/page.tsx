@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlusCircle, Edit, Settings, Trash2, Loader2, ChevronsUpDown, Palette } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Dialog,
@@ -48,6 +48,30 @@ interface ClassOption {
   label: string; 
   academicYear: string;
 }
+
+// New sub-component to handle the nested field array correctly
+function AssessmentGroupTests({ control, groupIndex }: { control: Control<AssessmentSchemeFormData>, groupIndex: number }) {
+  const { fields: testFields, append: appendTest, remove: removeTest } = useFieldArray({
+    control: control,
+    name: `assessments.${groupIndex}.tests`,
+  });
+
+  return (
+    <div className="pl-4 border-l-2 space-y-2">
+      {testFields.map((test, testIndex) => (
+        <div key={test.id} className="flex items-end gap-2">
+          <FormField control={control} name={`assessments.${groupIndex}.tests.${testIndex}.testName`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Test Name</FormLabel><FormControl><Input placeholder="e.g., Tool 1" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+          <FormField control={control} name={`assessments.${groupIndex}.tests.${testIndex}.maxMarks`} render={({ field }) => (<FormItem><FormLabel>Max Marks</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+          <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTest(testIndex)} disabled={testFields.length <= 1}><Trash2 className="h-4 w-4"/></Button>
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" onClick={() => appendTest({ testName: "", maxMarks: 10 })}>
+        <PlusCircle className="mr-2 h-4 w-4"/> Add Test
+      </Button>
+    </div>
+  );
+}
+
 
 export default function ConfigureMarksPage() {
   const { toast } = useToast();
@@ -311,32 +335,16 @@ export default function ConfigureMarksPage() {
                         <div>
                             <FormLabel>Assessments</FormLabel>
                             <div className="mt-2 space-y-4 max-h-[40vh] overflow-y-auto pr-2">
-                              {assessmentGroups.map((group, groupIndex) => {
-                                const { fields: testFields, append: appendTest, remove: removeTest } = useFieldArray({
-                                  control: assessmentForm.control,
-                                  name: `assessments.${groupIndex}.tests`,
-                                });
-                                return (
+                              {assessmentGroups.map((group, groupIndex) => (
                                   <Card key={group.id} className="p-4 bg-muted/50">
                                     <div className="flex items-end gap-3 mb-3">
                                       <FormField control={assessmentForm.control} name={`assessments.${groupIndex}.groupName`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Assessment Name (e.g., FA1)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
                                       <Button type="button" variant="destructive" size="icon" onClick={() => removeAssessmentGroup(groupIndex)} disabled={assessmentGroups.length <= 1}><Trash2 className="h-4 w-4" /></Button>
                                     </div>
-                                    <div className="pl-4 border-l-2 space-y-2">
-                                      {testFields.map((test, testIndex) => (
-                                        <div key={test.id} className="flex items-end gap-2">
-                                          <FormField control={assessmentForm.control} name={`assessments.${groupIndex}.tests.${testIndex}.testName`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Test Name</FormLabel><FormControl><Input placeholder="e.g., Tool 1" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                          <FormField control={assessmentForm.control} name={`assessments.${groupIndex}.tests.${testIndex}.maxMarks`} render={({ field }) => (<FormItem><FormLabel>Max Marks</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                          <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTest(testIndex)} disabled={testFields.length <= 1}><Trash2 className="h-4 w-4"/></Button>
-                                        </div>
-                                      ))}
-                                      <Button type="button" variant="outline" size="sm" onClick={() => appendTest({ testName: "", maxMarks: 10 })}>
-                                        <PlusCircle className="mr-2 h-4 w-4"/> Add Test
-                                      </Button>
-                                    </div>
+                                    <AssessmentGroupTests control={assessmentForm.control} groupIndex={groupIndex} />
                                   </Card>
-                                );
-                              })}
+                                )
+                              )}
                             </div>
                             <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendAssessmentGroup({ groupName: "", tests: [{ testName: "", maxMarks: 10 }] })}>
                               <PlusCircle className="mr-2 h-4 w-4" /> Add Assessment Group
@@ -361,7 +369,7 @@ export default function ConfigureMarksPage() {
                               <Button variant="ghost" size="icon" onClick={() => handleEditScheme(scheme)} disabled={!!isDeleting || scheme._id === 'default_cbse_state'}><Edit className="h-4 w-4" /></Button>
                               <AlertDialog open={schemeToDelete?._id === scheme._id} onOpenChange={(open) => !open && setSchemeToDelete(null)}>
                                 <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive" onClick={() => setSchemeToDelete(scheme)} disabled={!!isDeleting || scheme._id === 'default_cbse_state'}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
-                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Scheme?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete the scheme for "{scheme.schemeName}"? This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={onDeleteScheme} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Scheme?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete this scheme? This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={onDeleteScheme} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                               </AlertDialog>
                             </TableCell>
                           </TableRow>
@@ -427,5 +435,3 @@ export default function ConfigureMarksPage() {
     </div>
   );
 }
-
-    
