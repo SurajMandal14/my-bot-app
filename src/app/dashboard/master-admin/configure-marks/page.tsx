@@ -19,7 +19,6 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
 import {
@@ -96,11 +95,17 @@ export default function ConfigureMarksPage() {
         getGradingPatterns(authUser.schoolId.toString())
       ]);
       
-      const uniqueClasses = classesResult.map(c => ({
-          value: `${c.name}-${c.academicYear}`,
-          label: `${c.name} (${c.academicYear})`,
-          academicYear: c.academicYear,
-      }));
+      const uniqueClasses = classesResult.reduce((acc, current) => {
+        const key = `${current.name}-${current.academicYear}`;
+        if (!acc.find(item => item.value === key)) {
+          acc.push({
+            value: key,
+            label: `${current.name} (${current.academicYear})`,
+            academicYear: current.academicYear,
+          });
+        }
+        return acc;
+      }, [] as ClassOption[]);
       setClassOptions(uniqueClasses);
       
       if(schemesResult.success && schemesResult.schemes) {
@@ -319,11 +324,10 @@ export default function ConfigureMarksPage() {
                   {isLoading ? <div className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
                   assessmentSchemes.length > 0 ? (
                     <Table>
-                      <TableHeader><TableRow><TableHead>Applied to Class(es)</TableHead><TableHead>Scheme Name</TableHead><TableHead>Last Updated</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Applied to Class(es)</TableHead><TableHead>Last Updated</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                       <TableBody>{assessmentSchemes.map((scheme) => (
                           <TableRow key={scheme._id.toString()}>
                             <TableCell>{getSelectedClassesLabel(scheme.classIds.map(id => id.toString()))}</TableCell>
-                            <TableCell className="font-medium">{scheme.schemeName}</TableCell>
                             <TableCell>{format(new Date(scheme.updatedAt), "PP")}</TableCell>
                             <TableCell className="text-right space-x-1">
                               <Button variant="ghost" size="icon" onClick={() => handleEditScheme(scheme)} disabled={!!isDeleting || scheme._id === 'default_cbse_state'}><Edit className="h-4 w-4" /></Button>
