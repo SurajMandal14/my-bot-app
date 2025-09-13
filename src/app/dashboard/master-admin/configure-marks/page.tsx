@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, Edit, Settings, Trash2, Loader2, ChevronsUpDown, Palette } from "lucide-react";
+import { PlusCircle, Edit, Settings, Trash2, Loader2, ChevronsUpDown, Palette, XCircle } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useForm, useFieldArray, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,7 +21,6 @@ import {
   DialogDescription,
   DialogFooter,
   DialogClose,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -80,31 +79,26 @@ function AssessmentGroupTests({ control, groupIndex }: { control: Control<Assess
   );
 }
 
-
 export default function ConfigureMarksPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   
-  // Data State
   const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
   const [assessmentSchemes, setAssessmentSchemes] = useState<AssessmentScheme[]>([]);
   const [gradingPatterns, setGradingPatterns] = useState<GradingPattern[]>([]);
   
-  // Loading & Action State
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingScheme, setIsSubmittingScheme] = useState(false);
   const [isSubmittingPattern, setIsSubmittingPattern] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
-  // Modal & Editing State
-  const [isSchemeModalOpen, setIsSchemeModalOpen] = useState(false);
+  const [isSchemeFormOpen, setIsSchemeFormOpen] = useState(false);
   const [editingScheme, setEditingScheme] = useState<AssessmentScheme | null>(null);
   const [schemeToDelete, setSchemeToDelete] = useState<AssessmentScheme | null>(null);
   
   const [isPatternModalOpen, setIsPatternModalOpen] = useState(false);
   const [editingPattern, setEditingPattern] = useState<GradingPattern | null>(null);
   const [patternToDelete, setPatternToDelete] = useState<GradingPattern | null>(null);
-
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -166,7 +160,6 @@ export default function ConfigureMarksPage() {
     }
   }, [authUser, fetchData]);
 
-  // Form for Assessment Schemes
   const assessmentForm = useForm<AssessmentSchemeFormData>({
     resolver: zodResolver(assessmentSchemeSchema),
     defaultValues: { classIds: [], assessments: defaultCBSEAssessments },
@@ -186,23 +179,27 @@ export default function ConfigureMarksPage() {
     setEditingScheme(scheme);
     assessmentForm.reset({
       classIds: scheme.classIds.map(className => {
-        // Find an option whose label starts with the className, to handle academic year suffix
         const option = classOptions.find(opt => opt.label.startsWith(className));
         return option ? option.value : '';
       }).filter(Boolean),
       assessments: scheme.assessments,
     });
-    setIsSchemeModalOpen(true);
+    setIsSchemeFormOpen(true);
+  };
+  
+  const handleCreateNewScheme = () => {
+    setEditingScheme(null);
+    assessmentForm.reset({ classIds: [], assessments: defaultCBSEAssessments });
+    setIsSchemeFormOpen(true);
   };
 
   async function onAssessmentSubmit(data: AssessmentSchemeFormData) {
     if (!authUser?._id || !authUser?.schoolId) return;
     setIsSubmittingScheme(true);
     
-    // Extract only the class name part from the value "ClassName-AcademicYear"
     const payload: AssessmentSchemeFormData = {
         ...data,
-        classIds: [...new Set(data.classIds.map(id => id.split('-')[0]))] // Use Set to remove duplicates
+        classIds: [...new Set(data.classIds.map(id => id.split('-')[0]))]
     };
 
     const result = editingScheme 
@@ -212,9 +209,8 @@ export default function ConfigureMarksPage() {
     if (result.success) {
       toast({ title: editingScheme ? "Scheme Updated" : "Scheme Created", description: result.message });
       fetchData();
-      setIsSchemeModalOpen(false);
+      setIsSchemeFormOpen(false);
       setEditingScheme(null);
-      assessmentForm.reset({ classIds: [], assessments: defaultCBSEAssessments });
     } else {
       toast({ variant: 'destructive', title: 'Submission Failed', description: result.error || result.message });
     }
@@ -319,52 +315,61 @@ export default function ConfigureMarksPage() {
             <TabsTrigger value="schemes">Assessment Schemes</TabsTrigger>
             <TabsTrigger value="patterns">Grading Patterns</TabsTrigger>
         </TabsList>
-        <TabsContent value="schemes">
+        <TabsContent value="schemes" className="space-y-6">
+            {isSchemeFormOpen && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{editingScheme ? 'Edit Assessment Scheme' : 'Create New Assessment Scheme'}</CardTitle>
+                  <CardDescription>Define assessments, max marks, and the classes this scheme applies to.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Form {...assessmentForm}>
+                    <form onSubmit={assessmentForm.handleSubmit(onAssessmentSubmit)} className="space-y-6">
+                      <FormField control={assessmentForm.control} name="classIds" render={({ field }) => (<FormItem><FormLabel>Apply to Classes</FormLabel><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="w-full justify-between">{getSelectedClassesLabel(selectedClasses)}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></DropdownMenuTrigger><DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">{isLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> : classOptions.map(option => (<DropdownMenuItem key={option.value} onSelect={(e) => e.preventDefault()}><Checkbox checked={field.value.includes(option.value)} onCheckedChange={(checked) => { return checked ? field.onChange([...field.value, option.value]) : field.onChange(field.value.filter(v => v !== option.value))}} className="mr-2"/>{option.label}</DropdownMenuItem>))}</DropdownMenuContent></DropdownMenu><FormMessage /></FormItem>)}/>
+                      
+                      <div>
+                        <FormLabel>Assessments</FormLabel>
+                        <div className="mt-2 space-y-4 max-h-[50vh] overflow-y-auto pr-2">
+                          {assessmentGroups.map((group, groupIndex) => (
+                              <Card key={group.id} className="p-4 bg-muted/50">
+                                <div className="flex items-end gap-3 mb-3">
+                                  <FormField control={assessmentForm.control} name={`assessments.${groupIndex}.groupName`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Assessment Name (e.g., FA1)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                                  <Button type="button" variant="destructive" size="icon" onClick={() => removeAssessmentGroup(groupIndex)} disabled={assessmentGroups.length <= 1}><Trash2 className="h-4 w-4" /></Button>
+                                </div>
+                                <AssessmentGroupTests control={assessmentForm.control} groupIndex={groupIndex} />
+                              </Card>
+                            )
+                          )}
+                        </div>
+                        <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendAssessmentGroup({ groupName: "", tests: [{ testName: "", maxMarks: 10 }] })}>
+                          <PlusCircle className="mr-2 h-4 w-4" /> Add Assessment Group
+                        </Button>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button type="submit" disabled={isSubmittingScheme}>
+                            {isSubmittingScheme && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            {editingScheme ? "Update Scheme" : "Save Scheme"}
+                        </Button>
+                        <Button type="button" variant="outline" onClick={() => setIsSchemeFormOpen(false)} disabled={isSubmittingScheme}>
+                            <XCircle className="mr-2 h-4 w-4" /> Cancel
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                 <div className="space-y-1">
                     <CardTitle>Existing Assessment Schemes</CardTitle>
                     <CardDescription>Manage the assessments for different classes or grades.</CardDescription>
                 </div>
-                <Dialog open={isSchemeModalOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingScheme(null); setIsSchemeModalOpen(isOpen); }}>
-                    <DialogTrigger asChild>
-                      <Button onClick={() => { assessmentForm.reset({ classIds: [], assessments: defaultCBSEAssessments }); setEditingScheme(null); setIsSchemeModalOpen(true); }}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Create New Scheme
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl">
-                      <DialogHeader>
-                        <DialogTitle>{editingScheme ? 'Edit Assessment Scheme' : 'Create New Assessment Scheme'}</DialogTitle>
-                        <DialogDescription>Define assessments, max marks, and the classes this scheme applies to.</DialogDescription>
-                      </DialogHeader>
-                      <Form {...assessmentForm}>
-                        <form onSubmit={assessmentForm.handleSubmit(onAssessmentSubmit)} className="space-y-6">
-                        
-                          <FormField control={assessmentForm.control} name="classIds" render={({ field }) => (<FormItem><FormLabel>Apply to Classes</FormLabel><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="w-full justify-between">{getSelectedClassesLabel(selectedClasses)}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></DropdownMenuTrigger><DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">{isLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> : classOptions.map(option => (<DropdownMenuItem key={option.value} onSelect={(e) => e.preventDefault()}><Checkbox checked={field.value.includes(option.value)} onCheckedChange={(checked) => { return checked ? field.onChange([...field.value, option.value]) : field.onChange(field.value.filter(v => v !== option.value))}} className="mr-2"/>{option.label}</DropdownMenuItem>))}</DropdownMenuContent></DropdownMenu><FormMessage /></FormItem>)}/>
-                        
-                        <div>
-                            <FormLabel>Assessments</FormLabel>
-                            <div className="mt-2 space-y-4 max-h-[40vh] overflow-y-auto pr-2">
-                              {assessmentGroups.map((group, groupIndex) => (
-                                  <Card key={group.id} className="p-4 bg-muted/50">
-                                    <div className="flex items-end gap-3 mb-3">
-                                      <FormField control={assessmentForm.control} name={`assessments.${groupIndex}.groupName`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Assessment Name (e.g., FA1)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                                      <Button type="button" variant="destructive" size="icon" onClick={() => removeAssessmentGroup(groupIndex)} disabled={assessmentGroups.length <= 1}><Trash2 className="h-4 w-4" /></Button>
-                                    </div>
-                                    <AssessmentGroupTests control={assessmentForm.control} groupIndex={groupIndex} />
-                                  </Card>
-                                )
-                              )}
-                            </div>
-                            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendAssessmentGroup({ groupName: "", tests: [{ testName: "", maxMarks: 10 }] })}>
-                              <PlusCircle className="mr-2 h-4 w-4" /> Add Assessment Group
-                            </Button>
-                          </div>
-                          <DialogFooter><DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isSubmittingScheme}>{isSubmittingScheme && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Save Scheme</Button></DialogFooter>
-                        </form>
-                      </Form>
-                    </DialogContent>
-                </Dialog>
+                <Button onClick={handleCreateNewScheme}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Create New Scheme
+                </Button>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? <div className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
@@ -397,7 +402,7 @@ export default function ConfigureMarksPage() {
                     <CardDescription>Manage reusable grading patterns for your school.</CardDescription>
                   </div>
                   <Dialog open={isPatternModalOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingPattern(null); setIsPatternModalOpen(isOpen); }}>
-                    <DialogTrigger asChild><Button onClick={() => { gradingForm.reset(); setEditingPattern(null); setIsPatternModalOpen(true); }}><PlusCircle className="mr-2 h-4 w-4"/>Create New Pattern</Button></DialogTrigger>
+                    <AlertDialogTrigger asChild><Button onClick={() => { gradingForm.reset(); setEditingPattern(null); setIsPatternModalOpen(true); }}><PlusCircle className="mr-2 h-4 w-4"/>Create New Pattern</Button></AlertDialogTrigger>
                     <DialogContent className="max-w-4xl">
                       <DialogHeader><DialogTitle>{editingPattern ? 'Edit Grading Pattern' : 'Create New Grading Pattern'}</DialogTitle><DialogDescription>Define grade labels and their corresponding percentage ranges.</DialogDescription></DialogHeader>
                       <Form {...gradingForm}>
