@@ -105,6 +105,38 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
   }
 }
 
+export async function getAssessmentSchemeForClass(classId: string, schoolId: string): Promise<AssessmentSchemeResult> {
+  try {
+    if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
+      return { success: false, message: 'Invalid School or Class ID.' };
+    }
+    const { db } = await connectToDatabase();
+    const scheme = await db.collection('assessment_schemes').findOne({
+      schoolId: new ObjectId(schoolId),
+      classIds: new ObjectId(classId),
+    });
+
+    if (!scheme) {
+      return { success: false, message: 'No custom assessment scheme found for this class.' };
+    }
+    
+    return {
+      success: true,
+      message: 'Scheme found.',
+      scheme: {
+        ...scheme,
+        _id: scheme._id.toString(),
+        schoolId: scheme.schoolId.toString(),
+        classIds: scheme.classIds.map((id: ObjectId) => id.toString()),
+        createdBy: scheme.createdBy.toString(),
+      } as unknown as AssessmentScheme,
+    };
+  } catch (error) {
+    return { success: false, message: 'Failed to fetch assessment scheme for the class.' };
+  }
+}
+
+
 export async function updateAssessmentScheme(
   schemeId: string,
   formData: AssessmentSchemeFormData,
