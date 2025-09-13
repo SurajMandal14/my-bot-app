@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -135,6 +136,10 @@ export default function ConfigureMarksPage() {
   const selectedClasses = assessmentForm.watch("classIds");
   
   const handleEditScheme = (scheme: AssessmentScheme) => {
+    if (scheme._id === 'default_cbse_state') {
+        toast({title: "Default Scheme", description: "The default scheme cannot be edited directly. Please create a new scheme to customize it."});
+        return;
+    }
     setEditingScheme(scheme);
     assessmentForm.reset({
       schemeName: scheme.schemeName,
@@ -166,6 +171,11 @@ export default function ConfigureMarksPage() {
 
   async function onDeleteScheme() {
     if(!schemeToDelete || !authUser?.schoolId) return;
+     if (schemeToDelete._id === 'default_cbse_state') {
+        toast({variant: "destructive", title: "Action Not Allowed", description: "The default scheme cannot be deleted."});
+        setSchemeToDelete(null);
+        return;
+    }
     setIsDeleting(schemeToDelete._id.toString());
     const result = await deleteAssessmentScheme(schemeToDelete._id.toString(), authUser.schoolId.toString());
     if(result.success) {
@@ -235,8 +245,9 @@ export default function ConfigureMarksPage() {
 
 
   const getSelectedClassesLabel = (classIds: string[] = []) => {
+    if (classIds.length === 1 && classIds[0] === 'All Classes') return "All Classes";
     if (classIds.length === 0) return "Select classes...";
-    if (classIds.length === classOptions.length) return "All Classes";
+    if (classOptions.length > 0 && classIds.length === classOptions.length) return "All Classes";
     if (classIds.length > 2) return `${classIds.length} classes selected`;
     return classOptions
       .filter(opt => classIds.includes(opt.value))
@@ -307,9 +318,9 @@ export default function ConfigureMarksPage() {
                             <TableCell>{scheme.assessments.length}</TableCell>
                             <TableCell>{format(new Date(scheme.updatedAt), "PP")}</TableCell>
                             <TableCell className="text-right space-x-1">
-                              <Button variant="ghost" size="icon" onClick={() => handleEditScheme(scheme)} disabled={!!isDeleting}><Edit className="h-4 w-4" /></Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleEditScheme(scheme)} disabled={!!isDeleting || scheme._id === 'default_cbse_state'}><Edit className="h-4 w-4" /></Button>
                               <AlertDialog open={schemeToDelete?._id === scheme._id} onOpenChange={(open) => !open && setSchemeToDelete(null)}>
-                                <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive" onClick={() => setSchemeToDelete(scheme)} disabled={!!isDeleting}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                                <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive" onClick={() => setSchemeToDelete(scheme)} disabled={!!isDeleting || scheme._id === 'default_cbse_state'}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                                 <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Scheme?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete the scheme "{scheme.schemeName}"? This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={onDeleteScheme} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                               </AlertDialog>
                             </TableCell>

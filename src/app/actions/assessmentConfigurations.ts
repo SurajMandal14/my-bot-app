@@ -90,6 +90,33 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
     const { db } = await connectToDatabase();
     const schemes = await db.collection('assessment_schemes').find({ schoolId: new ObjectId(schoolId) }).sort({ createdAt: -1 }).toArray();
     
+    // If no schemes are found, return a default one.
+    if (schemes.length === 0) {
+      const defaultScheme: AssessmentScheme[] = [
+        {
+          _id: 'default_cbse_state',
+          schoolId: schoolId,
+          schemeName: 'CBSE State Pattern (Default)',
+          classIds: ['All Classes'],
+          assessments: [
+            { name: 'FA1', maxMarks: 50 },
+            { name: 'FA2', maxMarks: 50 },
+            { name: 'FA3', maxMarks: 50 },
+            { name: 'FA4', maxMarks: 50 },
+            { name: 'SA1', maxMarks: 120 },
+            { name: 'SA2', maxMarks: 120 },
+          ],
+          createdBy: 'system',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+      ];
+      return {
+        success: true,
+        schemes: defaultScheme,
+      };
+    }
+    
     return {
       success: true,
       schemes: schemes.map(s => ({
