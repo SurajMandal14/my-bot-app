@@ -49,8 +49,8 @@ type LegacySaAsKey = (typeof LEGACY_SA_ASSESSMENT_SKILLS)[number]['key'];
 // STATE INTERFACES
 interface StudentMarksCustomState { [assessmentName: string]: number | null }
 interface StudentMarksLegacyFAState {
-  tool1: number | null; maxTool1: number; tool2: number | null; maxTool2: number;
-  tool3: number | null; maxTool3: number; tool4: number | null; maxTool4: number;
+  tool1: number | null; tool2: number | null;
+  tool3: number | null; tool4: number | null;
 }
 interface StudentMarksLegacySAState {
   as1: number | null; as1Max: number; as2: number | null; as2Max: number;
@@ -174,16 +174,17 @@ export default function TeacherMarksEntryPage() {
       );
 
       const initialMarks: Record<string, any> = {};
+      const currentAssessmentConfig = assessmentScheme?.assessments.find(a => a.groupName === selectedAssessmentName);
 
       studentsResult.users.forEach(student => {
         const studentIdStr = student._id!.toString();
-        if (isCustomScheme) {
-          initialMarks[studentIdStr] = (assessmentScheme?.assessments.find(a => a.groupName === selectedAssessmentName)?.tests || []).reduce((acc, test) => {
+        if (isCustomScheme && currentAssessmentConfig) {
+          initialMarks[studentIdStr] = currentAssessmentConfig.tests.reduce((acc, test) => {
               acc[test.testName] = null;
               return acc;
           }, {} as Record<string, null>);
         } else if (isLegacyFA) {
-          initialMarks[studentIdStr] = LEGACY_FA_TOOLS.reduce((acc, tool) => ({...acc, [tool.key]: null, [`max${tool.key.charAt(0).toUpperCase() + tool.key.slice(1)}`]: tool.maxMarks }), {});
+          initialMarks[studentIdStr] = LEGACY_FA_TOOLS.reduce((acc, tool) => ({...acc, [tool.key]: null }), {});
         } else if (isLegacySA) {
           initialMarks[studentIdStr] = LEGACY_SA_ASSESSMENT_SKILLS.reduce((acc, skill) => ({...acc, [skill.key]: null, [`${skill.key}Max`]: 20 }), {});
         }
@@ -262,17 +263,16 @@ export default function TeacherMarksEntryPage() {
     setIsSubmitting(true);
     const marksToSubmit: StudentMarkInput[] = [];
     const studentsToProcess = studentsForMarks.filter(student => finalSelectedStudentIds.includes(student._id!.toString()));
+    const currentAssessmentConfig = assessmentScheme?.assessments.find(a => a.groupName === selectedAssessmentName);
+
 
     for (const student of studentsToProcess) {
       const studentIdStr = student._id!.toString();
       const marksState = studentMarks[studentIdStr];
       if (!marksState) continue;
 
-      if (isCustomScheme) {
-        const assessmentConfig = assessmentScheme!.assessments.find(a => a.groupName === selectedAssessmentName);
-        if (!assessmentConfig) continue;
-
-        for (const test of assessmentConfig.tests) {
+      if (isCustomScheme && currentAssessmentConfig) {
+        for (const test of currentAssessmentConfig.tests) {
             const marksObtained = (marksState as StudentMarksCustomState)[test.testName];
             if(marksObtained === null || marksObtained === undefined) continue;
 
@@ -287,7 +287,7 @@ export default function TeacherMarksEntryPage() {
           const marksObtained = (marksState as StudentMarksLegacyFAState)[tool.key];
           if (marksObtained === null || marksObtained === undefined) continue;
           if (marksObtained > tool.maxMarks) { toast({ variant: "destructive", title: "Marks Exceed Max", description: `Marks for ${student.name} (${tool.label}: ${marksObtained}) exceed max marks (${tool.maxMarks}).`}); setIsSubmitting(false); return; }
-          marksToSubmit.push({ studentId: studentIdStr, studentName: student.name || "N/A", assessmentName: `${selectedAssessmentName}-${tool.key.charAt(0).toUpperCase() + tool.key.slice(1)}`, marksObtained, maxMarks: tool.maxMarks });
+          marksToSubmit.push({ studentId: studentIdStr, studentName: student.name || "N/A", assessmentName: `${selectedAssessmentName}-${tool.label.replace(' ', '')}`, marksObtained, maxMarks: tool.maxMarks });
         }
       } else if (isLegacySA) { // Legacy SA
          for (const skill of LEGACY_SA_ASSESSMENT_SKILLS) {
@@ -295,7 +295,7 @@ export default function TeacherMarksEntryPage() {
           const maxMarks = (marksState as StudentMarksLegacySAState)[`${skill.key}Max`];
           if (marksObtained === null || marksObtained === undefined) continue;
           if (marksObtained > maxMarks) { toast({ variant: "destructive", title: "Marks Exceed Max", description: `Marks for ${student.name} (${skill.label}: ${marksObtained}) exceed max marks (${maxMarks}).`}); setIsSubmitting(false); return; }
-          marksToSubmit.push({ studentId: studentIdStr, studentName: student.name || "N/A", assessmentName: `${selectedAssessmentName}-${selectedLegacyPaper}-${skill.key.toUpperCase()}`, marksObtained, maxMarks });
+          marksToSubmit.push({ studentId: studentIdStr, studentName: student.name || "N/A", assessmentName: `${selectedAssessmentName}-${selectedLegacyPaper}-${skill.label.replace(' ', '')}`, marksObtained, maxMarks });
         }
       }
     }
@@ -376,3 +376,5 @@ export default function TeacherMarksEntryPage() {
     </div>
   );
 }
+
+    
