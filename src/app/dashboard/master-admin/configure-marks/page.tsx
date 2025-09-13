@@ -14,15 +14,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useForm, useFieldArray, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -41,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { assessmentSchemeSchema, type AssessmentScheme, type AssessmentSchemeFormData, gradingPatternSchema, type GradingPattern, type GradingPatternFormData } from '@/types/assessment';
 import { createAssessmentScheme, getAssessmentSchemes, updateAssessmentScheme, deleteAssessmentScheme, createGradingPattern, getGradingPatterns, updateGradingPattern, deleteGradingPattern } from '@/app/actions/assessmentConfigurations';
 import { format } from "date-fns";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface ClassOption {
   value: string; 
@@ -68,7 +60,7 @@ function AssessmentGroupTests({ control, groupIndex }: { control: Control<Assess
       {testFields.map((test, testIndex) => (
         <div key={test.id} className="flex items-end gap-2">
           <FormField control={control} name={`assessments.${groupIndex}.tests.${testIndex}.testName`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Test Name</FormLabel><FormControl><Input placeholder="e.g., Tool 1" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-          <FormField control={control} name={`assessments.${groupIndex}.tests.${testIndex}.maxMarks`} render={({ field }) => (<FormItem><FormLabel>Max Marks</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+          <FormField control={control} name={`assessments.${groupIndex}.tests.${testIndex}.maxMarks`} render={({ field }) => (<FormItem><FormLabel>Max Marks</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} /></FormControl><FormMessage /></FormItem>)}/>
           <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTest(testIndex)} disabled={testFields.length <= 1}><Trash2 className="h-4 w-4"/></Button>
         </div>
       ))}
@@ -126,9 +118,9 @@ export default function ConfigureMarksPage() {
         const key = `${current.name}-${current.academicYear}`;
         if (!acc.find(item => item.value === key)) {
           acc.push({
+            ...current,
             value: key,
             label: `${current.name} (${current.academicYear})`,
-            academicYear: current.academicYear,
           });
         }
         return acc;
@@ -179,6 +171,7 @@ export default function ConfigureMarksPage() {
     setEditingScheme(scheme);
     assessmentForm.reset({
       classIds: scheme.classIds.map(className => {
+        // Find an option whose label starts with the class name (to match "Class 1" from "Class 1 (2024-2025)")
         const option = classOptions.find(opt => opt.label.startsWith(className));
         return option ? option.value : '';
       }).filter(Boolean),
@@ -197,6 +190,7 @@ export default function ConfigureMarksPage() {
     if (!authUser?._id || !authUser?.schoolId) return;
     setIsSubmittingScheme(true);
     
+    // Extract unique class names (without academic year) from the value
     const payload: AssessmentSchemeFormData = {
         ...data,
         classIds: [...new Set(data.classIds.map(id => id.split('-')[0]))]
@@ -329,7 +323,7 @@ export default function ConfigureMarksPage() {
                       
                       <div>
                         <FormLabel>Assessments</FormLabel>
-                        <div className="mt-2 space-y-4 max-h-[50vh] overflow-y-auto pr-2">
+                        <div className="mt-2 space-y-4 pr-2">
                           {assessmentGroups.map((group, groupIndex) => (
                               <Card key={group.id} className="p-4 bg-muted/50">
                                 <div className="flex items-end gap-3 mb-3">
@@ -402,7 +396,7 @@ export default function ConfigureMarksPage() {
                     <CardDescription>Manage reusable grading patterns for your school.</CardDescription>
                   </div>
                   <Dialog open={isPatternModalOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingPattern(null); setIsPatternModalOpen(isOpen); }}>
-                    <AlertDialogTrigger asChild><Button onClick={() => { gradingForm.reset(); setEditingPattern(null); setIsPatternModalOpen(true); }}><PlusCircle className="mr-2 h-4 w-4"/>Create New Pattern</Button></AlertDialogTrigger>
+                    <DialogTrigger asChild><Button onClick={() => { gradingForm.reset(); setEditingPattern(null); setIsPatternModalOpen(true); }}><PlusCircle className="mr-2 h-4 w-4"/>Create New Pattern</Button></DialogTrigger>
                     <DialogContent className="max-w-4xl">
                       <DialogHeader><DialogTitle>{editingPattern ? 'Edit Grading Pattern' : 'Create New Grading Pattern'}</DialogTitle><DialogDescription>Define grade labels and their corresponding percentage ranges.</DialogDescription></DialogHeader>
                       <Form {...gradingForm}>
@@ -411,7 +405,7 @@ export default function ConfigureMarksPage() {
                                   <FormField control={gradingForm.control} name="patternName" render={({ field }) => (<FormItem><FormLabel>Grading Pattern Name</FormLabel><FormControl><Input placeholder="e.g., CBSE 9-10 Scheme" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                                   <div>
                                       <FormLabel>Grade Rows</FormLabel>
-                                      <div className="mt-2 space-y-3 max-h-[40vh] overflow-y-auto pr-2">{gradeFields.map((item, index) => (<div key={item.id} className="flex items-end gap-3 p-3 border rounded-lg"><FormField control={gradingForm.control} name={`grades.${index}.label`} render={({field}) => (<FormItem><FormLabel>Grade</FormLabel><FormControl><Input placeholder="A1" {...field}/></FormControl><FormMessage/></FormItem>)}/> <FormField control={gradingForm.control} name={`grades.${index}.minPercentage`} render={({field}) => (<FormItem><FormLabel>Min %</FormLabel><FormControl><Input type="number" placeholder="91" {...field}/></FormControl><FormMessage/></FormItem>)}/> <FormField control={gradingForm.control} name={`grades.${index}.maxPercentage`} render={({field}) => (<FormItem><FormLabel>Max %</FormLabel><FormControl><Input type="number" placeholder="100" {...field}/></FormControl><FormMessage/></FormItem>)}/> <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeGrade(index)} disabled={gradeFields.length <= 1}><Trash2 className="h-4 w-4"/></Button></div>))}</div>
+                                      <div className="mt-2 space-y-3 max-h-[40vh] overflow-y-auto pr-2">{gradeFields.map((item, index) => (<div key={item.id} className="flex items-end gap-3 p-3 border rounded-lg"><FormField control={gradingForm.control} name={`grades.${index}.label`} render={({field}) => (<FormItem><FormLabel>Grade</FormLabel><FormControl><Input placeholder="A1" {...field}/></FormControl><FormMessage/></FormItem>)}/> <FormField control={gradingForm.control} name={`grades.${index}.minPercentage`} render={({field}) => (<FormItem><FormLabel>Min %</FormLabel><FormControl><Input type="number" placeholder="91" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)}/></FormControl><FormMessage/></FormItem>)}/> <FormField control={gradingForm.control} name={`grades.${index}.maxPercentage`} render={({field}) => (<FormItem><FormLabel>Max %</FormLabel><FormControl><Input type="number" placeholder="100" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)}/></FormControl><FormMessage/></FormItem>)}/> <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeGrade(index)} disabled={gradeFields.length <= 1}><Trash2 className="h-4 w-4"/></Button></div>))}</div>
                                       <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendGrade({ label: "", minPercentage: 0, maxPercentage: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Grade Row</Button>
                                   </div>
                               </div>
