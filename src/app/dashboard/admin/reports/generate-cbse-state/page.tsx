@@ -44,6 +44,9 @@ import { getAcademicYears } from '@/app/actions/academicYears';
 import type { AcademicYear } from '@/types/academicYear';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { getSchoolById } from '@/app/actions/schools';
+import { getAssessmentSchemeForClass } from '@/app/actions/assessmentConfigurations';
+import type { AssessmentScheme } from '@/types/assessment';
+
 
 type FrontMarksEntry = FrontMarksEntryTypeImport;
 type FaToolKey = keyof FrontMarksEntry;
@@ -131,6 +134,8 @@ export default function GenerateCBSEStateReportPage() {
   
   const [actionToConfirm, setActionToConfirm] = useState<'publish' | 'unpublish' | null>(null);
 
+  const [assessmentScheme, setAssessmentScheme] = useState<AssessmentScheme | null>(null);
+
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -178,6 +183,7 @@ export default function GenerateCBSEStateReportPage() {
     setFinalOverallGradeInput(null);
     setLoadedReportId(null);
     setLoadedReportIsPublished(null);
+    setAssessmentScheme(null);
   };
 
   const handleLoadStudentAndClassData = async () => {
@@ -229,6 +235,12 @@ export default function GenerateCBSEStateReportPage() {
               .map(sub => sub.name);
             setTeacherEditableSubjects(editableSubs);
           }
+          
+          const schemeRes = await getAssessmentSchemeForClass(classRes.classDetails._id, currentStudent.schoolId!);
+          if(schemeRes.success && schemeRes.scheme) {
+              setAssessmentScheme(schemeRes.scheme);
+          }
+
 
           setStudentData(prev => ({
             ...prev,

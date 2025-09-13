@@ -49,7 +49,15 @@ interface ClassOption {
   academicYear: string;
 }
 
-// New sub-component to handle the nested field array correctly
+const defaultCBSEAssessments: AssessmentSchemeFormData['assessments'] = [
+    { groupName: 'FA1', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
+    { groupName: 'FA2', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
+    { groupName: 'FA3', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
+    { groupName: 'FA4', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
+    { groupName: 'SA1', tests: [{testName: 'AS1', maxMarks: 20}, {testName: 'AS2', maxMarks: 20}, {testName: 'AS3', maxMarks: 20}, {testName: 'AS4', maxMarks: 20}, {testName: 'AS5', maxMarks: 20}, {testName: 'AS6', maxMarks: 20}] },
+    { groupName: 'SA2', tests: [{testName: 'AS1', maxMarks: 20}, {testName: 'AS2', maxMarks: 20}, {testName: 'AS3', maxMarks: 20}, {testName: 'AS4', maxMarks: 20}, {testName: 'AS5', maxMarks: 20}, {testName: 'AS6', maxMarks: 20}] },
+];
+
 function AssessmentGroupTests({ control, groupIndex }: { control: Control<AssessmentSchemeFormData>, groupIndex: number }) {
   const { fields: testFields, append: appendTest, remove: removeTest } = useFieldArray({
     control: control,
@@ -161,7 +169,7 @@ export default function ConfigureMarksPage() {
   // Form for Assessment Schemes
   const assessmentForm = useForm<AssessmentSchemeFormData>({
     resolver: zodResolver(assessmentSchemeSchema),
-    defaultValues: { classIds: [], assessments: [{ groupName: "", tests: [{ testName: "", maxMarks: 10 }] }] },
+    defaultValues: { classIds: [], assessments: defaultCBSEAssessments },
   });
 
   const { fields: assessmentGroups, append: appendAssessmentGroup, remove: removeAssessmentGroup } = useFieldArray({
@@ -178,6 +186,7 @@ export default function ConfigureMarksPage() {
     setEditingScheme(scheme);
     assessmentForm.reset({
       classIds: scheme.classIds.map(className => {
+        // Find an option whose label starts with the className, to handle academic year suffix
         const option = classOptions.find(opt => opt.label.startsWith(className));
         return option ? option.value : '';
       }).filter(Boolean),
@@ -190,9 +199,10 @@ export default function ConfigureMarksPage() {
     if (!authUser?._id || !authUser?.schoolId) return;
     setIsSubmittingScheme(true);
     
+    // Extract only the class name part from the value "ClassName-AcademicYear"
     const payload: AssessmentSchemeFormData = {
         ...data,
-        classIds: data.classIds.map(id => id.split('-')[0])
+        classIds: [...new Set(data.classIds.map(id => id.split('-')[0]))] // Use Set to remove duplicates
     };
 
     const result = editingScheme 
@@ -204,7 +214,7 @@ export default function ConfigureMarksPage() {
       fetchData();
       setIsSchemeModalOpen(false);
       setEditingScheme(null);
-      assessmentForm.reset();
+      assessmentForm.reset({ classIds: [], assessments: defaultCBSEAssessments });
     } else {
       toast({ variant: 'destructive', title: 'Submission Failed', description: result.error || result.message });
     }
@@ -318,7 +328,7 @@ export default function ConfigureMarksPage() {
                 </div>
                 <Dialog open={isSchemeModalOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingScheme(null); setIsSchemeModalOpen(isOpen); }}>
                     <DialogTrigger asChild>
-                      <Button onClick={() => { assessmentForm.reset({ classIds: [], assessments: [{ groupName: "FA1", tests: [{ testName: "Tool 1", maxMarks: 10 }] }] }); setEditingScheme(null); setIsSchemeModalOpen(true); }}>
+                      <Button onClick={() => { assessmentForm.reset({ classIds: [], assessments: defaultCBSEAssessments }); setEditingScheme(null); setIsSchemeModalOpen(true); }}>
                         <PlusCircle className="mr-2 h-4 w-4" /> Create New Scheme
                       </Button>
                     </DialogTrigger>
