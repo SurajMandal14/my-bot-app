@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -45,8 +44,9 @@ import { format } from "date-fns";
 
 
 interface ClassOption {
-  value: string; // This will now be the class NAME, not ID
-  label: string; // The display label, e.g., "Class 1 (2024-2025)"
+  value: string; 
+  label: string; 
+  academicYear: string;
 }
 
 export default function ConfigureMarksPage() {
@@ -96,8 +96,12 @@ export default function ConfigureMarksPage() {
         getGradingPatterns(authUser.schoolId.toString())
       ]);
       
-      const uniqueClasses = Array.from(new Map(classesResult.map(c => [c.name, c])).values());
-      setClassOptions(uniqueClasses.map(c => ({ value: c.name!, label: c.name! })));
+      const uniqueClasses = classesResult.map(c => ({
+          value: `${c.name}-${c.academicYear}`,
+          label: `${c.name} (${c.academicYear})`,
+          academicYear: c.academicYear,
+      }));
+      setClassOptions(uniqueClasses);
       
       if(schemesResult.success && schemesResult.schemes) {
         setAssessmentSchemes(schemesResult.schemes);
@@ -127,7 +131,7 @@ export default function ConfigureMarksPage() {
   // Form for Assessment Schemes
   const assessmentForm = useForm<AssessmentSchemeFormData>({
     resolver: zodResolver(assessmentSchemeSchema),
-    defaultValues: { schemeName: "Default Scheme Name", classIds: [], assessments: [{ name: "", maxMarks: 10 }] },
+    defaultValues: { classIds: [], assessments: [{ name: "", maxMarks: 10 }] },
   });
 
   const { fields: assessmentFields, append: appendAssessment, remove: removeAssessment } = useFieldArray({
@@ -154,7 +158,11 @@ export default function ConfigureMarksPage() {
     if (!authUser?._id || !authUser?.schoolId) return;
     setIsSubmittingScheme(true);
     
-    const payload = { ...data };
+    // The classIds from the form are "ClassName-AcademicYear", we only need ClassName
+    const payload: AssessmentSchemeFormData = {
+        ...data,
+        classIds: data.classIds.map(id => id.split('-')[0])
+    };
 
     const result = editingScheme 
       ? await updateAssessmentScheme(editingScheme._id.toString(), payload, authUser.schoolId.toString())
@@ -282,7 +290,7 @@ export default function ConfigureMarksPage() {
                 </div>
                 <Dialog open={isSchemeModalOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingScheme(null); setIsSchemeModalOpen(isOpen); }}>
                     <DialogTrigger asChild>
-                      <Button onClick={() => { assessmentForm.reset({ schemeName: "Placeholder", classIds: [], assessments: [{ name: "FA1 - Tool 1", maxMarks: 10 }] }); setEditingScheme(null); setIsSchemeModalOpen(true); }}>
+                      <Button onClick={() => { assessmentForm.reset({ classIds: [], assessments: [{ name: "FA1 - Tool 1", maxMarks: 10 }] }); setEditingScheme(null); setIsSchemeModalOpen(true); }}>
                         <PlusCircle className="mr-2 h-4 w-4" /> Create New Scheme
                       </Button>
                     </DialogTrigger>
@@ -311,11 +319,10 @@ export default function ConfigureMarksPage() {
                   {isLoading ? <div className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
                   assessmentSchemes.length > 0 ? (
                     <Table>
-                      <TableHeader><TableRow><TableHead>Applied to Class(es)</TableHead><TableHead># Assessments</TableHead><TableHead>Scheme Name</TableHead><TableHead>Last Updated</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Applied to Class(es)</TableHead><TableHead>Scheme Name</TableHead><TableHead>Last Updated</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                       <TableBody>{assessmentSchemes.map((scheme) => (
                           <TableRow key={scheme._id.toString()}>
                             <TableCell>{getSelectedClassesLabel(scheme.classIds.map(id => id.toString()))}</TableCell>
-                            <TableCell>{scheme.assessments.length}</TableCell>
                             <TableCell className="font-medium">{scheme.schemeName}</TableCell>
                             <TableCell>{format(new Date(scheme.updatedAt), "PP")}</TableCell>
                             <TableCell className="text-right space-x-1">
@@ -388,5 +395,3 @@ export default function ConfigureMarksPage() {
     </div>
   );
 }
-
-    
