@@ -24,39 +24,8 @@ import { getAssessmentSchemeForClass } from '@/app/actions/assessmentConfigurati
 import type { AssessmentScheme } from '@/types/assessment';
 
 
-// DEFAULT FALLBACK DATA
-const LEGACY_ASSESSMENT_TYPES = ["FA1", "FA2", "FA3", "FA4", "SA1", "SA2"];
-const LEGACY_FA_ASSESSMENTS = ["FA1", "FA2", "FA3", "FA4"];
-const LEGACY_SA_ASSESSMENTS = ["SA1", "SA2"];
-const LEGACY_SA_PAPERS = ["Paper1", "Paper2"] as const;
-type LegacySaPaperType = (typeof LEGACY_SA_PAPERS)[number];
-
-const LEGACY_FA_TOOLS = [
-  { key: 'tool1', label: 'Tool 1', maxMarks: 10 },
-  { key: 'tool2', label: 'Tool 2', maxMarks: 10 },
-  { key: 'tool3', label: 'Tool 3', maxMarks: 10 },
-  { key: 'tool4', label: 'Tool 4', maxMarks: 20 },
-] as const;
-type LegacyFaToolKey = (typeof LEGACY_FA_TOOLS)[number]['key'];
-
-const LEGACY_SA_ASSESSMENT_SKILLS = [
-    { key: 'as1', label: 'AS 1' }, { key: 'as2', label: 'AS 2' },
-    { key: 'as3', label: 'AS 3' }, { key: 'as4', label: 'AS 4' },
-    { key: 'as5', label: 'AS 5' }, { key: 'as6', label: 'AS 6' },
-] as const;
-type LegacySaAsKey = (typeof LEGACY_SA_ASSESSMENT_SKILLS)[number]['key'];
-
 // STATE INTERFACES
 interface StudentMarksCustomState { [assessmentName: string]: number | null }
-interface StudentMarksLegacyFAState {
-  tool1: number | null; tool2: number | null;
-  tool3: number | null; tool4: number | null;
-}
-interface StudentMarksLegacySAState {
-  as1: number | null; as1Max: number; as2: number | null; as2Max: number;
-  as3: number | null; as3Max: number; as4: number | null; as4Max: number;
-  as5: number | null; as5Max: number; as6: number | null; as6Max: number;
-}
 
 
 const getCurrentAcademicYear = (): string => {
@@ -76,26 +45,21 @@ export default function TeacherMarksEntryPage() {
 
   const [assessmentScheme, setAssessmentScheme] = useState<AssessmentScheme | null>(null);
   const [selectedAssessmentName, setSelectedAssessmentName] = useState<string>("");
-
-  const [selectedLegacyPaper, setSelectedLegacyPaper] = useState<LegacySaPaperType | "">("");
   
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
 
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
   const [studentsForMarks, setStudentsForMarks] = useState<AppUser[]>([]);
-  const [studentMarks, setStudentMarks] = useState<Record<string, StudentMarksCustomState | StudentMarksLegacyFAState | StudentMarksLegacySAState | {}>>({});
+  const [studentMarks, setStudentMarks] = useState<Record<string, StudentMarksCustomState | {}>>({});
   const [selectedStudentIds, setSelectedStudentIds] = useState<Record<string, boolean>>({});
 
   const [isLoadingSubjects, setIsLoadingSubjects] = useState(true);
   const [isLoadingStudentsAndMarks, setIsLoadingStudentsAndMarks] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const isLegacyFA = !assessmentScheme && LEGACY_FA_ASSESSMENTS.includes(selectedAssessmentName);
-  const isLegacySA = !assessmentScheme && LEGACY_SA_ASSESSMENTS.includes(selectedAssessmentName);
-  const isCustomScheme = !!assessmentScheme && !!assessmentScheme.assessments.find(a => a.groupName === selectedAssessmentName);
-
-
+  const currentAssessmentConfig = assessmentScheme?.assessments.find(a => a.groupName === selectedAssessmentName);
+  
   const isMarksEntryLocked = selectedAssessmentName && selectedAcademicYear && schoolDetails?.marksEntryLocks?.[selectedAcademicYear]?.[selectedAssessmentName as keyof AssessmentLocks] === true;
 
   useEffect(() => {
@@ -142,6 +106,8 @@ export default function TeacherMarksEntryPage() {
       setAvailableSubjects(subjectsResult);
       if (!subjectsResult.some(s => s.value === selectedSubject?.value)) {
         setSelectedSubject(null);
+        setAssessmentScheme(null);
+        setSelectedAssessmentName("");
       }
       setIsLoadingSubjects(false);
   }, [authUser, selectedAcademicYear, selectedSubject]);
@@ -151,7 +117,7 @@ export default function TeacherMarksEntryPage() {
 
   const fetchStudentsAndMarks = useCallback(async () => {
     const isReadyForFetch = selectedSubject && selectedAssessmentName && selectedAcademicYear && authUser?.schoolId;
-    if (!isReadyForFetch || (isLegacySA && !selectedLegacyPaper)) {
+    if (!isReadyForFetch || !currentAssessmentConfig) {
       setStudentsForMarks([]); setStudentMarks({}); setSelectedStudentIds({}); return;
     }
     if (isMarksEntryLocked) {
@@ -170,24 +136,16 @@ export default function TeacherMarksEntryPage() {
 
       const marksResult = await getMarksForAssessment(
         authUser!.schoolId!, selectedSubject!.classId, selectedSubject!.subjectName,
-        selectedAssessmentName, selectedAcademicYear, isLegacySA ? selectedLegacyPaper : undefined
+        selectedAssessmentName, selectedAcademicYear
       );
 
       const initialMarks: Record<string, any> = {};
-      const currentAssessmentConfig = assessmentScheme?.assessments.find(a => a.groupName === selectedAssessmentName);
-
       studentsResult.users.forEach(student => {
         const studentIdStr = student._id!.toString();
-        if (isCustomScheme && currentAssessmentConfig) {
           initialMarks[studentIdStr] = currentAssessmentConfig.tests.reduce((acc, test) => {
               acc[test.testName] = null;
               return acc;
           }, {} as Record<string, null>);
-        } else if (isLegacyFA) {
-          initialMarks[studentIdStr] = LEGACY_FA_TOOLS.reduce((acc, tool) => ({...acc, [tool.key]: null }), {});
-        } else if (isLegacySA) {
-          initialMarks[studentIdStr] = LEGACY_SA_ASSESSMENT_SKILLS.reduce((acc, skill) => ({...acc, [skill.key]: null, [`${skill.key}Max`]: 20 }), {});
-        }
       });
       
       if (marksResult.success && marksResult.marks) {
@@ -195,24 +153,11 @@ export default function TeacherMarksEntryPage() {
           const studentIdStr = mark.studentId.toString();
           if (!initialMarks[studentIdStr]) return;
             const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
-            const testName = restOfName.join('-'); // handles test names with hyphens
+            const testName = restOfName.join('-');
 
-            if (isCustomScheme && assessmentGroup === selectedAssessmentName && testName) {
+            if (assessmentGroup === selectedAssessmentName && testName) {
                 (initialMarks[studentIdStr] as StudentMarksCustomState)[testName] = mark.marksObtained;
             }
-          else if (isLegacyFA) {
-            const toolKey = testName?.toLowerCase().replace('tool', 'tool') as LegacyFaToolKey;
-            if (assessmentGroup.startsWith(selectedAssessmentName) && toolKey) {
-              (initialMarks[studentIdStr] as StudentMarksLegacyFAState)[toolKey] = mark.marksObtained;
-            }
-          } else if (isLegacySA) {
-            const [, paperName, asKeyRaw] = mark.assessmentName.split('-');
-            const asKey = asKeyRaw?.toLowerCase() as LegacySaAsKey;
-            if (assessmentGroup.startsWith(selectedAssessmentName) && paperName === selectedLegacyPaper && asKey) {
-              (initialMarks[studentIdStr] as StudentMarksLegacySAState)[asKey] = mark.marksObtained;
-              (initialMarks[studentIdStr] as StudentMarksLegacySAState)[`${asKey}Max`] = mark.maxMarks;
-            }
-          }
         });
       }
       setStudentMarks(initialMarks);
@@ -222,7 +167,7 @@ export default function TeacherMarksEntryPage() {
     } finally {
       setIsLoadingStudentsAndMarks(false);
     }
-  }, [authUser, selectedSubject, selectedAssessmentName, selectedLegacyPaper, selectedAcademicYear, toast, isLegacyFA, isLegacySA, isCustomScheme, isMarksEntryLocked, assessmentScheme]);
+  }, [authUser, selectedSubject, selectedAssessmentName, selectedAcademicYear, toast, isMarksEntryLocked, currentAssessmentConfig]);
 
   useEffect(() => { fetchStudentsAndMarks(); }, [fetchStudentsAndMarks]);
 
@@ -235,6 +180,8 @@ export default function TeacherMarksEntryPage() {
       const schemeResult = await getAssessmentSchemeForClass(subjectInfo.classId, authUser.schoolId);
       if (schemeResult.success && schemeResult.scheme) {
         setAssessmentScheme(schemeResult.scheme);
+      } else {
+        toast({variant: 'destructive', title: 'Scheme Error', description: schemeResult.message || "Could not fetch assessment scheme for this class."})
       }
     }
   };
@@ -254,8 +201,7 @@ export default function TeacherMarksEntryPage() {
   const selectAllCheckboxState = allStudentsSelected ? true : (someStudentsSelected ? 'indeterminate' : false);
 
   const handleSubmit = async () => {
-    if (!authUser || !selectedSubject || !selectedAssessmentName || !selectedAcademicYear) return;
-    if (isLegacySA && !selectedLegacyPaper) { toast({ variant: "destructive", title: "Missing Information", description: "Please select a paper for the SA exam." }); return; }
+    if (!authUser || !selectedSubject || !selectedAssessmentName || !selectedAcademicYear || !currentAssessmentConfig) return;
     
     const finalSelectedStudentIds = Object.keys(selectedStudentIds).filter(id => selectedStudentIds[id]);
     if (finalSelectedStudentIds.length === 0) { toast({ variant: "info", title: "No Students Selected" }); return; }
@@ -263,15 +209,12 @@ export default function TeacherMarksEntryPage() {
     setIsSubmitting(true);
     const marksToSubmit: StudentMarkInput[] = [];
     const studentsToProcess = studentsForMarks.filter(student => finalSelectedStudentIds.includes(student._id!.toString()));
-    const currentAssessmentConfig = assessmentScheme?.assessments.find(a => a.groupName === selectedAssessmentName);
-
-
+    
     for (const student of studentsToProcess) {
       const studentIdStr = student._id!.toString();
       const marksState = studentMarks[studentIdStr];
       if (!marksState) continue;
 
-      if (isCustomScheme && currentAssessmentConfig) {
         for (const test of currentAssessmentConfig.tests) {
             const marksObtained = (marksState as StudentMarksCustomState)[test.testName];
             if(marksObtained === null || marksObtained === undefined) continue;
@@ -282,22 +225,6 @@ export default function TeacherMarksEntryPage() {
             }
             marksToSubmit.push({ studentId: studentIdStr, studentName: student.name || "N/A", assessmentName: `${selectedAssessmentName}-${test.testName}`, marksObtained, maxMarks: test.maxMarks });
         }
-      } else if (isLegacyFA) { // Legacy FA
-        for (const tool of LEGACY_FA_TOOLS) {
-          const marksObtained = (marksState as StudentMarksLegacyFAState)[tool.key];
-          if (marksObtained === null || marksObtained === undefined) continue;
-          if (marksObtained > tool.maxMarks) { toast({ variant: "destructive", title: "Marks Exceed Max", description: `Marks for ${student.name} (${tool.label}: ${marksObtained}) exceed max marks (${tool.maxMarks}).`}); setIsSubmitting(false); return; }
-          marksToSubmit.push({ studentId: studentIdStr, studentName: student.name || "N/A", assessmentName: `${selectedAssessmentName}-${tool.label.replace(' ', '')}`, marksObtained, maxMarks: tool.maxMarks });
-        }
-      } else if (isLegacySA) { // Legacy SA
-         for (const skill of LEGACY_SA_ASSESSMENT_SKILLS) {
-          const marksObtained = (marksState as StudentMarksLegacySAState)[skill.key];
-          const maxMarks = (marksState as StudentMarksLegacySAState)[`${skill.key}Max`];
-          if (marksObtained === null || marksObtained === undefined) continue;
-          if (marksObtained > maxMarks) { toast({ variant: "destructive", title: "Marks Exceed Max", description: `Marks for ${student.name} (${skill.label}: ${marksObtained}) exceed max marks (${maxMarks}).`}); setIsSubmitting(false); return; }
-          marksToSubmit.push({ studentId: studentIdStr, studentName: student.name || "N/A", assessmentName: `${selectedAssessmentName}-${selectedLegacyPaper}-${skill.label.replace(' ', '')}`, marksObtained, maxMarks });
-        }
-      }
     }
 
     if (marksToSubmit.length === 0) { toast({ variant: "info", title: "No Marks to Submit" }); setIsSubmitting(false); return; }
@@ -315,8 +242,6 @@ export default function TeacherMarksEntryPage() {
     setIsSubmitting(false);
   };
   
-  const currentAssessmentConfig = isCustomScheme ? assessmentScheme?.assessments.find(a => a.groupName === selectedAssessmentName) : null;
-
   if (!authUser) {
     return <Card><CardHeader><CardTitle>Access Denied</CardTitle></CardHeader><CardContent><p>Please log in as a teacher.</p></CardContent></Card>;
   }
@@ -327,11 +252,10 @@ export default function TeacherMarksEntryPage() {
 
       <Card>
         <CardHeader><CardTitle>Selection Criteria</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
            <div><Label htmlFor="academic-year-select">Academic Year</Label><Select onValueChange={setSelectedAcademicYear} value={selectedAcademicYear} disabled={isLoadingSubjects || academicYears.length === 0}><SelectTrigger id="academic-year-select"><SelectValue placeholder="Select year"/></SelectTrigger><SelectContent>{academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}</SelectContent></Select></div>
            <div><Label htmlFor="subject-select">Subject (Class)</Label><Select onValueChange={handleSubjectChange} value={selectedSubject?.value || ""} disabled={isLoadingSubjects || availableSubjects.length === 0}><SelectTrigger id="subject-select"><SelectValue placeholder={isLoadingSubjects ? "Loading..." : "Select subject"} /></SelectTrigger><SelectContent>{availableSubjects.map(subject => <SelectItem key={subject.value} value={subject.value}>{subject.label}</SelectItem>)}</SelectContent></Select></div>
-           <div><Label htmlFor="assessment-select">Assessment</Label><Select onValueChange={setSelectedAssessmentName} value={selectedAssessmentName} disabled={!selectedSubject}><SelectTrigger id="assessment-select"><SelectValue placeholder="Select assessment" /></SelectTrigger><SelectContent>{(assessmentScheme?.assessments.map(a => a.groupName) || LEGACY_ASSESSMENT_TYPES).map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select></div>
-           {isLegacySA && <div><Label htmlFor="paper-select">Paper</Label><Select onValueChange={(v) => setSelectedLegacyPaper(v as LegacySaPaperType)} value={selectedLegacyPaper} disabled={!isLegacySA}><SelectTrigger id="paper-select"><SelectValue placeholder="Select paper" /></SelectTrigger><SelectContent>{LEGACY_SA_PAPERS.map(paper => <SelectItem key={paper} value={paper}>{paper}</SelectItem>)}</SelectContent></Select></div>}
+           <div><Label htmlFor="assessment-select">Assessment</Label><Select onValueChange={setSelectedAssessmentName} value={selectedAssessmentName} disabled={!selectedSubject || !assessmentScheme}><SelectTrigger id="assessment-select"><SelectValue placeholder="Select assessment" /></SelectTrigger><SelectContent>{(assessmentScheme?.assessments || []).map(a => <SelectItem key={a.groupName} value={a.groupName}>{a.groupName}</SelectItem>)}</SelectContent></Select></div>
         </CardContent>
       </Card>
       
@@ -341,17 +265,15 @@ export default function TeacherMarksEntryPage() {
 
       {(studentsForMarks.length > 0 || isLoadingStudentsAndMarks) && !isMarksEntryLocked && (
         <Card>
-          <CardHeader><CardTitle>Enter Marks for: {selectedSubject?.label} - {selectedAssessmentName}{isLegacySA && selectedLegacyPaper && ` - ${selectedLegacyPaper}`}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Enter Marks for: {selectedSubject?.label} - {selectedAssessmentName}</CardTitle></CardHeader>
           <CardContent>
             {isLoadingStudentsAndMarks ? <div className="flex items-center justify-center py-6"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading...</p></div>
             : <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}><div className="overflow-x-auto"><Table>
                   <TableHeader><TableRow>
-                      <TableHead className="w-12 sticky left-0 bg-card z-10"><Checkbox checked={selectAllCheckboxState} onCheckedChange={handleSelectAllChange} /></TableHead>
-                      <TableHead className="sticky left-12 bg-card z-10 min-w-[150px]">Student Name</TableHead>
+                      <TableHead className="w-12 sticky left-0 bg-card z-20"><Checkbox checked={selectAllCheckboxState} onCheckedChange={handleSelectAllChange} /></TableHead>
+                      <TableHead className="sticky left-12 bg-card z-20 min-w-[150px]">Student Name</TableHead>
                       <TableHead>Admission ID</TableHead>
-                      {isCustomScheme && currentAssessmentConfig?.tests.map(test => <TableHead key={test.testName} className="w-28 text-center">{test.testName} ({test.maxMarks}M)</TableHead>)}
-                      {isLegacyFA && LEGACY_FA_TOOLS.map(tool => <TableHead key={tool.key} className="w-28 text-center">{tool.label} ({tool.maxMarks}M)</TableHead>)}
-                      {isLegacySA && LEGACY_SA_ASSESSMENT_SKILLS.map(skill => <React.Fragment key={skill.key}><TableHead className="w-28 text-center">{skill.label}</TableHead><TableHead className="w-28 text-center">{skill.label} (Max)</TableHead></React.Fragment>)}
+                      {currentAssessmentConfig?.tests.map(test => <TableHead key={test.testName} className="w-28 text-center">{test.testName} ({test.maxMarks}M)</TableHead>)}
                   </TableRow></TableHeader>
                   <TableBody>{studentsForMarks.map(student => {
                       const studentIdStr = student._id!.toString();
@@ -360,9 +282,7 @@ export default function TeacherMarksEntryPage() {
                           <TableCell className="sticky left-0 bg-card z-10"><Checkbox checked={!!selectedStudentIds[studentIdStr]} onCheckedChange={c => setSelectedStudentIds(p => ({...p, [studentIdStr]: !!c}))} /></TableCell>
                           <TableCell className="sticky left-12 bg-card z-10 font-medium">{student.name}</TableCell>
                           <TableCell>{student.admissionId || 'N/A'}</TableCell>
-                          {isCustomScheme && currentAssessmentConfig?.tests.map(test => <TableCell key={test.testName}><Input type="number" value={(currentMarks as StudentMarksCustomState)?.[test.testName] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.testName, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
-                          {isLegacyFA && LEGACY_FA_TOOLS.map(tool => <TableCell key={tool.key}><Input type="number" value={(currentMarks as StudentMarksLegacyFAState)?.[tool.key] ?? ""} onChange={e => handleMarksChange(studentIdStr, tool.key, e.target.value)} disabled={isSubmitting} max={tool.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
-                          {isLegacySA && LEGACY_SA_ASSESSMENT_SKILLS.map(skill => <React.Fragment key={skill.key}><TableCell><Input type="number" value={(currentMarks as StudentMarksLegacySAState)?.[skill.key] ?? ""} onChange={e => handleMarksChange(studentIdStr, skill.key, e.target.value)} disabled={isSubmitting} max={(currentMarks as StudentMarksLegacySAState)?.[`${skill.key}Max`]} min="0" className="mx-auto w-24" /></TableCell><TableCell><Input type="number" value={(currentMarks as StudentMarksLegacySAState)?.[`${skill.key}Max`]} onChange={e => handleMarksChange(studentIdStr, `${skill.key}Max`, e.target.value)} disabled={isSubmitting} min="1" className="mx-auto w-24"/></TableCell></React.Fragment>)}
+                          {currentAssessmentConfig?.tests.map(test => <TableCell key={test.testName}><Input type="number" value={(currentMarks as StudentMarksCustomState)?.[test.testName] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.testName, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
                       </TableRow>);
                   })}</TableBody>
               </Table></div><div className="mt-6 flex justify-end"><Button type="submit" disabled={isSubmitting || isLoadingStudentsAndMarks}><Save className="mr-2 h-4 w-4" /> Submit Marks</Button></div></form>}
@@ -371,7 +291,7 @@ export default function TeacherMarksEntryPage() {
       )}
 
       {!isMarksEntryLocked && !isLoadingStudentsAndMarks && studentsForMarks.length === 0 && selectedSubject && (
-          <p className="text-center text-muted-foreground py-4">{isLegacySA && !selectedLegacyPaper ? "Please select a paper." : `No students for ${selectedSubject.className} in ${selectedAcademicYear}.`}</p>
+          <p className="text-center text-muted-foreground py-4">{`No students for ${selectedSubject.className} in ${selectedAcademicYear}.`}</p>
       )}
     </div>
   );
