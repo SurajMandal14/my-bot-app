@@ -20,6 +20,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogClose,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -30,7 +31,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 import { useToast } from "@/hooks/use-toast";
@@ -152,8 +152,11 @@ export default function ConfigureMarksPage() {
     }
     setEditingScheme(scheme);
     assessmentForm.reset({
-      schemeName: scheme.schemeName,
-      classIds: scheme.classIds.map(id => id.toString()),
+      classIds: scheme.classIds.map(className => {
+        // Find the corresponding classOption value
+        const option = classOptions.find(opt => opt.label.startsWith(className));
+        return option ? option.value : '';
+      }).filter(Boolean),
       assessments: scheme.assessments,
     });
     setIsSchemeModalOpen(true);
