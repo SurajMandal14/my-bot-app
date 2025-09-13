@@ -58,8 +58,9 @@ export async function createAssessmentScheme(
     const { db } = await connectToDatabase();
     const newScheme = {
       ...validatedFields.data,
+      schemeName: validatedFields.data.schemeName || validatedFields.data.classIds.join(', '), // Ensure schemeName exists
       schoolId: new ObjectId(schoolId),
-      classIds: validatedFields.data.classIds.map(id => new ObjectId(id)),
+      // classIds are now strings (class names), no need to map to ObjectId
       createdBy: new ObjectId(masterAdminId),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -99,12 +100,34 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
           schemeName: 'CBSE State Pattern (Default)',
           classIds: ['All Classes'],
           assessments: [
-            { name: 'FA1', maxMarks: 50 },
-            { name: 'FA2', maxMarks: 50 },
-            { name: 'FA3', maxMarks: 50 },
-            { name: 'FA4', maxMarks: 50 },
-            { name: 'SA1', maxMarks: 120 },
-            { name: 'SA2', maxMarks: 120 },
+            { name: 'FA1 - Tool 1', maxMarks: 10 },
+            { name: 'FA1 - Tool 2', maxMarks: 10 },
+            { name: 'FA1 - Tool 3', maxMarks: 10 },
+            { name: 'FA1 - Tool 4', maxMarks: 20 },
+            { name: 'FA2 - Tool 1', maxMarks: 10 },
+            { name: 'FA2 - Tool 2', maxMarks: 10 },
+            { name: 'FA2 - Tool 3', maxMarks: 10 },
+            { name: 'FA2 - Tool 4', maxMarks: 20 },
+            { name: 'FA3 - Tool 1', maxMarks: 10 },
+            { name: 'FA3 - Tool 2', maxMarks: 10 },
+            { name: 'FA3 - Tool 3', maxMarks: 10 },
+            { name: 'FA3 - Tool 4', maxMarks: 20 },
+            { name: 'FA4 - Tool 1', maxMarks: 10 },
+            { name: 'FA4 - Tool 2', maxMarks: 10 },
+            { name: 'FA4 - Tool 3', maxMarks: 10 },
+            { name: 'FA4 - Tool 4', maxMarks: 20 },
+            { name: 'SA1 - AS1', maxMarks: 20 },
+            { name: 'SA1 - AS2', maxMarks: 20 },
+            { name: 'SA1 - AS3', maxMarks: 20 },
+            { name: 'SA1 - AS4', maxMarks: 20 },
+            { name: 'SA1 - AS5', maxMarks: 20 },
+            { name: 'SA1 - AS6', maxMarks: 20 },
+            { name: 'SA2 - AS1', maxMarks: 20 },
+            { name: 'SA2 - AS2', maxMarks: 20 },
+            { name: 'SA2 - AS3', maxMarks: 20 },
+            { name: 'SA2 - AS4', maxMarks: 20 },
+            { name: 'SA2 - AS5', maxMarks: 20 },
+            { name: 'SA2 - AS6', maxMarks: 20 },
           ],
           createdBy: 'system',
           createdAt: new Date(),
@@ -123,7 +146,6 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
         ...s,
         _id: s._id.toString(),
         schoolId: s.schoolId.toString(),
-        classIds: s.classIds.map((id: ObjectId) => id.toString()),
         createdBy: s.createdBy.toString(),
       })) as unknown as AssessmentScheme[],
     };
@@ -132,15 +154,16 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
   }
 }
 
-export async function getAssessmentSchemeForClass(classId: string, schoolId: string): Promise<AssessmentSchemeResult> {
+export async function getAssessmentSchemeForClass(className: string, schoolId: string): Promise<AssessmentSchemeResult> {
   try {
-    if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
-      return { success: false, message: 'Invalid School or Class ID.' };
+    if (!ObjectId.isValid(schoolId)) {
+      return { success: false, message: 'Invalid School ID.' };
     }
     const { db } = await connectToDatabase();
+    // Find a scheme where the className is included in the classIds array
     const scheme = await db.collection('assessment_schemes').findOne({
       schoolId: new ObjectId(schoolId),
-      classIds: new ObjectId(classId),
+      classIds: className,
     });
 
     if (!scheme) {
@@ -154,7 +177,6 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
         ...scheme,
         _id: scheme._id.toString(),
         schoolId: scheme.schoolId.toString(),
-        classIds: scheme.classIds.map((id: ObjectId) => id.toString()),
         createdBy: scheme.createdBy.toString(),
       } as unknown as AssessmentScheme,
     };
@@ -181,7 +203,7 @@ export async function updateAssessmentScheme(
         const { db } = await connectToDatabase();
         const updateData = {
             ...validatedFields.data,
-            classIds: validatedFields.data.classIds.map(id => new ObjectId(id)),
+            schemeName: validatedFields.data.schemeName || validatedFields.data.classIds.join(', '),
             updatedAt: new Date(),
         };
 

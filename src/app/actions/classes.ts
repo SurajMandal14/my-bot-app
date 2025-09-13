@@ -465,7 +465,7 @@ export async function deleteSchoolClass(classId: string, schoolId: string): Prom
   }
 }
 
-export async function getClassesForSchoolAsOptions(schoolId: string): Promise<{ value: string; label: string; section?: string; name?: string; }[]> {
+export async function getClassesForSchoolAsOptions(schoolId: string): Promise<{ value: string; label: string; academicYear: string; section?: string; name?: string; }[]> {
   if (!ObjectId.isValid(schoolId)) {
     return [];
   }
@@ -480,6 +480,7 @@ export async function getClassesForSchoolAsOptions(schoolId: string): Promise<{ 
     return classes.map(cls => ({ 
         value: (cls._id as ObjectId).toString(), 
         label: `${cls.name}${cls.section ? ` - ${cls.section}` : ''} (${cls.academicYear})`,
+        academicYear: cls.academicYear as string,
         name: cls.name as string, // Store original name
         section: cls.section as string | undefined // Store section
     }));

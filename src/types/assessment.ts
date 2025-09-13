@@ -10,7 +10,9 @@ const assessmentComponentSchema = z.object({
 });
 
 export const assessmentSchemeSchema = z.object({
-  schemeName: z.string().min(3, "Scheme name is required."),
+  // schemeName is now optional as it's derived
+  schemeName: z.string().optional(), 
+  // classIds will now store class names, not ObjectIds, to simplify grouping.
   classIds: z.array(z.string()).min(1, "At least one class must be selected."),
   assessments: z.array(assessmentComponentSchema).min(1, "At least one assessment is required."),
 });
@@ -21,7 +23,7 @@ export interface AssessmentScheme {
   _id: ObjectId | string;
   schoolId: ObjectId | string;
   schemeName: string;
-  classIds: (ObjectId | string)[];
+  classIds: string[]; // Storing class names, e.g., ["Class 1", "Class 2"]
   assessments: {
     name: string;
     maxMarks: number;
@@ -63,5 +65,3 @@ export interface GradingPattern {
   createdAt: Date;
   updatedAt: Date;
 }
-
-    

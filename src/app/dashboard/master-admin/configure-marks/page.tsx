@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlusCircle, Edit, Settings, Trash2, Loader2, ChevronsUpDown, Palette } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -32,7 +31,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 import { useToast } from "@/hooks/use-toast";
@@ -45,8 +43,8 @@ import { format } from "date-fns";
 
 
 interface ClassOption {
-  value: string;
-  label: string;
+  value: string; // This will now be the class NAME, not ID
+  label: string; // The display label, e.g., "Class 1 (2024-2025)"
 }
 
 export default function ConfigureMarksPage() {
@@ -96,7 +94,16 @@ export default function ConfigureMarksPage() {
         getGradingPatterns(authUser.schoolId.toString())
       ]);
       
-      setClassOptions(classesResult);
+      // Process classes to group by name and academic year
+      const groupedClasses = classesResult.reduce((acc, curr) => {
+        const key = `${curr.name} (${curr.academicYear})`;
+        if (!acc[key]) {
+          acc[key] = { value: curr.name!, label: `${curr.name} (${curr.academicYear})` };
+        }
+        return acc;
+      }, {} as Record<string, ClassOption>);
+      
+      setClassOptions(Object.values(groupedClasses));
       
       if(schemesResult.success && schemesResult.schemes) {
         setAssessmentSchemes(schemesResult.schemes);
@@ -126,7 +133,7 @@ export default function ConfigureMarksPage() {
   // Form for Assessment Schemes
   const assessmentForm = useForm<AssessmentSchemeFormData>({
     resolver: zodResolver(assessmentSchemeSchema),
-    defaultValues: { schemeName: "", classIds: [], assessments: [{ name: "", maxMarks: 10 }] },
+    defaultValues: { schemeName: "Default Scheme Name", classIds: [], assessments: [{ name: "", maxMarks: 10 }] },
   });
 
   const { fields: assessmentFields, append: appendAssessment, remove: removeAssessment } = useFieldArray({
@@ -152,10 +159,16 @@ export default function ConfigureMarksPage() {
   async function onAssessmentSubmit(data: AssessmentSchemeFormData) {
     if (!authUser?._id || !authUser?.schoolId) return;
     setIsSubmittingScheme(true);
+    
+    // The name is not needed, so we can use a placeholder or derived name
+    const payload = {
+      ...data,
+      schemeName: data.classIds.join(', ') || 'New Scheme',
+    };
 
     const result = editingScheme 
-      ? await updateAssessmentScheme(editingScheme._id.toString(), data, authUser.schoolId.toString())
-      : await createAssessmentScheme(data, authUser._id.toString(), authUser.schoolId.toString());
+      ? await updateAssessmentScheme(editingScheme._id.toString(), payload, authUser.schoolId.toString())
+      : await createAssessmentScheme(payload, authUser._id.toString(), authUser.schoolId.toString());
 
     if (result.success) {
       toast({ title: editingScheme ? "Scheme Updated" : "Scheme Created", description: result.message });
@@ -245,7 +258,6 @@ export default function ConfigureMarksPage() {
 
 
   const getSelectedClassesLabel = (classIds: string[] = []) => {
-    if (classIds.length === 1 && classIds[0] === 'All Classes') return "All Classes";
     if (classIds.length === 0) return "Select classes...";
     if (classOptions.length > 0 && classIds.length === classOptions.length) return "All Classes";
     if (classIds.length > 2) return `${classIds.length} classes selected`;
@@ -280,25 +292,24 @@ export default function ConfigureMarksPage() {
                 </div>
                 <Dialog open={isSchemeModalOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingScheme(null); setIsSchemeModalOpen(isOpen); }}>
                     <DialogTrigger asChild>
-                      <Button onClick={() => { assessmentForm.reset(); setEditingScheme(null); setIsSchemeModalOpen(true); }}>
+                      <Button onClick={() => { assessmentForm.reset({ schemeName: "Placeholder", classIds: [], assessments: [{ name: "FA1 - Tool 1", maxMarks: 10 }] }); setEditingScheme(null); setIsSchemeModalOpen(true); }}>
                         <PlusCircle className="mr-2 h-4 w-4" /> Create New Scheme
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-3xl">
+                    <DialogContent className="max-w-4xl">
                       <DialogHeader>
                         <DialogTitle>{editingScheme ? 'Edit Assessment Scheme' : 'Create New Assessment Scheme'}</DialogTitle>
                         <DialogDescription>Define assessments, max marks, and the classes this scheme applies to.</DialogDescription>
                       </DialogHeader>
                       <Form {...assessmentForm}>
                         <form onSubmit={assessmentForm.handleSubmit(onAssessmentSubmit)} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <FormField control={assessmentForm.control} name="schemeName" render={({ field }) => (<FormItem><FormLabel>Scheme Name</FormLabel><FormControl><Input placeholder="e.g., Senior Secondary Scheme" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        
                           <FormField control={assessmentForm.control} name="classIds" render={({ field }) => (<FormItem><FormLabel>Apply to Classes</FormLabel><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="w-full justify-between">{getSelectedClassesLabel(selectedClasses)}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></DropdownMenuTrigger><DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">{isLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> : classOptions.map(option => (<DropdownMenuItem key={option.value} onSelect={(e) => e.preventDefault()}><Checkbox checked={field.value.includes(option.value)} onCheckedChange={(checked) => { return checked ? field.onChange([...field.value, option.value]) : field.onChange(field.value.filter(v => v !== option.value))}} className="mr-2"/>{option.label}</DropdownMenuItem>))}</DropdownMenuContent></DropdownMenu><FormMessage /></FormItem>)}/>
-                        </div>
+                        
                         <div>
                             <FormLabel>Assessments</FormLabel>
-                            <div className="space-y-3 mt-2 max-h-[30vh] overflow-y-auto pr-2">{assessmentFields.map((item, index) => (<div key={item.id} className="flex items-end gap-3 p-3 border rounded-md"><FormField control={assessmentForm.control} name={`assessments.${index}.name`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Assessment Name</FormLabel><FormControl><Input placeholder="e.g., Unit Test 1" {...field} /></FormControl><FormMessage /></FormItem>)}/><FormField control={assessmentForm.control} name={`assessments.${index}.maxMarks`} render={({ field }) => (<FormItem><FormLabel>Max Marks</FormLabel><FormControl><Input type="number" placeholder="25" {...field} /></FormControl><FormMessage /></FormItem>)}/><Button type="button" variant="destructive" size="icon" onClick={() => removeAssessment(index)} disabled={assessmentFields.length <= 1}><Trash2 className="h-4 w-4" /></Button></div>))}</div>
-                            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendAssessment({ name: "", maxMarks: 10 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Assessment</Button>
+                            <div className="space-y-3 mt-2 max-h-[40vh] overflow-y-auto pr-2">{assessmentFields.map((item, index) => (<div key={item.id} className="flex items-end gap-3 p-3 border rounded-md"><FormField control={assessmentForm.control} name={`assessments.${index}.name`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Assessment Name</FormLabel><FormControl><Input placeholder="e.g., FA1 - Tool 1" {...field} /></FormControl><FormMessage /></FormItem>)}/><FormField control={assessmentForm.control} name={`assessments.${index}.maxMarks`} render={({ field }) => (<FormItem><FormLabel>Max Marks</FormLabel><FormControl><Input type="number" placeholder="10" {...field} /></FormControl><FormMessage /></FormItem>)}/><Button type="button" variant="destructive" size="icon" onClick={() => removeAssessment(index)} disabled={assessmentFields.length <= 1}><Trash2 className="h-4 w-4" /></Button></div>))}</div>
+                            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendAssessment({ name: "", maxMarks: 10 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Assessment Row</Button>
                         </div>
                         <DialogFooter><DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isSubmittingScheme}>{isSubmittingScheme && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Save Scheme</Button></DialogFooter>
                         </form>
@@ -310,12 +321,12 @@ export default function ConfigureMarksPage() {
                   {isLoading ? <div className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
                   assessmentSchemes.length > 0 ? (
                     <Table>
-                      <TableHeader><TableRow><TableHead>Scheme Name</TableHead><TableHead>Applied to</TableHead><TableHead># Assessments</TableHead><TableHead>Last Updated</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Applied to Class(es)</TableHead><TableHead># Assessments</TableHead><TableHead>Scheme Name</TableHead><TableHead>Last Updated</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                       <TableBody>{assessmentSchemes.map((scheme) => (
                           <TableRow key={scheme._id.toString()}>
-                            <TableCell className="font-medium">{scheme.schemeName}</TableCell>
                             <TableCell>{getSelectedClassesLabel(scheme.classIds.map(id => id.toString()))}</TableCell>
                             <TableCell>{scheme.assessments.length}</TableCell>
+                            <TableCell className="font-medium">{scheme.schemeName}</TableCell>
                             <TableCell>{format(new Date(scheme.updatedAt), "PP")}</TableCell>
                             <TableCell className="text-right space-x-1">
                               <Button variant="ghost" size="icon" onClick={() => handleEditScheme(scheme)} disabled={!!isDeleting || scheme._id === 'default_cbse_state'}><Edit className="h-4 w-4" /></Button>
