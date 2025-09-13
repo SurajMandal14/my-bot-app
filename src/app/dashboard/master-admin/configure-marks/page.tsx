@@ -12,7 +12,6 @@ import { PlusCircle, Edit, Settings, Trash2, Loader2, ChevronsUpDown, Palette } 
 import { useState, useEffect, useCallback } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import {
   Dialog,
   DialogContent,
@@ -23,55 +22,56 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/user";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
 import { cn } from "@/lib/utils";
+import { assessmentSchemeSchema, type AssessmentScheme, type AssessmentSchemeFormData, gradingPatternSchema, type GradingPattern, type GradingPatternFormData } from '@/types/assessment';
+import { createAssessmentScheme, getAssessmentSchemes, updateAssessmentScheme, deleteAssessmentScheme, createGradingPattern, getGradingPatterns, updateGradingPattern, deleteGradingPattern } from '@/app/actions/assessmentConfigurations';
+import { format } from "date-fns";
+
 
 interface ClassOption {
   value: string;
   label: string;
 }
 
-// Mock data for display purposes
-const mockConfigurations = [
-  { id: "1", grade: "Class 10, Class 9", assessments: 5, scheme: "Standard CBSE", lastUpdated: "2023-10-26" },
-  { id: "2", grade: "Class 8", assessments: 5, scheme: "Standard CBSE", lastUpdated: "2023-10-25" },
-  { id: "3", grade: "Class 1, Class 2", assessments: 3, scheme: "Primary Fun-based", lastUpdated: "2023-09-01" },
-];
-
-const assessmentSchema = z.object({
-  name: z.string().min(1, "Assessment name is required."),
-  maxMarks: z.coerce.number().min(1, "Max marks must be at least 1."),
-});
-
-const configurationSchema = z.object({
-  schemeName: z.string().min(3, "Scheme name is required."),
-  classIds: z.array(z.string()).min(1, "At least one class must be selected."),
-  assessments: z.array(assessmentSchema).min(1, "At least one assessment is required."),
-});
-
-type ConfigurationFormData = z.infer<typeof configurationSchema>;
-
-const gradeRowSchema = z.object({
-  label: z.string().min(1, "Grade label is required."),
-  minPercentage: z.coerce.number().min(0).max(100),
-  maxPercentage: z.coerce.number().min(0).max(100),
-});
-
-const gradingPatternSchema = z.object({
-  patternName: z.string().min(3, "Pattern name is required."),
-  grades: z.array(gradeRowSchema).min(1, "At least one grade row is required."),
-});
-
-type GradingPatternFormData = z.infer<typeof gradingPatternSchema>;
-
 export default function ConfigureMarksPage() {
   const { toast } = useToast();
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  
+  // Data State
   const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
-  const [isLoadingClasses, setIsLoadingClasses] = useState(true);
+  const [assessmentSchemes, setAssessmentSchemes] = useState<AssessmentScheme[]>([]);
+  const [gradingPatterns, setGradingPatterns] = useState<GradingPattern[]>([]);
+  
+  // Loading & Action State
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmittingScheme, setIsSubmittingScheme] = useState(false);
+  const [isSubmittingPattern, setIsSubmittingPattern] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
+  // Modal & Editing State
+  const [isSchemeModalOpen, setIsSchemeModalOpen] = useState(false);
+  const [editingScheme, setEditingScheme] = useState<AssessmentScheme | null>(null);
+  const [schemeToDelete, setSchemeToDelete] = useState<AssessmentScheme | null>(null);
+  
+  const [isPatternModalOpen, setIsPatternModalOpen] = useState(false);
+  const [editingPattern, setEditingPattern] = useState<GradingPattern | null>(null);
+  const [patternToDelete, setPatternToDelete] = useState<GradingPattern | null>(null);
+
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -84,29 +84,48 @@ export default function ConfigureMarksPage() {
       } catch (e) { console.error(e); }
     }
   }, []);
-
-  const fetchClasses = useCallback(async () => {
+  
+  const fetchData = useCallback(async () => {
     if (!authUser?.schoolId) return;
-    setIsLoadingClasses(true);
-    const result = await getClassesForSchoolAsOptions(authUser.schoolId);
-    setClassOptions(result);
-    setIsLoadingClasses(false);
-  }, [authUser]);
+    setIsLoading(true);
+    try {
+      const [classesResult, schemesResult, patternsResult] = await Promise.all([
+        getClassesForSchoolAsOptions(authUser.schoolId.toString()),
+        getAssessmentSchemes(authUser.schoolId.toString()),
+        getGradingPatterns(authUser.schoolId.toString())
+      ]);
+      
+      setClassOptions(classesResult);
+      
+      if(schemesResult.success && schemesResult.schemes) {
+        setAssessmentSchemes(schemesResult.schemes);
+      } else {
+        toast({variant: 'warning', title: 'Could not load schemes', description: schemesResult.message});
+      }
+      
+      if(patternsResult.success && patternsResult.patterns) {
+        setGradingPatterns(patternsResult.patterns);
+      } else {
+        toast({variant: 'warning', title: 'Could not load patterns', description: patternsResult.message});
+      }
+
+    } catch (error) {
+      toast({variant: 'destructive', title: 'Error', description: 'Failed to fetch initial configuration data.'})
+    } finally {
+      setIsLoading(false);
+    }
+  }, [authUser, toast]);
 
   useEffect(() => {
     if (authUser) {
-      fetchClasses();
+      fetchData();
     }
-  }, [authUser, fetchClasses]);
+  }, [authUser, fetchData]);
 
   // Form for Assessment Schemes
-  const assessmentForm = useForm<ConfigurationFormData>({
-    resolver: zodResolver(configurationSchema),
-    defaultValues: {
-      schemeName: "",
-      classIds: [],
-      assessments: [{ name: "", maxMarks: 10 }],
-    },
+  const assessmentForm = useForm<AssessmentSchemeFormData>({
+    resolver: zodResolver(assessmentSchemeSchema),
+    defaultValues: { schemeName: "", classIds: [], assessments: [{ name: "", maxMarks: 10 }] },
   });
 
   const { fields: assessmentFields, append: appendAssessment, remove: removeAssessment } = useFieldArray({
@@ -114,48 +133,113 @@ export default function ConfigureMarksPage() {
     name: "assessments",
   });
   const selectedClasses = assessmentForm.watch("classIds");
+  
+  const handleEditScheme = (scheme: AssessmentScheme) => {
+    setEditingScheme(scheme);
+    assessmentForm.reset({
+      schemeName: scheme.schemeName,
+      classIds: scheme.classIds.map(id => id.toString()),
+      assessments: scheme.assessments,
+    });
+    setIsSchemeModalOpen(true);
+  };
+
+  async function onAssessmentSubmit(data: AssessmentSchemeFormData) {
+    if (!authUser?._id || !authUser?.schoolId) return;
+    setIsSubmittingScheme(true);
+
+    const result = editingScheme 
+      ? await updateAssessmentScheme(editingScheme._id.toString(), data, authUser.schoolId.toString())
+      : await createAssessmentScheme(data, authUser._id.toString(), authUser.schoolId.toString());
+
+    if (result.success) {
+      toast({ title: editingScheme ? "Scheme Updated" : "Scheme Created", description: result.message });
+      fetchData();
+      setIsSchemeModalOpen(false);
+      setEditingScheme(null);
+      assessmentForm.reset();
+    } else {
+      toast({ variant: 'destructive', title: 'Submission Failed', description: result.error || result.message });
+    }
+    setIsSubmittingScheme(false);
+  }
+
+  async function onDeleteScheme() {
+    if(!schemeToDelete || !authUser?.schoolId) return;
+    setIsDeleting(schemeToDelete._id.toString());
+    const result = await deleteAssessmentScheme(schemeToDelete._id.toString(), authUser.schoolId.toString());
+    if(result.success) {
+      toast({title: 'Scheme Deleted', description: result.message});
+      fetchData();
+    } else {
+      toast({variant: 'destructive', title: 'Deletion Failed', description: result.message});
+    }
+    setSchemeToDelete(null);
+    setIsDeleting(null);
+  }
+
 
   // Form for Grading Patterns
   const gradingForm = useForm<GradingPatternFormData>({
-      resolver: zodResolver(gradingPatternSchema),
-      defaultValues: {
-        patternName: "",
-        grades: [{ label: "A1", minPercentage: 91, maxPercentage: 100 }],
-      }
+    resolver: zodResolver(gradingPatternSchema),
+    defaultValues: { patternName: "", grades: [{ label: "A1", minPercentage: 91, maxPercentage: 100 }] },
   });
 
   const { fields: gradeFields, append: appendGrade, remove: removeGrade } = useFieldArray({
-      control: gradingForm.control,
-      name: "grades"
+    control: gradingForm.control, name: "grades"
   });
-
   const watchedGrades = gradingForm.watch("grades");
 
-  function onAssessmentSubmit(data: ConfigurationFormData) {
-    console.log("Assessment Scheme Data:", data);
-    toast({
-      title: "Assessment Scheme Submitted (Mock)",
-      description: "Check the browser console to see the form data.",
+  const handleEditPattern = (pattern: GradingPattern) => {
+    setEditingPattern(pattern);
+    gradingForm.reset({
+      patternName: pattern.patternName,
+      grades: pattern.grades
     });
-    setIsModalOpen(false);
-    assessmentForm.reset();
+    setIsPatternModalOpen(true);
+  };
+  
+  async function onGradingSubmit(data: GradingPatternFormData) {
+    if (!authUser?._id || !authUser?.schoolId) return;
+    setIsSubmittingPattern(true);
+
+    const result = editingPattern
+      ? await updateGradingPattern(editingPattern._id.toString(), data, authUser.schoolId.toString())
+      : await createGradingPattern(data, authUser._id.toString(), authUser.schoolId.toString());
+    
+    if(result.success) {
+      toast({title: editingPattern ? 'Pattern Updated' : 'Pattern Created', description: result.message});
+      fetchData();
+      setIsPatternModalOpen(false);
+      setEditingPattern(null);
+      gradingForm.reset();
+    } else {
+      toast({variant: 'destructive', title: 'Submission Failed', description: result.error || result.message});
+    }
+    setIsSubmittingPattern(false);
+  }
+  
+  async function onDeletePattern() {
+    if(!patternToDelete || !authUser?.schoolId) return;
+    setIsDeleting(patternToDelete._id.toString());
+    const result = await deleteGradingPattern(patternToDelete._id.toString(), authUser.schoolId.toString());
+     if(result.success) {
+      toast({title: 'Pattern Deleted', description: result.message});
+      fetchData();
+    } else {
+      toast({variant: 'destructive', title: 'Deletion Failed', description: result.message});
+    }
+    setPatternToDelete(null);
+    setIsDeleting(null);
   }
 
-  function onGradingSubmit(data: GradingPatternFormData) {
-    console.log("Grading Pattern Data:", data);
-    toast({
-      title: "Grading Pattern Submitted (Mock)",
-      description: "Check the browser console to see the form data.",
-    });
-    // gradingForm.reset(); // Optionally reset form after submission
-  }
 
-  const getSelectedClassesLabel = () => {
-    if (selectedClasses.length === 0) return "Select classes...";
-    if (selectedClasses.length === classOptions.length) return "All Classes";
-    if (selectedClasses.length > 2) return `${selectedClasses.length} classes selected`;
+  const getSelectedClassesLabel = (classIds: string[] = []) => {
+    if (classIds.length === 0) return "Select classes...";
+    if (classIds.length === classOptions.length) return "All Classes";
+    if (classIds.length > 2) return `${classIds.length} classes selected`;
     return classOptions
-      .filter(opt => selectedClasses.includes(opt.value))
+      .filter(opt => classIds.includes(opt.value))
       .map(opt => opt.label)
       .join(', ');
   };
@@ -166,13 +250,8 @@ export default function ConfigureMarksPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl font-headline flex items-center">
-            <Settings className="mr-2 h-6 w-6" />
-            Configure Report Card
-          </CardTitle>
-          <CardDescription>
-            Set up assessment schemes, grading patterns, and other report card configurations for your school.
-          </CardDescription>
+          <CardTitle className="text-2xl font-headline flex items-center"><Settings className="mr-2 h-6 w-6" />Configure Report Card</CardTitle>
+          <CardDescription>Set up assessment schemes, grading patterns, and other report card configurations for your school.</CardDescription>
         </CardHeader>
       </Card>
 
@@ -186,230 +265,110 @@ export default function ConfigureMarksPage() {
                 <CardHeader className="flex flex-row items-center justify-between">
                 <div className="space-y-1">
                     <CardTitle>Existing Assessment Schemes</CardTitle>
-                    <CardDescription>
-                    Manage the assessments for different classes or grades.
-                    </CardDescription>
+                    <CardDescription>Manage the assessments for different classes or grades.</CardDescription>
                 </div>
-                <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <Dialog open={isSchemeModalOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingScheme(null); setIsSchemeModalOpen(isOpen); }}>
                     <DialogTrigger asChild>
-                    <Button onClick={() => assessmentForm.reset({ schemeName: "", classIds: [], assessments: [{ name: "", maxMarks: 10 }] })}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Create New Scheme
-                    </Button>
+                      <Button onClick={() => { assessmentForm.reset(); setEditingScheme(null); setIsSchemeModalOpen(true); }}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Create New Scheme
+                      </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-3xl">
-                    <DialogHeader>
-                        <DialogTitle>Create New Assessment Scheme</DialogTitle>
-                        <DialogDescription>
-                        Define the assessments, maximum marks, and the classes this scheme applies to.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <Form {...assessmentForm}>
+                      <DialogHeader>
+                        <DialogTitle>{editingScheme ? 'Edit Assessment Scheme' : 'Create New Assessment Scheme'}</DialogTitle>
+                        <DialogDescription>Define assessments, max marks, and the classes this scheme applies to.</DialogDescription>
+                      </DialogHeader>
+                      <Form {...assessmentForm}>
                         <form onSubmit={assessmentForm.handleSubmit(onAssessmentSubmit)} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <FormField
-                                control={assessmentForm.control}
-                                name="schemeName"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Scheme Name</FormLabel>
-                                    <FormControl>
-                                    <Input placeholder="e.g., Senior Secondary Scheme" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={assessmentForm.control}
-                                name="classIds"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Apply to Classes</FormLabel>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="w-full justify-between">
-                                            {getSelectedClassesLabel()}
-                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                        </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
-                                        {isLoadingClasses ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> :
-                                        classOptions.map(option => (
-                                            <DropdownMenuItem key={option.value} onSelect={(e) => e.preventDefault()}>
-                                            <Checkbox
-                                                checked={field.value.includes(option.value)}
-                                                onCheckedChange={(checked) => {
-                                                    return checked
-                                                        ? field.onChange([...field.value, option.value])
-                                                        : field.onChange(field.value.filter(v => v !== option.value))
-                                                }}
-                                                className="mr-2"
-                                                />
-                                            {option.label}
-                                            </DropdownMenuItem>
-                                        ))}
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
+                          <FormField control={assessmentForm.control} name="schemeName" render={({ field }) => (<FormItem><FormLabel>Scheme Name</FormLabel><FormControl><Input placeholder="e.g., Senior Secondary Scheme" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                          <FormField control={assessmentForm.control} name="classIds" render={({ field }) => (<FormItem><FormLabel>Apply to Classes</FormLabel><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="w-full justify-between">{getSelectedClassesLabel(selectedClasses)}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></DropdownMenuTrigger><DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">{isLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> : classOptions.map(option => (<DropdownMenuItem key={option.value} onSelect={(e) => e.preventDefault()}><Checkbox checked={field.value.includes(option.value)} onCheckedChange={(checked) => { return checked ? field.onChange([...field.value, option.value]) : field.onChange(field.value.filter(v => v !== option.value))}} className="mr-2"/>{option.label}</DropdownMenuItem>))}</DropdownMenuContent></DropdownMenu><FormMessage /></FormItem>)}/>
                         </div>
-
                         <div>
                             <FormLabel>Assessments</FormLabel>
-                            <div className="space-y-3 mt-2">
-                            {assessmentFields.map((item, index) => (
-                            <div key={item.id} className="flex items-end gap-3 p-3 border rounded-md">
-                                <FormField
-                                control={assessmentForm.control}
-                                name={`assessments.${index}.name`}
-                                render={({ field }) => (
-                                    <FormItem className="flex-1">
-                                    <FormLabel>Assessment Name</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="e.g., Unit Test 1" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
-                                />
-                                <FormField
-                                control={assessmentForm.control}
-                                name={`assessments.${index}.maxMarks`}
-                                render={({ field }) => (
-                                    <FormItem>
-                                    <FormLabel>Max Marks</FormLabel>
-                                    <FormControl>
-                                        <Input type="number" placeholder="25" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                    </FormItem>
-                                )}
-                                />
-                                <Button type="button" variant="destructive" size="icon" onClick={() => removeAssessment(index)} disabled={assessmentFields.length <= 1}>
-                                <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </div>
-                            ))}
-                            </div>
-                            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendAssessment({ name: "", maxMarks: 10 })}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Add Assessment
-                            </Button>
+                            <div className="space-y-3 mt-2 max-h-[30vh] overflow-y-auto pr-2">{assessmentFields.map((item, index) => (<div key={item.id} className="flex items-end gap-3 p-3 border rounded-md"><FormField control={assessmentForm.control} name={`assessments.${index}.name`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Assessment Name</FormLabel><FormControl><Input placeholder="e.g., Unit Test 1" {...field} /></FormControl><FormMessage /></FormItem>)}/><FormField control={assessmentForm.control} name={`assessments.${index}.maxMarks`} render={({ field }) => (<FormItem><FormLabel>Max Marks</FormLabel><FormControl><Input type="number" placeholder="25" {...field} /></FormControl><FormMessage /></FormItem>)}/><Button type="button" variant="destructive" size="icon" onClick={() => removeAssessment(index)} disabled={assessmentFields.length <= 1}><Trash2 className="h-4 w-4" /></Button></div>))}</div>
+                            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendAssessment({ name: "", maxMarks: 10 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Assessment</Button>
                         </div>
-
-                        <DialogFooter>
-                            <DialogClose asChild>
-                            <Button type="button" variant="outline">Cancel</Button>
-                            </DialogClose>
-                            <Button type="submit">Save Scheme</Button>
-                        </DialogFooter>
+                        <DialogFooter><DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isSubmittingScheme}>{isSubmittingScheme && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Save Scheme</Button></DialogFooter>
                         </form>
-                    </Form>
+                      </Form>
                     </DialogContent>
                 </Dialog>
                 </CardHeader>
                 <CardContent>
-                <Table>
-                    <TableHeader>
-                    <TableRow>
-                        <TableHead>Applied to Class(es)</TableHead>
-                        <TableHead>Assessments</TableHead>
-                        <TableHead>Scheme Name</TableHead>
-                        <TableHead>Last Updated</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                    {mockConfigurations.map((config) => (
-                        <TableRow key={config.id}>
-                        <TableCell className="font-medium">{config.grade}</TableCell>
-                        <TableCell>{config.assessments}</TableCell>
-                        <TableCell>{config.scheme}</TableCell>
-                        <TableCell>{config.lastUpdated}</TableCell>
-                        <TableCell className="text-right">
-                            <Button variant="ghost" size="icon">
-                            <Edit className="h-4 w-4" />
-                            <span className="sr-only">Edit</span>
-                            </Button>
-                        </TableCell>
-                        </TableRow>
-                    ))}
-                    </TableBody>
-                </Table>
+                  {isLoading ? <div className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
+                  assessmentSchemes.length > 0 ? (
+                    <Table>
+                      <TableHeader><TableRow><TableHead>Scheme Name</TableHead><TableHead>Applied to</TableHead><TableHead># Assessments</TableHead><TableHead>Last Updated</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                      <TableBody>{assessmentSchemes.map((scheme) => (
+                          <TableRow key={scheme._id.toString()}>
+                            <TableCell className="font-medium">{scheme.schemeName}</TableCell>
+                            <TableCell>{getSelectedClassesLabel(scheme.classIds.map(id => id.toString()))}</TableCell>
+                            <TableCell>{scheme.assessments.length}</TableCell>
+                            <TableCell>{format(new Date(scheme.updatedAt), "PP")}</TableCell>
+                            <TableCell className="text-right space-x-1">
+                              <Button variant="ghost" size="icon" onClick={() => handleEditScheme(scheme)} disabled={!!isDeleting}><Edit className="h-4 w-4" /></Button>
+                              <AlertDialog open={schemeToDelete?._id === scheme._id} onOpenChange={(open) => !open && setSchemeToDelete(null)}>
+                                <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive" onClick={() => setSchemeToDelete(scheme)} disabled={!!isDeleting}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Scheme?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete the scheme "{scheme.schemeName}"? This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={onDeleteScheme} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                              </AlertDialog>
+                            </TableCell>
+                          </TableRow>
+                        ))}</TableBody>
+                    </Table>
+                  ) : (<p className="text-center text-muted-foreground py-4">No assessment schemes created yet.</p>)}
                 </CardContent>
             </Card>
         </TabsContent>
         <TabsContent value="patterns">
              <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center"><Palette className="mr-2 h-5 w-5"/>Create New Grading Pattern</CardTitle>
-                    <CardDescription>Define grade labels and their corresponding percentage ranges.</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center"><Palette className="mr-2 h-5 w-5"/>Grading Patterns</CardTitle>
+                    <CardDescription>Manage reusable grading patterns for your school.</CardDescription>
+                  </div>
+                  <Dialog open={isPatternModalOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingPattern(null); setIsPatternModalOpen(isOpen); }}>
+                    <DialogTrigger asChild><Button onClick={() => { gradingForm.reset(); setEditingPattern(null); setIsPatternModalOpen(true); }}><PlusCircle className="mr-2 h-4 w-4"/>Create New Pattern</Button></DialogTrigger>
+                    <DialogContent className="max-w-4xl">
+                      <DialogHeader><DialogTitle>{editingPattern ? 'Edit Grading Pattern' : 'Create New Grading Pattern'}</DialogTitle><DialogDescription>Define grade labels and their corresponding percentage ranges.</DialogDescription></DialogHeader>
+                      <Form {...gradingForm}>
+                          <form onSubmit={gradingForm.handleSubmit(onGradingSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
+                              <div className="lg:col-span-2 space-y-6">
+                                  <FormField control={gradingForm.control} name="patternName" render={({ field }) => (<FormItem><FormLabel>Grading Pattern Name</FormLabel><FormControl><Input placeholder="e.g., CBSE 9-10 Scheme" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                                  <div>
+                                      <FormLabel>Grade Rows</FormLabel>
+                                      <div className="mt-2 space-y-3 max-h-[40vh] overflow-y-auto pr-2">{gradeFields.map((item, index) => (<div key={item.id} className="flex items-end gap-3 p-3 border rounded-lg"><FormField control={gradingForm.control} name={`grades.${index}.label`} render={({field}) => (<FormItem><FormLabel>Grade</FormLabel><FormControl><Input placeholder="A1" {...field}/></FormControl><FormMessage/></FormItem>)}/> <FormField control={gradingForm.control} name={`grades.${index}.minPercentage`} render={({field}) => (<FormItem><FormLabel>Min %</FormLabel><FormControl><Input type="number" placeholder="91" {...field}/></FormControl><FormMessage/></FormItem>)}/> <FormField control={gradingForm.control} name={`grades.${index}.maxPercentage`} render={({field}) => (<FormItem><FormLabel>Max %</FormLabel><FormControl><Input type="number" placeholder="100" {...field}/></FormControl><FormMessage/></FormItem>)}/> <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeGrade(index)} disabled={gradeFields.length <= 1}><Trash2 className="h-4 w-4"/></Button></div>))}</div>
+                                      <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendGrade({ label: "", minPercentage: 0, maxPercentage: 0 })}><PlusCircle className="mr-2 h-4 w-4" /> Add Grade Row</Button>
+                                  </div>
+                              </div>
+                              <div className="lg:col-span-1"><h4 className="font-semibold mb-2">Live Preview</h4><Card className="p-4 space-y-2"><p className="text-sm font-medium">{gradingForm.watch('patternName') || "Your Pattern Name"}</p><div className="w-full flex h-8 rounded-full overflow-hidden border">{watchedGrades.map((grade, index) => {const width = Math.max(0, (grade.maxPercentage || 0) - (grade.minPercentage || 0)); if (width === 0) return null; return (<div key={index} title={`${grade.label}: ${grade.minPercentage}% - ${grade.maxPercentage}%`} className={cn("flex items-center justify-center text-white text-xs font-bold", PREVIEW_COLORS[index % PREVIEW_COLORS.length])} style={{ width: `${width}%` }}>{width > 5 && grade.label}</div>)})}</div><ul className="text-xs space-y-1 mt-2">{watchedGrades.map((grade, index) => (<li key={index} className="flex items-center"><span className={cn("w-3 h-3 rounded-sm mr-2", PREVIEW_COLORS[index % PREVIEW_COLORS.length])}></span><span className="font-bold w-10">{grade.label || "N/A"}:</span><span>{grade.minPercentage || 0}% to {grade.maxPercentage || 0}%</span></li>))}</ul></Card></div>
+                              <DialogFooter className="lg:col-span-3"><DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose><Button type="submit" disabled={isSubmittingPattern}>{isSubmittingPattern && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Save Pattern</Button></DialogFooter>
+                          </form>
+                      </Form>
+                    </DialogContent>
+                  </Dialog>
                 </CardHeader>
                 <CardContent>
-                    <Form {...gradingForm}>
-                        <form onSubmit={gradingForm.handleSubmit(onGradingSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            <div className="lg:col-span-2 space-y-6">
-                                <FormField
-                                    control={gradingForm.control}
-                                    name="patternName"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Grading Pattern Name</FormLabel>
-                                            <FormControl><Input placeholder="e.g., CBSE 9-10 Scheme" {...field} /></FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <div>
-                                    <FormLabel>Grade Rows</FormLabel>
-                                    <div className="mt-2 space-y-3">
-                                        {gradeFields.map((item, index) => (
-                                            <div key={item.id} className="flex items-end gap-3 p-3 border rounded-lg">
-                                                <FormField control={gradingForm.control} name={`grades.${index}.label`} render={({field}) => (<FormItem><FormLabel>Grade</FormLabel><FormControl><Input placeholder="A1" {...field}/></FormControl><FormMessage/></FormItem>)}/>
-                                                <FormField control={gradingForm.control} name={`grades.${index}.minPercentage`} render={({field}) => (<FormItem><FormLabel>Min %</FormLabel><FormControl><Input type="number" placeholder="91" {...field}/></FormControl><FormMessage/></FormItem>)}/>
-                                                <FormField control={gradingForm.control} name={`grades.${index}.maxPercentage`} render={({field}) => (<FormItem><FormLabel>Max %</FormLabel><FormControl><Input type="number" placeholder="100" {...field}/></FormControl><FormMessage/></FormItem>)}/>
-                                                <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeGrade(index)} disabled={gradeFields.length <= 1}><Trash2 className="h-4 w-4"/></Button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                     <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendGrade({ label: "", minPercentage: 0, maxPercentage: 0 })}>
-                                        <PlusCircle className="mr-2 h-4 w-4" /> Add Grade Row
-                                    </Button>
-                                </div>
-                                <Button type="submit">Save Grading Pattern</Button>
-                            </div>
-                            <div className="lg:col-span-1">
-                                <h4 className="font-semibold mb-2">Live Preview</h4>
-                                <Card className="p-4 space-y-2">
-                                     <p className="text-sm font-medium">{gradingForm.watch('patternName') || "Your Pattern Name"}</p>
-                                     <div className="w-full flex h-8 rounded-full overflow-hidden border">
-                                        {watchedGrades.map((grade, index) => {
-                                            const width = Math.max(0, grade.maxPercentage - grade.minPercentage);
-                                            if (width === 0) return null;
-                                            return (
-                                                <div key={index} title={`${grade.label}: ${grade.minPercentage}% - ${grade.maxPercentage}%`}
-                                                     className={cn("flex items-center justify-center text-white text-xs font-bold", PREVIEW_COLORS[index % PREVIEW_COLORS.length])}
-                                                     style={{ width: `${width}%` }}>
-                                                   {width > 5 && grade.label}
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                    <ul className="text-xs space-y-1 mt-2">
-                                        {watchedGrades.map((grade, index) => (
-                                            <li key={index} className="flex items-center">
-                                                <span className={cn("w-3 h-3 rounded-sm mr-2", PREVIEW_COLORS[index % PREVIEW_COLORS.length])}></span>
-                                                <span className="font-bold w-10">{grade.label || "N/A"}:</span>
-                                                <span>{grade.minPercentage}% to {grade.maxPercentage}%</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </Card>
-                            </div>
-                        </form>
-                    </Form>
+                  {isLoading ? <div className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
+                  gradingPatterns.length > 0 ? (
+                     <Table>
+                      <TableHeader><TableRow><TableHead>Pattern Name</TableHead><TableHead>Grades</TableHead><TableHead>Last Updated</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                      <TableBody>{gradingPatterns.map((pattern) => (
+                          <TableRow key={pattern._id.toString()}>
+                            <TableCell className="font-medium">{pattern.patternName}</TableCell>
+                            <TableCell>{pattern.grades.map(g => g.label).join(', ')}</TableCell>
+                            <TableCell>{format(new Date(pattern.updatedAt), "PP")}</TableCell>
+                            <TableCell className="text-right space-x-1">
+                              <Button variant="ghost" size="icon" onClick={() => handleEditPattern(pattern)} disabled={!!isDeleting}><Edit className="h-4 w-4" /></Button>
+                              <AlertDialog open={patternToDelete?._id === pattern._id} onOpenChange={(open) => !open && setPatternToDelete(null)}>
+                                <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive" onClick={() => setPatternToDelete(pattern)} disabled={!!isDeleting}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Pattern?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete the pattern "{pattern.patternName}"?</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={onDeletePattern} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                              </AlertDialog>
+                            </TableCell>
+                          </TableRow>
+                        ))}</TableBody>
+                    </Table>
+                  ) : (<p className="text-center text-muted-foreground py-4">No grading patterns created yet.</p>)}
                 </CardContent>
             </Card>
         </TabsContent>
