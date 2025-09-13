@@ -279,5 +279,3 @@ export async function deleteGradingPattern(patternId: string, schoolId: string):
         return { success: false, message: 'An unexpected error occurred.' };
     }
 }
-
-    

@@ -35,9 +35,9 @@ interface ClassOption {
 
 // Mock data for display purposes
 const mockConfigurations = [
-  { id: "1", grade: "Class 10", assessments: 5, scheme: "Standard CBSE", lastUpdated: "2023-10-26" },
-  { id: "2", grade: "Class 9", assessments: 5, scheme: "Standard CBSE", lastUpdated: "2023-10-25" },
-  { id: "3", grade: "Class 1", assessments: 3, scheme: "Primary Fun-based", lastUpdated: "2023-09-01" },
+  { id: "1", grade: "Class 10, Class 9", assessments: 5, scheme: "Standard CBSE", lastUpdated: "2023-10-26" },
+  { id: "2", grade: "Class 8", assessments: 5, scheme: "Standard CBSE", lastUpdated: "2023-10-25" },
+  { id: "3", grade: "Class 1, Class 2", assessments: 3, scheme: "Primary Fun-based", lastUpdated: "2023-09-01" },
 ];
 
 const assessmentSchema = z.object({
@@ -314,9 +314,9 @@ export default function ConfigureMarksPage() {
                 <Table>
                     <TableHeader>
                     <TableRow>
-                        <TableHead>Class/Grade</TableHead>
-                        <TableHead>Number of Assessments</TableHead>
-                        <TableHead>Grading Scheme Name</TableHead>
+                        <TableHead>Applied to Class(es)</TableHead>
+                        <TableHead>Assessments</TableHead>
+                        <TableHead>Scheme Name</TableHead>
                         <TableHead>Last Updated</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
