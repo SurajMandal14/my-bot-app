@@ -96,16 +96,8 @@ export default function ConfigureMarksPage() {
         getGradingPatterns(authUser.schoolId.toString())
       ]);
       
-      // Process classes to group by name and academic year
-      const groupedClasses = classesResult.reduce((acc, curr) => {
-        const key = `${curr.name} (${curr.academicYear})`;
-        if (!acc[key]) {
-          acc[key] = { value: curr.name!, label: `${curr.name} (${curr.academicYear})` };
-        }
-        return acc;
-      }, {} as Record<string, ClassOption>);
-      
-      setClassOptions(Object.values(groupedClasses));
+      const uniqueClasses = Array.from(new Map(classesResult.map(c => [c.name, c])).values());
+      setClassOptions(uniqueClasses.map(c => ({ value: c.name!, label: c.name! })));
       
       if(schemesResult.success && schemesResult.schemes) {
         setAssessmentSchemes(schemesResult.schemes);
@@ -162,11 +154,7 @@ export default function ConfigureMarksPage() {
     if (!authUser?._id || !authUser?.schoolId) return;
     setIsSubmittingScheme(true);
     
-    // The name is not needed, so we can use a placeholder or derived name
-    const payload = {
-      ...data,
-      schemeName: data.classIds.join(', ') || 'New Scheme',
-    };
+    const payload = { ...data };
 
     const result = editingScheme 
       ? await updateAssessmentScheme(editingScheme._id.toString(), payload, authUser.schoolId.toString())
