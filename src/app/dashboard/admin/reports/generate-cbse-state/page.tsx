@@ -236,7 +236,7 @@ export default function GenerateCBSEStateReportPage() {
             setTeacherEditableSubjects(editableSubs);
           }
           
-          const schemeRes = await getAssessmentSchemeForClass(classRes.classDetails._id, currentStudent.schoolId!);
+          const schemeRes = await getAssessmentSchemeForClass(classRes.classDetails._id.toString(), currentStudent.schoolId!);
           if(schemeRes.success && schemeRes.scheme) {
               setAssessmentScheme(schemeRes.scheme);
           }

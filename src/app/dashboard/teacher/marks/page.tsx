@@ -193,7 +193,8 @@ export default function TeacherMarksEntryPage() {
         marksResult.marks.forEach(mark => {
           const studentIdStr = mark.studentId.toString();
           if (!initialMarks[studentIdStr]) return;
-            const [assessmentGroup, testName] = mark.assessmentName.split('-');
+            const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
+            const testName = restOfName.join('-'); // handles test names with hyphens
 
             if (isCustomScheme && assessmentGroup === selectedAssessmentName && testName) {
                 (initialMarks[studentIdStr] as StudentMarksCustomState)[testName] = mark.marksObtained;

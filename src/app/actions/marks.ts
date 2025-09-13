@@ -115,17 +115,16 @@ export async function getMarksForAssessment(
     const { db } = await connectToDatabase();
     const marksCollection = db.collection<MarkEntry>('marks');
 
-    let queryAssessmentFilter: { $regex: string };
-
-    if (["FA1", "FA2", "FA3", "FA4"].includes(assessmentNameBase)) {
-      queryAssessmentFilter = { $regex: `^${assessmentNameBase}-Tool` };
-    } else if (["SA1", "SA2"].includes(assessmentNameBase)) {
-      if (!paper) {
-        return { success: false, message: 'Paper selection is required for SA assessments.', error: 'Paper not specified.' };
-      }
-      queryAssessmentFilter = { $regex: `^${assessmentNameBase}-${paper}-AS` }; 
-    } else {
-        return { success: false, message: 'Unsupported assessment type for this query.' };
+    // More robust regex to handle custom test names (e.g., "FA1-My Custom Test")
+    const queryAssessmentFilter = { $regex: `^${assessmentNameBase}-` };
+    
+    let paperFilter = {};
+    if (assessmentNameBase.startsWith("SA") && paper) {
+        paperFilter = { assessmentName: { $regex: `^${assessmentNameBase}-${paper}-` }};
+    } else if (assessmentNameBase.startsWith("SA") && !paper) {
+        // If it's SA but no paper, we need to decide what to do. 
+        // For now, let's assume we fetch all for that SA.
+        paperFilter = { assessmentName: { $regex: `^${assessmentNameBase}-` }};
     }
 
     const marks = await marksCollection.find({
@@ -134,6 +133,7 @@ export async function getMarksForAssessment(
       subjectId: subjectNameParam,
       assessmentName: queryAssessmentFilter,
       academicYear: academicYear,
+      ...paperFilter
     }).toArray();
 
     const marksWithStrId = marks.map(mark => ({
