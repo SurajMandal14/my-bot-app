@@ -4,17 +4,20 @@ import type { ObjectId } from 'mongodb';
 
 // --- Assessment Schemes ---
 
-const assessmentComponentSchema = z.object({
-  name: z.string().min(1, "Assessment name is required."),
+const testComponentSchema = z.object({
+  testName: z.string().min(1, "Test name (e.g., Tool 1) is required."),
   maxMarks: z.coerce.number().min(1, "Max marks must be at least 1."),
 });
 
+const assessmentGroupSchema = z.object({
+  groupName: z.string().min(1, "Assessment group name (e.g., FA1) is required."),
+  tests: z.array(testComponentSchema).min(1, "At least one test component is required per assessment group."),
+});
+
 export const assessmentSchemeSchema = z.object({
-  // schemeName is now optional as it's derived
-  schemeName: z.string().optional(), 
   // classIds will now store class names, not ObjectIds, to simplify grouping.
   classIds: z.array(z.string()).min(1, "At least one class must be selected."),
-  assessments: z.array(assessmentComponentSchema).min(1, "At least one assessment is required."),
+  assessments: z.array(assessmentGroupSchema).min(1, "At least one assessment group is required."),
 });
 
 export type AssessmentSchemeFormData = z.infer<typeof assessmentSchemeSchema>;
@@ -22,11 +25,14 @@ export type AssessmentSchemeFormData = z.infer<typeof assessmentSchemeSchema>;
 export interface AssessmentScheme {
   _id: ObjectId | string;
   schoolId: ObjectId | string;
-  schemeName: string;
+  schemeName: string; // This will be derived from classIds
   classIds: string[]; // Storing class names, e.g., ["Class 1", "Class 2"]
   assessments: {
-    name: string;
-    maxMarks: number;
+    groupName: string;
+    tests: {
+      testName: string;
+      maxMarks: number;
+    }[];
   }[];
   createdBy: ObjectId | string;
   createdAt: Date;
