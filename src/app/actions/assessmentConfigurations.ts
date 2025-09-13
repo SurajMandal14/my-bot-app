@@ -65,7 +65,8 @@ export async function createAssessmentScheme(
     }).project({ _id: 1, name: 1, section: 1 }).toArray();
     
     const classIdStrings = classDocs.map(c => c._id.toString());
-    const classNames = classDocs.map(c => `${c.name} - ${c.section}`);
+    const classNames = classDocs.map(c => `${c.name}${c.section ? ` - ${c.section}` : ''}`);
+
 
     if (classIdStrings.length !== validatedFields.data.classIds.length) {
         // This can happen if a class name from the form doesn't exist in the DB
@@ -170,7 +171,7 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
     // Find a scheme where the classId is included in the classIds array
     const schemeDoc = await db.collection('assessment_schemes').findOne({
       schoolId: new ObjectId(schoolId),
-      classIds: { $in: [classId] },
+      classIds: classId,
     });
 
     if (!schemeDoc) {
@@ -216,7 +217,7 @@ export async function updateAssessmentScheme(
         }).project({ _id: 1, name: 1, section: 1 }).toArray();
 
         const classIdStrings = classDocs.map(c => c._id.toString());
-        const classNames = classDocs.map(c => `${c.name} - ${c.section}`);
+        const classNames = classDocs.map(c => `${c.name}${c.section ? ` - ${c.section}` : ''}`);
 
         const updateData = {
             ...validatedFields.data,
@@ -379,3 +380,6 @@ export async function deleteGradingPattern(patternId: string, schoolId: string):
         return { success: false, message: 'An unexpected error occurred.' };
     }
 }
+
+
+    
