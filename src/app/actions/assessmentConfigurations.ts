@@ -58,19 +58,35 @@ export async function createAssessmentScheme(
 
     const { db } = await connectToDatabase();
     
-    // Convert class names back to class IDs for storage
+    // The form now sends class names. We need to get their IDs.
     const classDocs = await db.collection('school_classes').find({ 
         schoolId: new ObjectId(schoolId),
-        name: { $in: validatedFields.data.classIds }
+        name: { $in: validatedFields.data.classIds } // Find classes by name
     }).project({ _id: 1, name: 1 }).toArray();
     
     const classIdStrings = classDocs.map(c => c._id.toString());
     const classNames = classDocs.map(c => c.name);
 
+    if (classIdStrings.length !== validatedFields.data.classIds.length) {
+        // This can happen if a class name from the form doesn't exist in the DB
+        console.warn("Mismatch between provided class names and found class IDs.");
+    }
+    
+    // Check if a scheme already exists for any of these classes
+    const existingScheme = await db.collection('assessment_schemes').findOne({
+        schoolId: new ObjectId(schoolId),
+        classIds: { $in: classIdStrings }
+    });
+
+    if (existingScheme) {
+        return { success: false, message: `An assessment scheme already exists for one or more of the selected classes. Please edit the existing scheme or choose different classes.` };
+    }
+
+
     const newScheme = {
       ...validatedFields.data,
-      classIds: classIdStrings, // Store IDs now
-      classNames: classNames, // Store names for display
+      classIds: classIdStrings, // Store an array of class IDs
+      classNames: classNames, // Storing names for easier display
       schemeName: classNames.join(', '),
       schoolId: new ObjectId(schoolId),
       createdBy: new ObjectId(masterAdminId),
@@ -112,8 +128,7 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
 
     // If no schemes are found, return a default one.
     if (schemes.length === 0) {
-      const defaultScheme: AssessmentScheme[] = [
-        {
+      const defaultScheme: AssessmentScheme = {
           _id: 'default_cbse_state',
           schoolId: schoolId,
           schemeName: 'CBSE State Pattern (Default)',
@@ -130,11 +145,10 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
           createdBy: 'system',
           createdAt: new Date(),
           updatedAt: new Date(),
-        }
-      ];
+        };
       return {
         success: true,
-        schemes: defaultScheme,
+        schemes: [defaultScheme],
       };
     }
     
@@ -365,3 +379,5 @@ export async function deleteGradingPattern(patternId: string, schoolId: string):
         return { success: false, message: 'An unexpected error occurred.' };
     }
 }
+
+    
