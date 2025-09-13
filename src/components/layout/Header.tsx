@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -32,6 +31,7 @@ const navLinksBase = {
     { href: "/dashboard/master-admin/admins", label: "School Admins", icon: Users },
     { href: "/dashboard/master-admin/attendance", label: "Attendance", icon: CheckSquare },
     { href: "/dashboard/master-admin/concessions", label: "Concessions", icon: TicketPercent },
+    { href: "/dashboard/master-admin/configure-marks", label: "Configure Marks", icon: Settings },
     { href: "/dashboard/master-admin/promote", label: "Promote Students", icon: Award },
     { href: "/dashboard/master-admin/subjects", label: "Subjects", icon: BookCopy },
     { href: "/dashboard/master-admin/courses", label: "Courses", icon: BookUser },

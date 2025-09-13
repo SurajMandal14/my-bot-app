@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,6 +59,19 @@ export default function MasterAdminDashboardPage() {
               <Link href="/dashboard/master-admin/admins">Manage School Admins</Link>
             </Button>
           </CardContent>
+        </Card>
+        
+        <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+                <Settings className="h-10 w-10 text-primary mb-2" />
+                <CardTitle>Configure Marks</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <CardDescription>Set up assessments, grading schemes, and report card structures.</CardDescription>
+                <Button asChild className="mt-4" variant="outline">
+                    <Link href="/dashboard/master-admin/configure-marks">Configure</Link>
+                </Button>
+            </CardContent>
         </Card>
 
         <Card className="hover:shadow-lg transition-shadow">
