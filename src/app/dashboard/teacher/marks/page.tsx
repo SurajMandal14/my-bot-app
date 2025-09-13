@@ -137,6 +137,9 @@ export default function TeacherMarksEntryPage() {
         if (!subjectsForClass.includes(selectedSubjectName)) {
             setSelectedSubjectName("");
         }
+        if (subjectsForClass.length === 1) {
+            setSelectedSubjectName(subjectsForClass[0]);
+        }
     } else {
         setAvailableSubjects([]);
         setSelectedSubjectName("");
@@ -311,7 +314,7 @@ export default function TeacherMarksEntryPage() {
             : <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}><div className="overflow-x-auto"><Table>
                   <TableHeader><TableRow>
                       <TableHead className="w-12 sticky left-0 bg-card z-20"><Checkbox checked={selectAllCheckboxState} onCheckedChange={handleSelectAllChange} /></TableHead>
-                      <TableHead className="sticky left-12 bg-card z-20 min-w-[150px]">Student Name</TableHead>
+                      <TableHead className="sticky left-12 bg-card z-30 min-w-[150px]">Student Name</TableHead>
                       <TableHead>Admission ID</TableHead>
                       {currentAssessmentConfig?.tests.map(test => <TableHead key={test.testName} className="w-28 text-center">{test.testName} ({test.maxMarks}M)</TableHead>)}
                   </TableRow></TableHeader>
@@ -320,7 +323,7 @@ export default function TeacherMarksEntryPage() {
                       const currentMarks = studentMarks[studentIdStr];
                       return (<TableRow key={studentIdStr}>
                           <TableCell className="sticky left-0 bg-card z-10"><Checkbox checked={!!selectedStudentIds[studentIdStr]} onCheckedChange={c => setSelectedStudentIds(p => ({...p, [studentIdStr]: !!c}))} /></TableCell>
-                          <TableCell className="sticky left-12 bg-card z-10 font-medium">{student.name}</TableCell>
+                          <TableCell className="sticky left-12 bg-card z-20 font-medium">{student.name}</TableCell>
                           <TableCell>{student.admissionId || 'N/A'}</TableCell>
                           {currentAssessmentConfig?.tests.map(test => <TableCell key={test.testName}><Input type="number" value={(currentMarks as StudentMarksCustomState)?.[test.testName] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.testName, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
                       </TableRow>);

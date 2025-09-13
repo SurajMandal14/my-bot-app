@@ -58,22 +58,18 @@ export async function createAssessmentScheme(
 
     const { db } = await connectToDatabase();
     
-    // The form now sends class names. We need to get their IDs.
     const classDocs = await db.collection('school_classes').find({ 
         schoolId: new ObjectId(schoolId),
         _id: { $in: validatedFields.data.classIds.map(id => new ObjectId(id)) } 
     }).project({ _id: 1, name: 1, section: 1 }).toArray();
     
+    if (classDocs.length !== validatedFields.data.classIds.length) {
+        return { success: false, message: "One or more selected classes could not be found." };
+    }
+    
     const classIdStrings = classDocs.map(c => c._id.toString());
     const classNames = classDocs.map(c => `${c.name}${c.section ? ` - ${c.section}` : ''}`);
 
-
-    if (classIdStrings.length !== validatedFields.data.classIds.length) {
-        // This can happen if a class name from the form doesn't exist in the DB
-        console.warn("Mismatch between provided class names and found class IDs.");
-    }
-    
-    // Check if a scheme already exists for any of these classes
     const existingScheme = await db.collection('assessment_schemes').findOne({
         schoolId: new ObjectId(schoolId),
         classIds: { $in: classIdStrings }
@@ -83,11 +79,10 @@ export async function createAssessmentScheme(
         return { success: false, message: `An assessment scheme already exists for one or more of the selected classes. Please edit the existing scheme or choose different classes.` };
     }
 
-
     const newScheme = {
       ...validatedFields.data,
-      classIds: classIdStrings, // Store an array of class IDs
-      classNames: classNames, // Storing names for easier display
+      classIds: classIdStrings,
+      classNames: classNames,
       schemeName: classNames.join(', '),
       schoolId: new ObjectId(schoolId),
       createdBy: new ObjectId(masterAdminId),
@@ -169,10 +164,9 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
     }
     const { db } = await connectToDatabase();
     
-    // Corrected Query: Use $in operator to find if classId is in the classIds array.
     const schemeDoc = await db.collection('assessment_schemes').findOne({
       schoolId: new ObjectId(schoolId),
-      classIds: { $in: [classId] },
+      classIds: classId,
     });
 
     if (!schemeDoc) {
