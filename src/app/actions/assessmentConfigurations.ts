@@ -168,10 +168,11 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
       return { success: false, message: 'Invalid School or Class ID.' };
     }
     const { db } = await connectToDatabase();
-    // Find a scheme where the classId is included in the classIds array
+    
+    // Corrected Query: Use $in operator to find if classId is in the classIds array.
     const schemeDoc = await db.collection('assessment_schemes').findOne({
       schoolId: new ObjectId(schoolId),
-      classIds: classId,
+      classIds: { $in: [classId] },
     });
 
     if (!schemeDoc) {
