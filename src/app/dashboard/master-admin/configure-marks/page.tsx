@@ -32,8 +32,8 @@ import { cn } from "@/lib/utils";
 import { assessmentSchemeSchema, type AssessmentScheme, type AssessmentSchemeFormData, gradingPatternSchema, type GradingPattern, type GradingPatternFormData } from '@/types/assessment';
 import { createAssessmentScheme, getAssessmentSchemes, updateAssessmentScheme, deleteAssessmentScheme, createGradingPattern, getGradingPatterns, updateGradingPattern, deleteGradingPattern } from '@/app/actions/assessmentConfigurations';
 import { format } from "date-fns";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { getAcademicYears } from "@/app/actions/academicYears";
 import type { AcademicYear } from "@/types/academicYear";
 
@@ -313,13 +313,11 @@ export default function ConfigureMarksPage() {
     if (!selectedAcademicYear) return assessmentSchemes;
     const classesForYear = allClassOptions.filter(c => c.academicYear === selectedAcademicYear).map(c => c.label.split('(')[0].trim());
     return assessmentSchemes.filter(scheme => {
-      // Include default scheme always
       if (scheme._id === 'default_cbse_state') {
         const defaultSchemeCopy = { ...scheme };
-        defaultSchemeCopy.classIds = ['All Classes']; // Standardize display for default
+        defaultSchemeCopy.classIds = ['All Classes']; 
         return true;
       }
-      // Check if any of the scheme's classes exist in the selected year
       return scheme.classIds.some(className => classesForYear.includes(className));
     });
   }, [assessmentSchemes, allClassOptions, selectedAcademicYear]);
