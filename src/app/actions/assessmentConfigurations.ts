@@ -9,6 +9,7 @@ import {
   assessmentSchemeSchema, type AssessmentScheme, type AssessmentSchemeFormData,
   gradingPatternSchema, type GradingPattern, type GradingPatternFormData
 } from '@/types/assessment';
+import type { SchoolClass } from '@/types/classes';
 
 // Result Types
 export interface AssessmentSchemeResult {
@@ -56,11 +57,22 @@ export async function createAssessmentScheme(
     }
 
     const { db } = await connectToDatabase();
+    
+    // Convert class names back to class IDs for storage
+    const classDocs = await db.collection('school_classes').find({ 
+        schoolId: new ObjectId(schoolId),
+        name: { $in: validatedFields.data.classIds }
+    }).project({ _id: 1, name: 1 }).toArray();
+    
+    const classIdStrings = classDocs.map(c => c._id.toString());
+    const classNames = classDocs.map(c => c.name);
+
     const newScheme = {
       ...validatedFields.data,
-      schemeName: validatedFields.data.classIds.join(', '),
+      classIds: classIdStrings, // Store IDs now
+      classNames: classNames, // Store names for display
+      schemeName: classNames.join(', '),
       schoolId: new ObjectId(schoolId),
-      // classIds are now strings (class names), no need to map to ObjectId
       createdBy: new ObjectId(masterAdminId),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -106,6 +118,7 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
           schoolId: schoolId,
           schemeName: 'CBSE State Pattern (Default)',
           classIds: ['All Classes'],
+          classNames: ['All Classes'],
           assessments: [
             { groupName: 'FA1', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
             { groupName: 'FA2', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
@@ -134,16 +147,16 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
   }
 }
 
-export async function getAssessmentSchemeForClass(className: string, schoolId: string): Promise<AssessmentSchemeResult> {
+export async function getAssessmentSchemeForClass(classId: string, schoolId: string): Promise<AssessmentSchemeResult> {
   try {
-    if (!ObjectId.isValid(schoolId)) {
-      return { success: false, message: 'Invalid School ID.' };
+    if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
+      return { success: false, message: 'Invalid School or Class ID.' };
     }
     const { db } = await connectToDatabase();
-    // Find a scheme where the className is included in the classIds array
+    // Find a scheme where the classId is included in the classIds array
     const schemeDoc = await db.collection('assessment_schemes').findOne({
       schoolId: new ObjectId(schoolId),
-      classIds: className,
+      classIds: classId,
     });
 
     if (!schemeDoc) {
@@ -183,9 +196,19 @@ export async function updateAssessmentScheme(
         }
 
         const { db } = await connectToDatabase();
+        const classDocs = await db.collection('school_classes').find({ 
+            schoolId: new ObjectId(schoolId),
+            name: { $in: validatedFields.data.classIds }
+        }).project({ _id: 1, name: 1 }).toArray();
+
+        const classIdStrings = classDocs.map(c => c._id.toString());
+        const classNames = classDocs.map(c => c.name);
+
         const updateData = {
             ...validatedFields.data,
-            schemeName: validatedFields.data.classIds.join(', '),
+            classIds: classIdStrings,
+            classNames: classNames,
+            schemeName: classNames.join(', '),
             updatedAt: new Date(),
         };
 
