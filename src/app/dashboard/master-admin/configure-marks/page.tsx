@@ -9,8 +9,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, Edit, Settings, Trash2, Loader2, ChevronsUpDown, Palette, XCircle } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { PlusCircle, Edit, Settings, Trash2, Loader2, ChevronsUpDown, Palette, XCircle, CalendarFold } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useForm, useFieldArray, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -32,7 +32,11 @@ import { cn } from "@/lib/utils";
 import { assessmentSchemeSchema, type AssessmentScheme, type AssessmentSchemeFormData, gradingPatternSchema, type GradingPattern, type GradingPatternFormData } from '@/types/assessment';
 import { createAssessmentScheme, getAssessmentSchemes, updateAssessmentScheme, deleteAssessmentScheme, createGradingPattern, getGradingPatterns, updateGradingPattern, deleteGradingPattern } from '@/app/actions/assessmentConfigurations';
 import { format } from "date-fns";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getAcademicYears } from "@/app/actions/academicYears";
+import type { AcademicYear } from "@/types/academicYear";
+
 
 interface ClassOption {
   value: string; 
@@ -75,9 +79,11 @@ export default function ConfigureMarksPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   
-  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
+  const [allClassOptions, setAllClassOptions] = useState<ClassOption[]>([]);
   const [assessmentSchemes, setAssessmentSchemes] = useState<AssessmentScheme[]>([]);
   const [gradingPatterns, setGradingPatterns] = useState<GradingPattern[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState("");
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingScheme, setIsSubmittingScheme] = useState(false);
@@ -108,24 +114,19 @@ export default function ConfigureMarksPage() {
     if (!authUser?.schoolId) return;
     setIsLoading(true);
     try {
-      const [classesResult, schemesResult, patternsResult] = await Promise.all([
+      const [classesResult, schemesResult, patternsResult, academicYearsResult] = await Promise.all([
         getClassesForSchoolAsOptions(authUser.schoolId.toString()),
         getAssessmentSchemes(authUser.schoolId.toString()),
-        getGradingPatterns(authUser.schoolId.toString())
+        getGradingPatterns(authUser.schoolId.toString()),
+        getAcademicYears(),
       ]);
       
-      const uniqueClasses = classesResult.reduce((acc, current) => {
-        const key = `${current.name}-${current.academicYear}`;
-        if (!acc.find(item => item.value === key)) {
-          acc.push({
-            ...current,
-            value: key,
-            label: `${current.name} (${current.academicYear})`,
-          });
-        }
-        return acc;
-      }, [] as ClassOption[]);
-      setClassOptions(uniqueClasses);
+      const processedClasses = classesResult.map(c => {
+        const match = c.label.match(/\((\d{4}-\d{4})\)/);
+        const year = match ? match[1] : '';
+        return { value: c.value, label: c.label, academicYear: year };
+      });
+      setAllClassOptions(processedClasses);
       
       if(schemesResult.success && schemesResult.schemes) {
         setAssessmentSchemes(schemesResult.schemes);
@@ -137,6 +138,13 @@ export default function ConfigureMarksPage() {
         setGradingPatterns(patternsResult.patterns);
       } else {
         toast({variant: 'warning', title: 'Could not load patterns', description: patternsResult.message});
+      }
+
+      if (academicYearsResult.success && academicYearsResult.academicYears) {
+        setAcademicYears(academicYearsResult.academicYears);
+        const defaultYear = academicYearsResult.academicYears.find(y => y.isDefault);
+        if (defaultYear) setSelectedAcademicYear(defaultYear.year);
+        else if (academicYearsResult.academicYears.length > 0) setSelectedAcademicYear(academicYearsResult.academicYears[0].year);
       }
 
     } catch (error) {
@@ -151,6 +159,20 @@ export default function ConfigureMarksPage() {
       fetchData();
     }
   }, [authUser, fetchData]);
+  
+  const filteredClassOptions = useMemo(() => {
+    if (!selectedAcademicYear) return [];
+    const uniqueClasses = allClassOptions
+      .filter(opt => opt.academicYear === selectedAcademicYear)
+      .reduce((acc, current) => {
+        const className = current.label.split('(')[0].trim();
+        if (!acc.find(item => item.label.startsWith(className))) {
+          acc.push({ ...current, label: className });
+        }
+        return acc;
+      }, [] as ClassOption[]);
+    return uniqueClasses;
+  }, [allClassOptions, selectedAcademicYear]);
 
   const assessmentForm = useForm<AssessmentSchemeFormData>({
     resolver: zodResolver(assessmentSchemeSchema),
@@ -170,11 +192,7 @@ export default function ConfigureMarksPage() {
     }
     setEditingScheme(scheme);
     assessmentForm.reset({
-      classIds: scheme.classIds.map(className => {
-        // Find an option whose label starts with the class name (to match "Class 1" from "Class 1 (2024-2025)")
-        const option = classOptions.find(opt => opt.label.startsWith(className));
-        return option ? option.value : '';
-      }).filter(Boolean),
+      classIds: scheme.classIds,
       assessments: scheme.assessments,
     });
     setIsSchemeFormOpen(true);
@@ -190,10 +208,9 @@ export default function ConfigureMarksPage() {
     if (!authUser?._id || !authUser?.schoolId) return;
     setIsSubmittingScheme(true);
     
-    // Extract unique class names (without academic year) from the value
     const payload: AssessmentSchemeFormData = {
         ...data,
-        classIds: [...new Set(data.classIds.map(id => id.split('-')[0]))]
+        classIds: [...new Set(data.classIds)]
     };
 
     const result = editingScheme 
@@ -285,15 +302,28 @@ export default function ConfigureMarksPage() {
 
   const getSelectedClassesLabel = (classIds: string[] = []) => {
     if (classIds.length === 0) return "Select classes...";
-    if (classOptions.length > 0 && classIds.length === classOptions.length) return "All Classes";
+    if (filteredClassOptions.length > 0 && classIds.length === filteredClassOptions.length) return "All Classes";
     if (classIds.length > 2) return `${classIds.length} classes selected`;
-    return classOptions
-      .filter(opt => classIds.includes(opt.value))
-      .map(opt => opt.label)
-      .join(', ');
+    return classIds.join(', ');
   };
   
   const PREVIEW_COLORS = ['bg-green-500', 'bg-blue-500', 'bg-yellow-500', 'bg-orange-500', 'bg-red-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500'];
+
+  const filteredSchemes = useMemo(() => {
+    if (!selectedAcademicYear) return assessmentSchemes;
+    const classesForYear = allClassOptions.filter(c => c.academicYear === selectedAcademicYear).map(c => c.label.split('(')[0].trim());
+    return assessmentSchemes.filter(scheme => {
+      // Include default scheme always
+      if (scheme._id === 'default_cbse_state') {
+        const defaultSchemeCopy = { ...scheme };
+        defaultSchemeCopy.classIds = ['All Classes']; // Standardize display for default
+        return true;
+      }
+      // Check if any of the scheme's classes exist in the selected year
+      return scheme.classIds.some(className => classesForYear.includes(className));
+    });
+  }, [assessmentSchemes, allClassOptions, selectedAcademicYear]);
+
 
   return (
     <div className="space-y-6">
@@ -314,12 +344,12 @@ export default function ConfigureMarksPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>{editingScheme ? 'Edit Assessment Scheme' : 'Create New Assessment Scheme'}</CardTitle>
-                  <CardDescription>Define assessments, max marks, and the classes this scheme applies to.</CardDescription>
+                  <CardDescription>Define assessments, max marks, and the classes this scheme applies to for the <span className='font-bold'>{selectedAcademicYear}</span> academic year.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Form {...assessmentForm}>
                     <form onSubmit={assessmentForm.handleSubmit(onAssessmentSubmit)} className="space-y-6">
-                      <FormField control={assessmentForm.control} name="classIds" render={({ field }) => (<FormItem><FormLabel>Apply to Classes</FormLabel><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="w-full justify-between">{getSelectedClassesLabel(selectedClasses)}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></DropdownMenuTrigger><DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">{isLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> : classOptions.map(option => (<DropdownMenuItem key={option.value} onSelect={(e) => e.preventDefault()}><Checkbox checked={field.value.includes(option.value)} onCheckedChange={(checked) => { return checked ? field.onChange([...field.value, option.value]) : field.onChange(field.value.filter(v => v !== option.value))}} className="mr-2"/>{option.label}</DropdownMenuItem>))}</DropdownMenuContent></DropdownMenu><FormMessage /></FormItem>)}/>
+                      <FormField control={assessmentForm.control} name="classIds" render={({ field }) => (<FormItem><FormLabel>Apply to Classes</FormLabel><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="w-full justify-between">{getSelectedClassesLabel(selectedClasses)}<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" /></Button></DropdownMenuTrigger><DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">{isLoading ? <DropdownMenuItem disabled>Loading...</DropdownMenuItem> : filteredClassOptions.map(option => (<DropdownMenuItem key={option.value} onSelect={(e) => e.preventDefault()}><Checkbox checked={field.value.includes(option.label)} onCheckedChange={(checked) => { return checked ? field.onChange([...field.value, option.label]) : field.onChange(field.value.filter(v => v !== option.label))}} className="mr-2"/>{option.label}</DropdownMenuItem>))}</DropdownMenuContent></DropdownMenu><FormMessage /></FormItem>)}/>
                       
                       <div>
                         <FormLabel>Assessments</FormLabel>
@@ -356,21 +386,31 @@ export default function ConfigureMarksPage() {
             )}
 
             <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                <div className="space-y-1">
+                <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
                     <CardTitle>Existing Assessment Schemes</CardTitle>
                     <CardDescription>Manage the assessments for different classes or grades.</CardDescription>
-                </div>
-                <Button onClick={handleCreateNewScheme}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Create New Scheme
-                </Button>
+                  </div>
+                  <div className="flex w-full sm:w-auto items-center gap-2">
+                      <div className="flex-grow sm:flex-grow-0">
+                        <Select onValueChange={setSelectedAcademicYear} value={selectedAcademicYear} disabled={isLoading}>
+                          <SelectTrigger className="w-full sm:w-[180px]">
+                            <SelectValue placeholder="Select Year" />
+                          </SelectTrigger>
+                          <SelectContent>{academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={handleCreateNewScheme}>
+                          <PlusCircle className="mr-2 h-4 w-4" /> Create New
+                      </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {isLoading ? <div className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
-                  assessmentSchemes.length > 0 ? (
+                  filteredSchemes.length > 0 ? (
                     <Table>
                       <TableHeader><TableRow><TableHead>Applied to Class(es)</TableHead><TableHead>Last Updated</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
-                      <TableBody>{assessmentSchemes.map((scheme) => (
+                      <TableBody>{filteredSchemes.map((scheme) => (
                           <TableRow key={scheme._id.toString()}>
                             <TableCell>{scheme.classIds.join(', ')}</TableCell>
                             <TableCell>{format(new Date(scheme.updatedAt), "PP")}</TableCell>
@@ -384,7 +424,7 @@ export default function ConfigureMarksPage() {
                           </TableRow>
                         ))}</TableBody>
                     </Table>
-                  ) : (<p className="text-center text-muted-foreground py-4">No assessment schemes created yet.</p>)}
+                  ) : (<p className="text-center text-muted-foreground py-4">No assessment schemes found for {selectedAcademicYear}.</p>)}
                 </CardContent>
             </Card>
         </TabsContent>
@@ -396,7 +436,7 @@ export default function ConfigureMarksPage() {
                     <CardDescription>Manage reusable grading patterns for your school.</CardDescription>
                   </div>
                   <Dialog open={isPatternModalOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingPattern(null); setIsPatternModalOpen(isOpen); }}>
-                    <DialogTrigger asChild><Button onClick={() => { gradingForm.reset(); setEditingPattern(null); setIsPatternModalOpen(true); }}><PlusCircle className="mr-2 h-4 w-4"/>Create New Pattern</Button></DialogTrigger>
+                    <DialogTrigger asChild><Button onClick={() => { gradingForm.reset({ patternName: "", grades: [{ label: "A1", minPercentage: 91, maxPercentage: 100 }] }); setEditingPattern(null); setIsPatternModalOpen(true); }}><PlusCircle className="mr-2 h-4 w-4"/>Create New Pattern</Button></DialogTrigger>
                     <DialogContent className="max-w-4xl">
                       <DialogHeader><DialogTitle>{editingPattern ? 'Edit Grading Pattern' : 'Create New Grading Pattern'}</DialogTitle><DialogDescription>Define grade labels and their corresponding percentage ranges.</DialogDescription></DialogHeader>
                       <Form {...gradingForm}>
