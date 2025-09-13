@@ -187,23 +187,19 @@ export default function ConfigureMarksPage() {
   
   const handleEditScheme = (scheme: AssessmentScheme) => {
     if (scheme._id === 'default_cbse_state') {
-        toast({title: "Default Scheme", description: "The default scheme cannot be edited directly. Please create a new scheme to customize it."});
-        return;
+        const newSchemeData = { classIds: [], assessments: defaultCBSEAssessments };
+        setEditingScheme({ ...scheme, ...newSchemeData }); // Keep ID but use new form data
+        assessmentForm.reset(newSchemeData);
+    } else {
+        setEditingScheme(scheme);
+        assessmentForm.reset({
+            classIds: scheme.classIds,
+            assessments: scheme.assessments,
+        });
     }
-    setEditingScheme(scheme);
-    assessmentForm.reset({
-      classIds: scheme.classIds,
-      assessments: scheme.assessments,
-    });
     setIsSchemeFormOpen(true);
   };
   
-  const handleCreateNewScheme = () => {
-    setEditingScheme(null);
-    assessmentForm.reset({ classIds: [], assessments: defaultCBSEAssessments });
-    setIsSchemeFormOpen(true);
-  };
-
   async function onAssessmentSubmit(data: AssessmentSchemeFormData) {
     if (!authUser?._id || !authUser?.schoolId) return;
     setIsSubmittingScheme(true);
@@ -212,13 +208,15 @@ export default function ConfigureMarksPage() {
         ...data,
         classIds: [...new Set(data.classIds)]
     };
+    
+    const isEditingDefault = editingScheme?._id === 'default_cbse_state';
 
-    const result = editingScheme 
+    const result = (editingScheme && !isEditingDefault)
       ? await updateAssessmentScheme(editingScheme._id.toString(), payload, authUser.schoolId.toString())
       : await createAssessmentScheme(payload, authUser._id.toString(), authUser.schoolId.toString());
 
     if (result.success) {
-      toast({ title: editingScheme ? "Scheme Updated" : "Scheme Created", description: result.message });
+      toast({ title: editingScheme && !isEditingDefault ? "Scheme Updated" : "Scheme Created", description: result.message });
       fetchData();
       setIsSchemeFormOpen(false);
       setEditingScheme(null);
@@ -398,9 +396,6 @@ export default function ConfigureMarksPage() {
                           <SelectContent>{academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      <Button onClick={handleCreateNewScheme}>
-                          <PlusCircle className="mr-2 h-4 w-4" /> Create New
-                      </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -413,7 +408,7 @@ export default function ConfigureMarksPage() {
                             <TableCell>{scheme.classIds.join(', ')}</TableCell>
                             <TableCell>{format(new Date(scheme.updatedAt), "PP")}</TableCell>
                             <TableCell className="text-right space-x-1">
-                              <Button variant="ghost" size="icon" onClick={() => handleEditScheme(scheme)} disabled={!!isDeleting || scheme._id === 'default_cbse_state'}><Edit className="h-4 w-4" /></Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleEditScheme(scheme)} disabled={!!isDeleting}><Edit className="h-4 w-4" /></Button>
                               <AlertDialog open={schemeToDelete?._id === scheme._id} onOpenChange={(open) => !open && setSchemeToDelete(null)}>
                                 <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive" onClick={() => setSchemeToDelete(scheme)} disabled={!!isDeleting || scheme._id === 'default_cbse_state'}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                                 <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Scheme?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete this scheme? This cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={onDeleteScheme} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
@@ -482,3 +477,5 @@ export default function ConfigureMarksPage() {
     </div>
   );
 }
+
+    
