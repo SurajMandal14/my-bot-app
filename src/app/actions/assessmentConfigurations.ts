@@ -120,6 +120,8 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
         _id: s._id.toString(),
         schoolId: s.schoolId.toString(),
         createdBy: s.createdBy.toString(),
+        createdAt: new Date(s.createdAt).toISOString(),
+        updatedAt: new Date(s.updatedAt).toISOString(),
       })) as unknown as AssessmentScheme[];
 
     const defaultScheme: AssessmentScheme = {
@@ -137,8 +139,8 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
         { groupName: 'SA2', tests: [{testName: 'AS1', maxMarks: 20}, {testName: 'AS2', maxMarks: 20}, {testName: 'AS3', maxMarks: 20}, {testName: 'AS4', maxMarks: 20}, {testName: 'AS5', maxMarks: 20}, {testName: 'AS6', maxMarks: 20}] },
       ],
       createdBy: 'system',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     
     // Always include the default scheme
@@ -174,6 +176,8 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
         _id: schemeDoc._id.toString(),
         schoolId: schemeDoc.schoolId.toString(),
         createdBy: schemeDoc.createdBy.toString(),
+        createdAt: new Date(schemeDoc.createdAt).toISOString(),
+        updatedAt: new Date(schemeDoc.updatedAt).toISOString(),
       } as unknown as AssessmentScheme;
 
     return {
@@ -310,6 +314,8 @@ export async function getGradingPatterns(schoolId: string): Promise<GradingPatte
         _id: p._id.toString(),
         schoolId: p.schoolId.toString(),
         createdBy: p.createdBy.toString(),
+        createdAt: new Date(p.createdAt).toISOString(),
+        updatedAt: new Date(p.updatedAt).toISOString(),
       })) as unknown as GradingPattern[],
     };
   } catch (error) {

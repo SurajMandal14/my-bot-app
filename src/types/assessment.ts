@@ -36,8 +36,8 @@ export interface AssessmentScheme {
     }[];
   }[];
   createdBy: ObjectId | string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
 
@@ -69,6 +69,6 @@ export interface GradingPattern {
     maxPercentage: number;
   }[];
   createdBy: ObjectId | string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
