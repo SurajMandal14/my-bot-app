@@ -135,12 +135,10 @@ export default function TeacherMarksEntryPage() {
         const subjectsForClass = allTaughtSubjects.filter(s => s.classId === selectedClassId).map(s => s.subjectName);
         setAvailableSubjects(Array.from(new Set(subjectsForClass)));
         
-        if (!subjectsForClass.includes(selectedSubjectName)) {
-            if(subjectsForClass.length === 1) {
-              setSelectedSubjectName(subjectsForClass[0]);
-            } else {
-              setSelectedSubjectName("");
-            }
+        if (subjectsForClass.length === 1) {
+            setSelectedSubjectName(subjectsForClass[0]);
+        } else if (!subjectsForClass.includes(selectedSubjectName)) {
+            setSelectedSubjectName("");
         }
     } else {
         setAvailableSubjects([]);
