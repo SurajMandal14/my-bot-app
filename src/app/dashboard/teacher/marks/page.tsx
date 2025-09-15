@@ -134,11 +134,9 @@ export default function TeacherMarksEntryPage() {
     if (selectedClassId) {
         const subjectsForClass = allTaughtSubjects.filter(s => s.classId === selectedClassId).map(s => s.subjectName);
         setAvailableSubjects(Array.from(new Set(subjectsForClass)));
+        
         if (!subjectsForClass.includes(selectedSubjectName)) {
-            setSelectedSubjectName("");
-        }
-        if (subjectsForClass.length === 1) {
-            setSelectedSubjectName(subjectsForClass[0]);
+            setSelectedSubjectName(subjectsForClass.length === 1 ? subjectsForClass[0] : "");
         }
     } else {
         setAvailableSubjects([]);
@@ -154,8 +152,20 @@ export default function TeacherMarksEntryPage() {
         if (schemeResult.success && schemeResult.scheme) {
           setAssessmentScheme(schemeResult.scheme);
         } else {
-          toast({ variant: 'destructive', title: 'Scheme Error', description: schemeResult.message || "Could not fetch assessment scheme for this class." });
-          setAssessmentScheme(null);
+          // If no custom scheme, load the default one for fallback
+           const defaultSchemeResult = await getAssessmentSchemes(authUser.schoolId);
+           if (defaultSchemeResult.success && defaultSchemeResult.schemes && defaultSchemeResult.schemes.length > 0) {
+               const defaultScheme = defaultSchemeResult.schemes.find(s => s._id === 'default_cbse_state');
+               if (defaultScheme) {
+                  setAssessmentScheme(defaultScheme);
+               } else {
+                  toast({ variant: 'destructive', title: 'Default Scheme Error', description: "Could not find a default assessment scheme." });
+                  setAssessmentScheme(null);
+               }
+           } else {
+               toast({ variant: 'destructive', title: 'Scheme Error', description: "Could not fetch any assessment schemes." });
+               setAssessmentScheme(null);
+           }
         }
       } else {
         setAssessmentScheme(null);
@@ -339,3 +349,5 @@ export default function TeacherMarksEntryPage() {
     </div>
   );
 }
+
+    
