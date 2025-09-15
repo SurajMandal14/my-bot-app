@@ -122,35 +122,31 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
         createdBy: s.createdBy.toString(),
       })) as unknown as AssessmentScheme[];
 
-    // If no schemes are found, return a default one.
-    if (schemes.length === 0) {
-      const defaultScheme: AssessmentScheme = {
-          _id: 'default_cbse_state',
-          schoolId: schoolId,
-          schemeName: 'CBSE State Pattern (Default)',
-          classIds: ['All Classes'],
-          classNames: ['All Classes'],
-          assessments: [
-            { groupName: 'FA1', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
-            { groupName: 'FA2', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
-            { groupName: 'FA3', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
-            { groupName: 'FA4', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
-            { groupName: 'SA1', tests: [{testName: 'AS1', maxMarks: 20}, {testName: 'AS2', maxMarks: 20}, {testName: 'AS3', maxMarks: 20}, {testName: 'AS4', maxMarks: 20}, {testName: 'AS5', maxMarks: 20}, {testName: 'AS6', maxMarks: 20}] },
-            { groupName: 'SA2', tests: [{testName: 'AS1', maxMarks: 20}, {testName: 'AS2', maxMarks: 20}, {testName: 'AS3', maxMarks: 20}, {testName: 'AS4', maxMarks: 20}, {testName: 'AS5', maxMarks: 20}, {testName: 'AS6', maxMarks: 20}] },
-          ],
-          createdBy: 'system',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-      return {
-        success: true,
-        schemes: [defaultScheme],
-      };
-    }
+    const defaultScheme: AssessmentScheme = {
+      _id: 'default_cbse_state',
+      schoolId: schoolId,
+      schemeName: 'CBSE State Pattern (Default)',
+      classIds: ['All Classes'],
+      classNames: ['All Classes'],
+      assessments: [
+        { groupName: 'FA1', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
+        { groupName: 'FA2', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
+        { groupName: 'FA3', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
+        { groupName: 'FA4', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
+        { groupName: 'SA1', tests: [{testName: 'AS1', maxMarks: 20}, {testName: 'AS2', maxMarks: 20}, {testName: 'AS3', maxMarks: 20}, {testName: 'AS4', maxMarks: 20}, {testName: 'AS5', maxMarks: 20}, {testName: 'AS6', maxMarks: 20}] },
+        { groupName: 'SA2', tests: [{testName: 'AS1', maxMarks: 20}, {testName: 'AS2', maxMarks: 20}, {testName: 'AS3', maxMarks: 20}, {testName: 'AS4', maxMarks: 20}, {testName: 'AS5', maxMarks: 20}, {testName: 'AS6', maxMarks: 20}] },
+      ],
+      createdBy: 'system',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    // Always include the default scheme
+    const allSchemes = [...schemes, defaultScheme];
     
     return {
       success: true,
-      schemes: schemes,
+      schemes: allSchemes,
     };
   } catch (error) {
     return { success: false, message: 'Failed to fetch assessment schemes.' };
@@ -166,7 +162,7 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
     
     const schemeDoc = await db.collection('assessment_schemes').findOne({
       schoolId: new ObjectId(schoolId),
-      classIds: classId,
+      classIds: { $in: [classId] },
     });
 
     if (!schemeDoc) {
@@ -376,5 +372,7 @@ export async function deleteGradingPattern(patternId: string, schoolId: string):
     }
 }
 
+
+    
 
     
