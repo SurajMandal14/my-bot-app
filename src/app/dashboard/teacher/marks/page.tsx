@@ -20,7 +20,7 @@ import { getSchoolById } from "@/app/actions/schools";
 import type { School, AssessmentLocks } from "@/types/school";
 import { getAcademicYears } from '@/app/actions/academicYears';
 import type { AcademicYear } from '@/types/academicYear';
-import { getAssessmentSchemeForClass } from '@/app/actions/assessmentConfigurations';
+import { getAssessmentSchemeForClass, getAssessmentSchemes } from '@/app/actions/assessmentConfigurations';
 import type { AssessmentScheme } from '@/types/assessment';
 
 
@@ -136,7 +136,11 @@ export default function TeacherMarksEntryPage() {
         setAvailableSubjects(Array.from(new Set(subjectsForClass)));
         
         if (!subjectsForClass.includes(selectedSubjectName)) {
-            setSelectedSubjectName(subjectsForClass.length === 1 ? subjectsForClass[0] : "");
+            if(subjectsForClass.length === 1) {
+              setSelectedSubjectName(subjectsForClass[0]);
+            } else {
+              setSelectedSubjectName("");
+            }
         }
     } else {
         setAvailableSubjects([]);
@@ -349,5 +353,3 @@ export default function TeacherMarksEntryPage() {
     </div>
   );
 }
-
-    
