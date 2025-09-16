@@ -1,6 +1,7 @@
 
 import { z } from 'zod';
 import type { ObjectId } from 'mongodb';
+import type { GradingPatternFormData } from './assessment'; // Import the grading pattern type
 
 export interface SchoolClassSubject {
   name: string;
@@ -22,8 +23,7 @@ export interface SchoolClass {
   updatedAt: string; // ISOString
   secondLanguageSubjectName?: string; 
   studentCount?: number; 
-  gradingPatternId?: string | null; // New field
-  gradingPatternName?: string; // For display
+  gradingPattern?: GradingPatternFormData; // New field to hold the embedded pattern
 }
 
 // Schema for creating a new class

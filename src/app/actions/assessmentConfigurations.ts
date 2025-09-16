@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { ObjectId } from 'mongodb';
 import { 
   assessmentSchemeSchema, type AssessmentScheme, type AssessmentSchemeFormData,
-  gradingPatternSchema, type GradingPattern, type GradingPatternFormData
+  gradingPatternSchema, type GradingPatternFormData, defaultGrades
 } from '@/types/assessment';
 import type { SchoolClass } from '@/types/classes';
 
@@ -26,22 +26,8 @@ export interface AssessmentSchemesResult {
   schemes?: AssessmentScheme[];
 }
 
-export interface GradingPatternResult {
-  success: boolean;
-  message: string;
-  error?: string;
-  pattern?: GradingPattern;
-}
-
-export interface GradingPatternsResult {
-  success: boolean;
-  message?: string;
-  error?: string;
-  patterns?: GradingPattern[];
-}
-
 // Default structure for a new assessment scheme when one doesn't exist for a class.
-const defaultSchemeStructure: Omit<AssessmentScheme, '_id' | 'schoolId' | 'classId' | 'academicYear' | 'createdBy' | 'createdAt' | 'updatedAt' | 'schemeName'> = {
+const defaultSchemeStructure: Omit<AssessmentScheme, '_id' | 'schoolId' | 'classId' | 'academicYear' | 'schemeName'> = {
     assessments: [
         { groupName: 'FA1', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
         { groupName: 'FA2', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
@@ -123,7 +109,10 @@ export async function updateAssessmentScheme(
             return { success: false, message: 'Invalid School or Scheme ID format.' };
         }
         
-        const validatedFields = assessmentSchemeSchema.safeParse(formData);
+        // Use a more specific schema that doesn't require schemeName for updates
+        const updateSchema = assessmentSchemeSchema.omit({ schemeName: true });
+        const validatedFields = updateSchema.safeParse(formData);
+        
         if (!validatedFields.success) {
             return { success: false, message: 'Validation failed.', error: validatedFields.error.flatten().fieldErrors.toString() };
         }
@@ -151,176 +140,30 @@ export async function updateAssessmentScheme(
 }
 
 
-// --- Grading Pattern Actions ---
-
-export async function createGradingPattern(
+export async function updateGradingForClass(
+  classId: string,
+  schoolId: string,
   formData: GradingPatternFormData,
-  masterAdminId: string,
-  schoolId: string
-): Promise<GradingPatternResult> {
+): Promise<{ success: boolean; message: string; error?: string }> {
   try {
+    if (!ObjectId.isValid(classId) || !ObjectId.isValid(schoolId)) {
+      return { success: false, message: 'Invalid Class or School ID.' };
+    }
+    
+    // The Zod schema for grading patterns is just fine for validating the structure
     const validatedFields = gradingPatternSchema.safeParse(formData);
     if (!validatedFields.success) {
       return { success: false, message: 'Validation failed.', error: validatedFields.error.flatten().fieldErrors.toString() };
-    }
-     if (!ObjectId.isValid(masterAdminId) || !ObjectId.isValid(schoolId)) {
-        return { success: false, message: 'Invalid Admin or School ID.' };
-    }
-
-    const { db } = await connectToDatabase();
-    const collection = db.collection('grading_patterns');
-
-    const existingPattern = await collection.findOne({ 
-      schoolId: new ObjectId(schoolId),
-      patternName: new RegExp(`^${validatedFields.data.patternName}$`, 'i')
-    });
-    if (existingPattern) {
-      return { success: false, message: `A grading pattern with the name "${validatedFields.data.patternName}" already exists.` };
-    }
-
-    const newPattern = {
-      ...validatedFields.data,
-      schoolId: new ObjectId(schoolId),
-      createdBy: new ObjectId(masterAdminId),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    const result = await collection.insertOne(newPattern);
-    if (!result.insertedId) {
-      return { success: false, message: 'Failed to create grading pattern.' };
-    }
-    
-    const clientPattern: GradingPattern = {
-      ...newPattern,
-      _id: result.insertedId.toString(),
-      schoolId: newPattern.schoolId.toString(),
-      createdBy: newPattern.createdBy.toString(),
-    }
-
-    revalidatePath('/dashboard/master-admin/configure-marks');
-    return { 
-        success: true, 
-        message: 'Grading pattern created successfully!',
-        pattern: clientPattern,
-    };
-  } catch (error) {
-    return { success: false, message: 'An unexpected error occurred.' };
-  }
-}
-
-export async function getGradingPatterns(schoolId: string): Promise<GradingPatternsResult> {
-  try {
-     if (!ObjectId.isValid(schoolId)) {
-      return { success: false, message: 'Invalid School ID.' };
-    }
-    const { db } = await connectToDatabase();
-    const patterns = await db.collection('grading_patterns').find({ schoolId: new ObjectId(schoolId) }).sort({ createdAt: -1 }).toArray();
-    
-    return {
-      success: true,
-      patterns: patterns.map(p => ({
-        ...p,
-        _id: p._id.toString(),
-        schoolId: p.schoolId.toString(),
-        createdBy: p.createdBy.toString(),
-        createdAt: new Date(p.createdAt).toISOString(),
-        updatedAt: new Date(p.updatedAt).toISOString(),
-      })) as unknown as GradingPattern[],
-    };
-  } catch (error) {
-    return { success: false, message: 'Failed to fetch grading patterns.' };
-  }
-}
-
-export async function updateGradingPattern(
-  patternId: string,
-  formData: GradingPatternFormData,
-  schoolId: string
-): Promise<GradingPatternResult> {
-    try {
-        if (!ObjectId.isValid(patternId) || !ObjectId.isValid(schoolId)) {
-            return { success: false, message: 'Invalid ID format.' };
-        }
-        const validatedFields = gradingPatternSchema.safeParse(formData);
-        if (!validatedFields.success) {
-            return { success: false, message: 'Validation failed.', error: validatedFields.error.flatten().fieldErrors.toString() };
-        }
-        
-        const { db } = await connectToDatabase();
-        const collection = db.collection('grading_patterns');
-
-        const existingPattern = await collection.findOne({ 
-          schoolId: new ObjectId(schoolId),
-          patternName: new RegExp(`^${validatedFields.data.patternName}$`, 'i'),
-          _id: { $ne: new ObjectId(patternId) }
-        });
-        if (existingPattern) {
-          return { success: false, message: `Another grading pattern with the name "${validatedFields.data.patternName}" already exists.` };
-        }
-
-        const updateData = {
-            ...validatedFields.data,
-            updatedAt: new Date(),
-        };
-
-        const result = await collection.updateOne(
-            { _id: new ObjectId(patternId), schoolId: new ObjectId(schoolId) },
-            { $set: updateData }
-        );
-
-        if (result.matchedCount === 0) {
-            return { success: false, message: 'Grading pattern not found or access denied.' };
-        }
-
-        revalidatePath('/dashboard/master-admin/configure-marks');
-        return { success: true, message: 'Grading pattern updated successfully.' };
-    } catch (error) {
-        return { success: false, message: 'An unexpected error occurred.' };
-    }
-}
-
-export async function deleteGradingPattern(patternId: string, schoolId: string): Promise<GradingPatternResult> {
-    try {
-         if (!ObjectId.isValid(patternId) || !ObjectId.isValid(schoolId)) {
-            return { success: false, message: 'Invalid ID format.' };
-        }
-        const { db } = await connectToDatabase();
-        
-        // Check if pattern is assigned to any class
-        const assignedClassesCount = await db.collection('school_classes').countDocuments({
-            schoolId: new ObjectId(schoolId),
-            gradingPatternId: new ObjectId(patternId),
-        });
-
-        if (assignedClassesCount > 0) {
-            return { success: false, message: `Cannot delete. This pattern is assigned to ${assignedClassesCount} class(es). Please unassign it first.`};
-        }
-
-        const result = await db.collection('grading_patterns').deleteOne({ _id: new ObjectId(patternId), schoolId: new ObjectId(schoolId) });
-
-        if (result.deletedCount === 0) {
-            return { success: false, message: 'Pattern not found or already deleted.' };
-        }
-
-        revalidatePath('/dashboard/master-admin/configure-marks');
-        return { success: true, message: 'Grading pattern deleted successfully!' };
-    } catch (error) {
-        return { success: false, message: 'An unexpected error occurred.' };
-    }
-}
-
-export async function assignGradingPatternToClass(classId: string, patternId: string | null, schoolId: string): Promise<{success: boolean; message: string}> {
-  try {
-    if (!ObjectId.isValid(classId) || !ObjectId.isValid(schoolId) || (patternId && !ObjectId.isValid(patternId))) {
-      return { success: false, message: 'Invalid ID format provided.' };
     }
 
     const { db } = await connectToDatabase();
     
     const result = await db.collection('school_classes').updateOne(
       { _id: new ObjectId(classId), schoolId: new ObjectId(schoolId) },
-      { $set: { gradingPatternId: patternId ? new ObjectId(patternId) : null, updatedAt: new Date() } }
+      { $set: { 
+          gradingPattern: validatedFields.data, // Embed the whole object
+          updatedAt: new Date() 
+      }}
     );
 
     if (result.matchedCount === 0) {
@@ -328,9 +171,8 @@ export async function assignGradingPatternToClass(classId: string, patternId: st
     }
     
     revalidatePath('/dashboard/master-admin/configure-marks');
-    return { success: true, message: "Grading pattern updated for class." };
-
-  } catch(e) {
-    return { success: false, message: 'An unexpected error occurred.' };
+    return { success: true, message: "Grading pattern updated for the class." };
+  } catch (error) {
+    return { success: false, message: 'An unexpected error occurred during grading update.' };
   }
 }

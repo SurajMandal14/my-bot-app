@@ -34,7 +34,6 @@ export interface AssessmentScheme {
       maxMarks: number;
     }[];
   }[];
-  isDefault: boolean;
   createdBy?: ObjectId | string;
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -59,16 +58,14 @@ export const gradingPatternSchema = z.object({
 
 export type GradingPatternFormData = z.infer<typeof gradingPatternSchema>;
 
-export interface GradingPattern {
-  _id: ObjectId | string;
-  schoolId: ObjectId | string;
-  patternName: string;
-  grades: {
-    label: string;
-    minPercentage: number;
-    maxPercentage: number;
-  }[];
-  createdBy: ObjectId | string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-}
+// Default grades based on CBSE state template logic
+export const defaultGrades: GradingPatternFormData['grades'] = [
+  { label: 'A1', minPercentage: 91, maxPercentage: 100 },
+  { label: 'A2', minPercentage: 81, maxPercentage: 90 },
+  { label: 'B1', minPercentage: 71, maxPercentage: 80 },
+  { label: 'B2', minPercentage: 61, maxPercentage: 70 },
+  { label: 'C1', minPercentage: 51, maxPercentage: 60 },
+  { label: 'C2', minPercentage: 41, maxPercentage: 50 },
+  { label: 'D1', minPercentage: 35, maxPercentage: 40 },
+  { label: 'D2', minPercentage: 0, maxPercentage: 34 },
+];
