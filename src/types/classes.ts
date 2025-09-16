@@ -14,14 +14,16 @@ export interface SchoolClass {
   schoolId: string;
   name: string; // e.g., Grade 10
   section?: string; // e.g., A, B
-  academicYear: string; // New field
+  academicYear: string; 
   classTeacherId?: string | null;
   classTeacherName?: string; // From aggregation
   subjects: SchoolClassSubject[]; 
   createdAt: string; // ISOString
   updatedAt: string; // ISOString
-  secondLanguageSubjectName?: string; // Name of the designated second language subject
-  studentCount?: number; // New field for number of students
+  secondLanguageSubjectName?: string; 
+  studentCount?: number; 
+  gradingPatternId?: string | null; // New field
+  gradingPatternName?: string; // For display
 }
 
 // Schema for creating a new class
@@ -36,7 +38,7 @@ export const createClassFormSchema = z.object({
     }))
     .min(1, { message: "At least one subject is required." })
     .max(20, { message: "Maximum 20 subjects allowed."}),
-  secondLanguageSubjectName: z.string().optional().nullable().or(z.literal('')), // New: to designate a subject as second lang
+  secondLanguageSubjectName: z.string().optional().nullable().or(z.literal('')),
 });
 export type CreateClassFormData = z.infer<typeof createClassFormSchema>;
 

@@ -109,6 +109,7 @@ export async function createSchoolClass(schoolId: string, values: CreateClassFor
       classTeacherId: validTeacherObjectId, 
       subjects: processedSubjects, 
       secondLanguageSubjectName: secondLanguageSubjectName || undefined,
+      gradingPatternId: null, // New field initialized to null
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -137,6 +138,7 @@ export async function createSchoolClass(schoolId: string, values: CreateClassFor
             teacherId: s.teacherId ? s.teacherId.toString() : undefined,
         })),
         secondLanguageSubjectName: newClassDataForDb.secondLanguageSubjectName,
+        gradingPatternId: null,
         createdAt: newClassDataForDb.createdAt.toISOString(),
         updatedAt: newClassDataForDb.updatedAt.toISOString(),
         classTeacherId: newClassDataForDb.classTeacherId ? newClassDataForDb.classTeacherId.toString() : undefined,
@@ -174,6 +176,16 @@ export async function getSchoolClasses(schoolId: string): Promise<SchoolClassesR
         },
       },
       { $unwind: { path: '$classTeacherInfo', preserveNullAndEmptyArrays: true } },
+      // Get grading pattern's name
+      {
+        $lookup: {
+            from: 'grading_patterns',
+            localField: 'gradingPatternId',
+            foreignField: '_id',
+            as: 'gradingPatternInfo',
+        }
+      },
+      { $unwind: { path: '$gradingPatternInfo', preserveNullAndEmptyArrays: true } },
       // Unwind subjects to process each one
       { $unwind: { path: '$subjects', preserveNullAndEmptyArrays: true } },
       // Get subject teacher's name
@@ -197,6 +209,8 @@ export async function getSchoolClasses(schoolId: string): Promise<SchoolClassesR
           classTeacherId: { $first: '$classTeacherId' },
           classTeacherName: { $first: '$classTeacherInfo.name' },
           secondLanguageSubjectName: { $first: '$secondLanguageSubjectName' },
+          gradingPatternId: { $first: '$gradingPatternId'},
+          gradingPatternName: { $first: '$gradingPatternInfo.patternName'},
           createdAt: { $first: '$createdAt' },
           updatedAt: { $first: '$updatedAt' },
           subjects: {
@@ -258,6 +272,8 @@ export async function getSchoolClasses(schoolId: string): Promise<SchoolClassesR
         teacherName: s.teacherName || undefined,
       })),
       secondLanguageSubjectName: cls.secondLanguageSubjectName || undefined,
+      gradingPatternId: cls.gradingPatternId ? cls.gradingPatternId.toString() : null,
+      gradingPatternName: cls.gradingPatternName || undefined,
       createdAt: cls.createdAt ? new Date(cls.createdAt).toISOString() : new Date().toISOString(),
       updatedAt: cls.updatedAt ? new Date(cls.updatedAt).toISOString() : new Date().toISOString(),
       classTeacherId: cls.classTeacherId ? (cls.classTeacherId as ObjectId).toString() : undefined,
@@ -403,6 +419,7 @@ export async function updateSchoolClass(classId: string, schoolId: string, value
             teacherId: s.teacherId ? s.teacherId.toString() : undefined,
         })),
         secondLanguageSubjectName: updatedClassDocAfterDb.secondLanguageSubjectName,
+        gradingPatternId: updatedClassDocAfterDb.gradingPatternId ? updatedClassDocAfterDb.gradingPatternId.toString() : null,
         createdAt: new Date(updatedClassDocAfterDb.createdAt).toISOString(),
         updatedAt: new Date(updatedClassDocAfterDb.updatedAt).toISOString(),
         classTeacherId: updatedClassDocAfterDb.classTeacherId ? (updatedClassDocAfterDb.classTeacherId as ObjectId).toString() : undefined,
@@ -540,6 +557,7 @@ export async function getClassDetailsById(classId: string, schoolId: string): Pr
           classTeacherId: { $first: '$classTeacherId' },
           classTeacherName: { $first: '$classTeacherInfo.name' },
           secondLanguageSubjectName: { $first: '$secondLanguageSubjectName' },
+          gradingPatternId: { $first: '$gradingPatternId' },
           createdAt: { $first: '$createdAt' },
           updatedAt: { $first: '$updatedAt' },
           subjects: { 
@@ -553,7 +571,7 @@ export async function getClassDetailsById(classId: string, schoolId: string): Pr
       },
       {
         $project: {
-          _id: 1, name: 1, section: 1, schoolId: 1, academicYear: 1, classTeacherId: 1, classTeacherName: 1, secondLanguageSubjectName: 1, createdAt: 1, updatedAt: 1,
+          _id: 1, name: 1, section: 1, schoolId: 1, academicYear: 1, classTeacherId: 1, classTeacherName: 1, secondLanguageSubjectName: 1, gradingPatternId: 1, createdAt: 1, updatedAt: 1,
           subjects: {
             $filter: {
                  input: "$subjects",
@@ -584,6 +602,7 @@ export async function getClassDetailsById(classId: string, schoolId: string): Pr
         teacherName: s.teacherName || undefined,
       })),
       secondLanguageSubjectName: cls.secondLanguageSubjectName || undefined,
+      gradingPatternId: cls.gradingPatternId ? cls.gradingPatternId.toString() : null,
       createdAt: cls.createdAt ? new Date(cls.createdAt).toISOString() : new Date().toISOString(),
       updatedAt: cls.updatedAt ? new Date(cls.updatedAt).toISOString() : new Date().toISOString(),
       classTeacherId: cls.classTeacherId ? (cls.classTeacherId as ObjectId).toString() : undefined,
