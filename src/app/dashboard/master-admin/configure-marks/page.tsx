@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, Edit, Settings, Trash2, Loader2, Palette, XCircle, Info, Star, CheckCircle, ShieldOff } from "lucide-react";
+import { PlusCircle, Edit, Settings, Trash2, Loader2, Palette, Info, Star } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useForm, useFieldArray, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,24 +17,16 @@ import type { AuthUser } from "@/types/user";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
 import { cn } from "@/lib/utils";
 import { assessmentSchemeSchema, type AssessmentScheme, type AssessmentSchemeFormData, gradingPatternSchema, type GradingPattern, type GradingPatternFormData } from '@/types/assessment';
-import { getAssessmentSchemes, updateAssessmentScheme, createGradingPattern, getGradingPatterns, updateGradingPattern, deleteGradingPattern, assignSchemeToClass, unassignSchemeFromClass } from '@/app/actions/assessmentConfigurations';
+import { getAssessmentSchemeForClass, updateAssessmentScheme, createGradingPattern, getGradingPatterns, updateGradingPattern, deleteGradingPattern } from '@/app/actions/assessmentConfigurations';
 import { getAcademicYears } from "@/app/actions/academicYears";
 import type { AcademicYear } from "@/types/academicYear";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
-
 interface ClassOption {
   value: string; 
   label: string; 
   academicYear: string;
-}
-
-interface ClassWithScheme {
-  classId: string;
-  className: string;
-  academicYear: string;
-  isAssigned: boolean;
 }
 
 function AssessmentGroupTests({ control, groupIndex }: { control: Control<AssessmentSchemeFormData>, groupIndex: number }) {
@@ -64,7 +56,6 @@ export default function ConfigureMarksPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   
   const [allClassOptions, setAllClassOptions] = useState<ClassOption[]>([]);
-  const [defaultScheme, setDefaultScheme] = useState<AssessmentScheme | null>(null);
   const [gradingPatterns, setGradingPatterns] = useState<GradingPattern[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [selectedAcademicYear, setSelectedAcademicYear] = useState("");
@@ -73,24 +64,18 @@ export default function ConfigureMarksPage() {
   const [isSubmittingScheme, setIsSubmittingScheme] = useState(false);
   const [isSubmittingPattern, setIsSubmittingPattern] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [isAssigning, setIsAssigning] = useState<string | null>(null); // Store classId being actioned on
 
-  const [isSchemeFormOpen, setIsSchemeFormOpen] = useState(false);
+  const [isSchemeModalOpen, setIsSchemeModalOpen] = useState(false);
+  const [editingScheme, setEditingScheme] = useState<AssessmentScheme | null>(null);
   
   const [isPatternModalOpen, setIsPatternModalOpen] = useState(false);
   const [editingPattern, setEditingPattern] = useState<GradingPattern | null>(null);
   const [patternToDelete, setPatternToDelete] = useState<GradingPattern | null>(null);
 
-  const classesForSelectedYear = useMemo((): ClassWithScheme[] => {
+  const classesForSelectedYear = useMemo(() => {
     if (!selectedAcademicYear) return [];
-    const yearClasses = allClassOptions.filter(c => c.academicYear === selectedAcademicYear);
-    return yearClasses.map(cls => ({
-      classId: cls.value,
-      className: cls.label,
-      academicYear: cls.academicYear,
-      isAssigned: defaultScheme?.classIds.includes(cls.value) ?? false,
-    }));
-  }, [allClassOptions, defaultScheme, selectedAcademicYear]);
+    return allClassOptions.filter(c => c.academicYear === selectedAcademicYear);
+  }, [allClassOptions, selectedAcademicYear]);
 
 
   useEffect(() => {
@@ -109,20 +94,13 @@ export default function ConfigureMarksPage() {
     if (!authUser?.schoolId) return;
     setIsLoading(true);
     try {
-      const [classesResult, schemesResult, patternsResult, academicYearsResult] = await Promise.all([
+      const [classesResult, patternsResult, academicYearsResult] = await Promise.all([
         getClassesForSchoolAsOptions(authUser.schoolId.toString()),
-        getAssessmentSchemes(authUser.schoolId.toString()),
         getGradingPatterns(authUser.schoolId.toString()),
         getAcademicYears(),
       ]);
       
       setAllClassOptions(classesResult);
-      
-      if(schemesResult.success && schemesResult.schemes && schemesResult.schemes[0]) {
-        setDefaultScheme(schemesResult.schemes[0]);
-      } else {
-        toast({variant: 'warning', title: 'Could not load the default scheme', description: schemesResult.message});
-      }
       
       if(patternsResult.success && patternsResult.patterns) {
         setGradingPatterns(patternsResult.patterns);
@@ -147,7 +125,6 @@ export default function ConfigureMarksPage() {
     if (authUser) fetchData();
   }, [authUser, fetchData]);
 
-
   const assessmentForm = useForm<AssessmentSchemeFormData>({
     resolver: zodResolver(assessmentSchemeSchema),
   });
@@ -156,48 +133,39 @@ export default function ConfigureMarksPage() {
     control: assessmentForm.control, name: "assessments",
   });
 
-  const handleOpenSchemeDialog = () => {
-    if (defaultScheme) {
-        assessmentForm.reset({
-            schemeName: defaultScheme.schemeName,
-            assessments: defaultScheme.assessments,
-        });
+  const handleOpenSchemeDialog = async (classOption: ClassOption) => {
+    if (!authUser?.schoolId) return;
+    
+    // Fetch the specific scheme for this class
+    const result = await getAssessmentSchemeForClass(classOption.value, authUser.schoolId, selectedAcademicYear, classOption.label);
+
+    if(result.success && result.scheme) {
+      setEditingScheme(result.scheme);
+      assessmentForm.reset({
+          schemeName: result.scheme.schemeName,
+          assessments: result.scheme.assessments,
+      });
+      setIsSchemeModalOpen(true);
     } else {
-        assessmentForm.reset({ schemeName: "", assessments: [] });
+      toast({variant: 'destructive', title: 'Error', description: result.message || 'Could not load scheme for this class.'});
     }
-    setIsSchemeFormOpen(true);
   };
   
   async function onAssessmentSubmit(data: AssessmentSchemeFormData) {
-    if (!authUser?.schoolId) return;
+    if (!authUser?.schoolId || !editingScheme) return;
     setIsSubmittingScheme(true);
     
-    const result = await updateAssessmentScheme(authUser.schoolId.toString(), data);
+    const result = await updateAssessmentScheme(editingScheme._id.toString(), authUser.schoolId.toString(), data);
 
     if (result.success) {
-      toast({ title: "Default Scheme Updated", description: result.message });
-      fetchData();
-      setIsSchemeFormOpen(false);
+      toast({ title: "Scheme Updated", description: result.message });
+      setIsSchemeModalOpen(false);
+      setEditingScheme(null);
     } else {
       toast({ variant: 'destructive', title: 'Update Failed', description: result.error || result.message });
     }
     setIsSubmittingScheme(false);
   }
-  
-  const handleAssignmentAction = async (classId: string, assign: boolean) => {
-      if (!authUser?.schoolId) return;
-      setIsAssigning(classId);
-      const action = assign ? assignSchemeToClass : unassignSchemeFromClass;
-      const result = await action(classId, authUser.schoolId);
-
-      if(result.success) {
-        toast({ title: 'Assignment Updated', description: result.message });
-        fetchData();
-      } else {
-        toast({ variant: 'destructive', title: 'Assignment Failed', description: result.message });
-      }
-      setIsAssigning(null);
-  };
   
   const gradingForm = useForm<GradingPatternFormData>({
     resolver: zodResolver(gradingPatternSchema),
@@ -261,18 +229,8 @@ export default function ConfigureMarksPage() {
             <Card>
                 <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="space-y-1">
-                    <CardTitle>Default Assessment Scheme</CardTitle>
-                    <CardDescription>Edit the single default assessment scheme for your school. This scheme can be applied to classes below.</CardDescription>
-                  </div>
-                  <Button onClick={handleOpenSchemeDialog}><Edit className="mr-2 h-4 w-4"/> Edit Default Scheme</Button>
-                </CardHeader>
-            </Card>
-
-            <Card>
-                <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <CardTitle>Class Scheme Assignments</CardTitle>
-                    <CardDescription>Apply the default scheme to classes for the selected academic year.</CardDescription>
+                    <CardTitle>Class-Specific Assessment Schemes</CardTitle>
+                    <CardDescription>Each class has its own assessment scheme. Edit the scheme for a class directly from this table.</CardDescription>
                   </div>
                   <div className="flex w-full sm:w-auto items-center gap-2">
                         <Select onValueChange={setSelectedAcademicYear} value={selectedAcademicYear} disabled={isLoading}>
@@ -286,26 +244,16 @@ export default function ConfigureMarksPage() {
                   classesForSelectedYear.length > 0 ? (
                     <Table>
                       <TableHeader><TableRow>
-                          <TableHead>Class</TableHead><TableHead>Scheme Status</TableHead><TableHead className="text-right">Actions</TableHead>
+                          <TableHead>Class</TableHead><TableHead>Scheme Name</TableHead><TableHead className="text-right">Actions</TableHead>
                       </TableRow></TableHeader>
                       <TableBody>{classesForSelectedYear.map((item) => (
-                          <TableRow key={item.classId}>
-                            <TableCell className="font-medium">{item.className}</TableCell>
-                            <TableCell>
-                                {item.isAssigned ? <span className="text-green-600 font-semibold flex items-center gap-1"><Star className="h-4 w-4"/>Assigned</span> : <span className="text-muted-foreground">Not Assigned</span>}
-                            </TableCell>
+                          <TableRow key={item.value}>
+                            <TableCell className="font-medium">{item.label}</TableCell>
+                            <TableCell className="text-muted-foreground italic">Scheme for {item.label}</TableCell>
                             <TableCell className="text-right">
-                                {item.isAssigned ? (
-                                    <Button variant="destructive" size="sm" onClick={() => handleAssignmentAction(item.classId, false)} disabled={isAssigning === item.classId}>
-                                        {isAssigning === item.classId ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldOff className="mr-2 h-4 w-4"/>}
-                                        Unassign
-                                    </Button>
-                                ) : (
-                                    <Button variant="outline" size="sm" onClick={() => handleAssignmentAction(item.classId, true)} disabled={isAssigning === item.classId}>
-                                       {isAssigning === item.classId ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
-                                        Assign Scheme
-                                    </Button>
-                                )}
+                                <Button variant="outline" size="sm" onClick={() => handleOpenSchemeDialog(item)}>
+                                    <Edit className="mr-2 h-4 w-4"/> Edit Scheme
+                                </Button>
                             </TableCell>
                           </TableRow>
                         ))}</TableBody>
@@ -355,8 +303,8 @@ export default function ConfigureMarksPage() {
         </TabsContent>
     </Tabs>
 
-     <Dialog open={isSchemeFormOpen} onOpenChange={setIsSchemeFormOpen}>
-      <DialogContent className="max-w-4xl"><DialogHeader><DialogTitle>Edit Default Assessment Scheme</DialogTitle><DialogDescription>Define assessments and their tests. Changes will apply to all classes assigned this scheme.</DialogDescription></DialogHeader>
+     <Dialog open={isSchemeModalOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingScheme(null); setIsSchemeModalOpen(isOpen);}}>
+      <DialogContent className="max-w-4xl"><DialogHeader><DialogTitle>{editingScheme ? `Edit Scheme for ${editingScheme.schemeName}` : 'Edit Assessment Scheme'}</DialogTitle><DialogDescription>Define assessments and their tests. Changes will apply to this class.</DialogDescription></DialogHeader>
         <Form {...assessmentForm}>
           <form onSubmit={assessmentForm.handleSubmit(onAssessmentSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
               <FormField control={assessmentForm.control} name="schemeName" render={({ field }) => (<FormItem><FormLabel>Scheme Name</FormLabel><FormControl><Input placeholder="e.g., Primary Wing Scheme, CBSE Standard" {...field}/></FormControl><FormMessage/></FormItem>)}/>
@@ -377,7 +325,7 @@ export default function ConfigureMarksPage() {
               <DialogFooter><DialogClose asChild><Button type="button" variant="outline" disabled={isSubmittingScheme}>Cancel</Button></DialogClose>
                 <Button type="submit" disabled={isSubmittingScheme}>
                     {isSubmittingScheme && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                    Save Default Scheme
+                    Save Scheme
                 </Button>
               </DialogFooter>
           </form>

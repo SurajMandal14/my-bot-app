@@ -11,10 +11,6 @@ import {
 } from '@/types/assessment';
 import type { SchoolClass } from '@/types/classes';
 
-// --- CONSTANTS ---
-const DEFAULT_SCHEME_ID = 'default_cbse_state_scheme';
-
-
 // --- Result Types ---
 export interface AssessmentSchemeResult {
   success: boolean;
@@ -44,8 +40,7 @@ export interface GradingPatternsResult {
   patterns?: GradingPattern[];
 }
 
-const defaultSchemeData: Omit<AssessmentScheme, '_id' | 'schoolId' | 'createdBy' | 'createdAt' | 'updatedAt' | 'classIds'> = {
-    schemeName: 'Default CBSE State Pattern',
+const defaultSchemeStructure: Omit<AssessmentScheme, '_id' | 'schoolId' | 'classId' | 'academicYear' | 'createdBy' | 'createdAt' | 'updatedAt' | 'schemeName' | 'isDefault'> = {
     assessments: [
         { groupName: 'FA1', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
         { groupName: 'FA2', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
@@ -56,10 +51,10 @@ const defaultSchemeData: Omit<AssessmentScheme, '_id' | 'schoolId' | 'createdBy'
     ],
 };
 
-
 // --- Assessment Scheme Actions ---
 
-export async function getAssessmentSchemes(schoolId: string): Promise<AssessmentSchemesResult> {
+// Get all schemes for a school. Primarily for Master Admin view.
+export async function getAssessmentSchemes(schoolId: string, academicYear: string): Promise<AssessmentSchemesResult> {
   try {
     if (!ObjectId.isValid(schoolId)) {
       return { success: false, message: 'Invalid School ID.' };
@@ -67,73 +62,89 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
     const { db } = await connectToDatabase();
     const collection = db.collection('assessment_schemes');
     
-    // Find the single editable scheme for the school.
-    let schemeDoc = await collection.findOne({ schoolId: new ObjectId(schoolId), _id: DEFAULT_SCHEME_ID });
+    const schemeDocs = await collection.find({ 
+      schoolId: new ObjectId(schoolId),
+      academicYear: academicYear
+    }).toArray();
+    
+    const finalSchemes: AssessmentScheme[] = schemeDocs.map(doc => ({
+        _id: doc._id.toString(),
+        schoolId: doc.schoolId.toString(),
+        classId: doc.classId.toString(),
+        academicYear: doc.academicYear,
+        schemeName: doc.schemeName,
+        assessments: doc.assessments,
+        isDefault: doc.isDefault || false,
+        createdBy: doc.createdBy?.toString(),
+        createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : '',
+        updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : '',
+    }));
 
-    // If it doesn't exist, create it.
+    return {
+      success: true,
+      schemes: finalSchemes,
+    };
+  } catch (error) {
+    console.error("getAssessmentSchemes Error:", error);
+    return { success: false, message: 'Failed to fetch assessment schemes.' };
+  }
+}
+
+// Get or create a scheme for a specific class
+export async function getAssessmentSchemeForClass(classId: string, schoolId: string, academicYear: string, className?: string): Promise<AssessmentSchemeResult> {
+  try {
+    if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
+      return { success: false, message: 'Invalid School or Class ID.' };
+    }
+    
+    const { db } = await connectToDatabase();
+    const collection = db.collection('assessment_schemes');
+    
+    let schemeDoc = await collection.findOne({ 
+      classId: new ObjectId(classId),
+      schoolId: new ObjectId(schoolId),
+      academicYear: academicYear,
+    });
+
+    // If it doesn't exist for the class, create it based on the default structure.
     if (!schemeDoc) {
-        const newScheme: Omit<AssessmentScheme, 'createdAt' | 'updatedAt'> & { createdAt: Date, updatedAt: Date } = {
-            _id: DEFAULT_SCHEME_ID,
+        const newSchemeData = {
             schoolId: new ObjectId(schoolId),
-            ...defaultSchemeData,
-            classIds: [], // Initially assigned to no classes
+            classId: new ObjectId(classId),
+            academicYear: academicYear,
+            schemeName: `Scheme for ${className || classId}`,
+            ...defaultSchemeStructure,
+            isDefault: false, // It's a copy, not the global default
             createdBy: 'system',
             createdAt: new Date(),
             updatedAt: new Date(),
         };
-        await collection.insertOne(newScheme as any);
-        schemeDoc = newScheme;
+        const result = await collection.insertOne(newSchemeData);
+        schemeDoc = await collection.findOne({_id: result.insertedId });
+    }
+
+    if (!schemeDoc) {
+       return { success: false, message: "Could not find or create an assessment scheme for this class." };
     }
     
     const finalScheme: AssessmentScheme = {
         _id: schemeDoc._id.toString(),
         schoolId: schemeDoc.schoolId.toString(),
+        classId: schemeDoc.classId.toString(),
+        academicYear: schemeDoc.academicYear,
         schemeName: schemeDoc.schemeName,
-        classIds: (schemeDoc.classIds || []).map((id: ObjectId | string) => id.toString()),
+        isDefault: schemeDoc.isDefault,
         assessments: schemeDoc.assessments,
-        createdBy: schemeDoc.createdBy.toString(),
+        createdBy: schemeDoc.createdBy?.toString(),
         createdAt: new Date(schemeDoc.createdAt).toISOString(),
         updatedAt: new Date(schemeDoc.updatedAt).toISOString(),
     };
 
     return {
       success: true,
-      schemes: [finalScheme],
+      message: 'Scheme found.',
+      scheme: finalScheme,
     };
-  } catch (error) {
-    console.error("getAssessmentSchemes Error:", error);
-    return { success: false, message: 'Failed to fetch or create the default assessment scheme.' };
-  }
-}
-
-export async function getAssessmentSchemeForClass(classId: string, schoolId: string): Promise<AssessmentSchemeResult> {
-  try {
-    if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
-      return { success: false, message: 'Invalid School or Class ID.' };
-    }
-    
-    const schemesResult = await getAssessmentSchemes(schoolId);
-    if (!schemesResult.success || !schemesResult.schemes || schemesResult.schemes.length === 0) {
-        return { success: false, message: "Could not load the default assessment scheme for the school." };
-    }
-    
-    const defaultScheme = schemesResult.schemes[0];
-
-    // Check if the classId is in the default scheme's classIds array
-    if (defaultScheme.classIds.includes(classId)) {
-        return {
-          success: true,
-          message: 'Scheme found.',
-          scheme: defaultScheme,
-        };
-    } else {
-        // If not assigned, return a version of the default scheme but indicate it's not assigned by name
-        return {
-            success: false,
-            message: 'No custom assessment scheme found for this class.',
-            scheme: { ...defaultScheme, schemeName: 'Not Assigned (Using Default)' }
-        }
-    }
     
   } catch (error) {
     return { success: false, message: 'Failed to fetch assessment scheme for the class.' };
@@ -141,12 +152,13 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
 }
 
 export async function updateAssessmentScheme(
+  schemeId: string,
   schoolId: string,
   formData: AssessmentSchemeFormData,
 ): Promise<AssessmentSchemeResult> {
     try {
-        if (!ObjectId.isValid(schoolId)) {
-            return { success: false, message: 'Invalid School ID format.' };
+        if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(schemeId)) {
+            return { success: false, message: 'Invalid School or Scheme ID format.' };
         }
         
         const validatedFields = assessmentSchemeSchema.safeParse(formData);
@@ -155,82 +167,24 @@ export async function updateAssessmentScheme(
         }
 
         const { db } = await connectToDatabase();
-
-        // Always update the single default scheme for the school
         const updateData = {
             ...validatedFields.data,
             updatedAt: new Date(),
         };
 
         const result = await db.collection('assessment_schemes').updateOne(
-            { _id: DEFAULT_SCHEME_ID, schoolId: new ObjectId(schoolId) },
+            { _id: new ObjectId(schemeId), schoolId: new ObjectId(schoolId) },
             { $set: updateData },
-            { upsert: true } // Create it if it somehow doesn't exist
         );
 
-        if (result.matchedCount === 0 && result.upsertedCount === 0) {
+        if (result.matchedCount === 0) {
             return { success: false, message: 'Assessment scheme not found or access denied.' };
         }
 
         revalidatePath('/dashboard/master-admin/configure-marks');
-        return { success: true, message: 'Default assessment scheme updated successfully.' };
+        return { success: true, message: 'Assessment scheme updated successfully.' };
     } catch (error) {
         return { success: false, message: 'An unexpected error occurred.' };
-    }
-}
-
-
-export async function assignSchemeToClass(classId: string, schoolId: string): Promise<AssessmentSchemeResult> {
-    try {
-        if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
-            return { success: false, message: 'Invalid School or Class ID.' };
-        }
-        
-        const { db } = await connectToDatabase();
-        const schemesCollection = db.collection('assessment_schemes');
-
-        const result = await schemesCollection.updateOne(
-            { _id: DEFAULT_SCHEME_ID, schoolId: new ObjectId(schoolId) },
-            { $addToSet: { classIds: classId } }
-        );
-        
-        if (result.matchedCount === 0) {
-            await getAssessmentSchemes(schoolId); // This will create it if missing
-            await schemesCollection.updateOne(
-                { _id: DEFAULT_SCHEME_ID, schoolId: new ObjectId(schoolId) },
-                { $addToSet: { classIds: classId } }
-            );
-        }
-        
-        revalidatePath('/dashboard/master-admin/configure-marks');
-        return { success: true, message: `Scheme assigned successfully.` };
-
-    } catch (e) {
-        console.error("Assign Scheme Error:", e);
-        return { success: false, message: "An unexpected error occurred during assignment." };
-    }
-}
-
-export async function unassignSchemeFromClass(classId: string, schoolId: string): Promise<AssessmentSchemeResult> {
-    try {
-        if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
-            return { success: false, message: 'Invalid School or Class ID.' };
-        }
-        
-        const { db } = await connectToDatabase();
-        const schemesCollection = db.collection('assessment_schemes');
-
-        await schemesCollection.updateOne(
-            { _id: DEFAULT_SCHEME_ID, schoolId: new ObjectId(schoolId) },
-            { $pull: { classIds: classId } }
-        );
-        
-        revalidatePath('/dashboard/master-admin/configure-marks');
-        return { success: true, message: `Scheme unassigned successfully.` };
-
-    } catch (e) {
-        console.error("Unassign Scheme Error:", e);
-        return { success: false, message: "An unexpected error occurred during unassignment." };
     }
 }
 
