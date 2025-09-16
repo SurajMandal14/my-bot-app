@@ -504,24 +504,23 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
     if (!ObjectId.isValid(schoolIdQuery)) {
       return { success: false, message: 'Invalid School ID format.', error: 'Invalid School ID.' };
     }
-    if (!academicYear) {
-      return { success: false, message: 'Academic Year is required.', error: 'Invalid Academic Year.' };
-    }
-
 
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<User>('users');
 
+    // Find student by admissionId and schoolId, but not academic year
     const studentDoc = await usersCollection.findOne({ 
         admissionId: admissionIdQuery, 
         schoolId: new ObjectId(schoolIdQuery) as any,
         role: 'student',
-        academicYear: academicYear,
     });
 
     if (!studentDoc) {
-      return { success: false, message: `Student with Admission ID '${admissionIdQuery}' not found in this school for the academic year ${academicYear}.`, error: 'Student not found.' };
+      return { success: false, message: `Student with Admission ID '${admissionIdQuery}' not found in this school.`, error: 'Student not found.' };
     }
+    
+    // Check if the student's current classId and academicYear match the query, if needed for validation elsewhere
+    // For now, we return the found student details regardless of their currently assigned year.
     
     const student = studentDoc as User; // Type assertion
 
