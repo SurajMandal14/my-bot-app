@@ -15,8 +15,7 @@ const assessmentGroupSchema = z.object({
 });
 
 export const assessmentSchemeSchema = z.object({
-  // This will store class names for the UI, but we'll convert to IDs on the backend
-  classIds: z.array(z.string()).min(1, "At least one class must be selected."),
+  schemeName: z.string().min(3, "Scheme Name is required (e.g., Primary Wing Scheme)."),
   assessments: z.array(assessmentGroupSchema).min(1, "At least one assessment group is required."),
 });
 
@@ -27,7 +26,6 @@ export interface AssessmentScheme {
   schoolId: ObjectId | string;
   schemeName: string; 
   classIds: string[]; // Storing class _id strings
-  classNames?: string[]; // Storing class names for display purposes
   assessments: {
     groupName: string;
     tests: {

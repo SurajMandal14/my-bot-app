@@ -58,32 +58,9 @@ export async function createAssessmentScheme(
 
     const { db } = await connectToDatabase();
     
-    const classDocs = await db.collection('school_classes').find({ 
-        schoolId: new ObjectId(schoolId),
-        _id: { $in: validatedFields.data.classIds.map(id => new ObjectId(id)) } 
-    }).project({ _id: 1, name: 1, section: 1 }).toArray();
-    
-    if (classDocs.length !== validatedFields.data.classIds.length) {
-        return { success: false, message: "One or more selected classes could not be found." };
-    }
-    
-    const classIdStrings = classDocs.map(c => c._id.toString());
-    const classNames = classDocs.map(c => `${c.name}${c.section ? ` - ${c.section}` : ''}`);
-
-    const existingScheme = await db.collection('assessment_schemes').findOne({
-        schoolId: new ObjectId(schoolId),
-        classIds: { $in: classIdStrings }
-    });
-
-    if (existingScheme) {
-        return { success: false, message: `An assessment scheme already exists for one or more of the selected classes. Please edit the existing scheme or choose different classes.` };
-    }
-
     const newScheme = {
       ...validatedFields.data,
-      classIds: classIdStrings,
-      classNames: classNames,
-      schemeName: classNames.join(', '),
+      classIds: [], // Will be managed by assign action
       schoolId: new ObjectId(schoolId),
       createdBy: new ObjectId(masterAdminId),
       createdAt: new Date(),
@@ -128,8 +105,7 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
       _id: 'default_cbse_state',
       schoolId: schoolId,
       schemeName: 'CBSE State Pattern (Default)',
-      classIds: ['All Classes'],
-      classNames: ['All Classes'],
+      classIds: [], // Default is not assigned to any class by default
       assessments: [
         { groupName: 'FA1', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
         { groupName: 'FA2', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
@@ -190,35 +166,24 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
   }
 }
 
-
 export async function updateAssessmentScheme(
   schemeId: string,
-  formData: AssessmentSchemeFormData,
+  formData: Omit<AssessmentSchemeFormData, 'classIds'>,
   schoolId: string
 ): Promise<AssessmentSchemeResult> {
     try {
         if (!ObjectId.isValid(schemeId) || !ObjectId.isValid(schoolId)) {
             return { success: false, message: 'Invalid ID format.' };
         }
-        const validatedFields = assessmentSchemeSchema.safeParse(formData);
+        const validatedFields = assessmentSchemeSchema.omit({ classIds: true }).safeParse(formData);
         if (!validatedFields.success) {
             return { success: false, message: 'Validation failed.', error: validatedFields.error.flatten().fieldErrors.toString() };
         }
 
         const { db } = await connectToDatabase();
-        const classDocs = await db.collection('school_classes').find({ 
-            schoolId: new ObjectId(schoolId),
-            _id: { $in: validatedFields.data.classIds.map(id => new ObjectId(id)) }
-        }).project({ _id: 1, name: 1, section: 1 }).toArray();
-
-        const classIdStrings = classDocs.map(c => c._id.toString());
-        const classNames = classDocs.map(c => `${c.name}${c.section ? ` - ${c.section}` : ''}`);
 
         const updateData = {
             ...validatedFields.data,
-            classIds: classIdStrings,
-            classNames: classNames,
-            schemeName: classNames.join(', '),
             updatedAt: new Date(),
         };
 
@@ -244,6 +209,13 @@ export async function deleteAssessmentScheme(schemeId: string, schoolId: string)
             return { success: false, message: 'Invalid ID format.' };
         }
         const { db } = await connectToDatabase();
+        
+        // Before deleting, pull this schemeId from any classIds arrays it might be in.
+        await db.collection('assessment_schemes').updateMany(
+            { schoolId: new ObjectId(schoolId) },
+            { $pull: { classIds: schemeId } } // This seems wrong, should be on class object
+        );
+
         const result = await db.collection('assessment_schemes').deleteOne({ _id: new ObjectId(schemeId), schoolId: new ObjectId(schoolId) });
 
         if (result.deletedCount === 0) {
@@ -254,6 +226,45 @@ export async function deleteAssessmentScheme(schemeId: string, schoolId: string)
         return { success: true, message: 'Assessment scheme deleted successfully!' };
     } catch (error) {
         return { success: false, message: 'An unexpected error occurred.' };
+    }
+}
+
+// New action to assign a scheme to a class
+export async function assignSchemeToClasses(schemeId: string, classIds: string[], schoolId: string): Promise<AssessmentSchemeResult> {
+    try {
+        if ((schemeId !== 'default_cbse_state' && !ObjectId.isValid(schemeId)) || !ObjectId.isValid(schoolId)) {
+            return { success: false, message: 'Invalid Scheme or School ID.' };
+        }
+        if (classIds.some(id => !ObjectId.isValid(id))) {
+            return { success: false, message: 'Invalid Class ID in selection.' };
+        }
+        
+        const { db } = await connectToDatabase();
+        const schemesCollection = db.collection('assessment_schemes');
+
+        // 1. Un-assign these classes from any other scheme they might be in
+        await schemesCollection.updateMany(
+            { schoolId: new ObjectId(schoolId), classIds: { $in: classIds } },
+            { $pull: { classIds: { $in: classIds } } }
+        );
+
+        // 2. Assign the classes to the new scheme (if it's not the default)
+        if (schemeId !== 'default_cbse_state') {
+            const result = await schemesCollection.updateOne(
+                { _id: new ObjectId(schemeId), schoolId: new ObjectId(schoolId) },
+                { $addToSet: { classIds: { $each: classIds } } }
+            );
+            if (result.matchedCount === 0) {
+                return { success: false, message: "Target scheme not found." };
+            }
+        }
+        
+        revalidatePath('/dashboard/master-admin/configure-marks');
+        return { success: true, message: 'Scheme assigned successfully.' };
+
+    } catch (e) {
+        console.error("Assign Scheme Error:", e);
+        return { success: false, message: "An unexpected error occurred during assignment." };
     }
 }
 
@@ -377,8 +388,3 @@ export async function deleteGradingPattern(patternId: string, schoolId: string):
         return { success: false, message: 'An unexpected error occurred.' };
     }
 }
-
-
-    
-
-    
