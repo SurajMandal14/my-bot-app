@@ -6,9 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, Edit, Settings, Trash2, Loader2, Palette, XCircle, Info, Star } from "lucide-react";
+import { PlusCircle, Edit, Settings, Trash2, Loader2, Palette, XCircle, Info, Star, CheckCircle, ShieldOff } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useForm, useFieldArray, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,7 +17,7 @@ import type { AuthUser } from "@/types/user";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
 import { cn } from "@/lib/utils";
 import { assessmentSchemeSchema, type AssessmentScheme, type AssessmentSchemeFormData, gradingPatternSchema, type GradingPattern, type GradingPatternFormData } from '@/types/assessment';
-import { getAssessmentSchemes, updateAssessmentScheme, createGradingPattern, getGradingPatterns, updateGradingPattern, deleteGradingPattern, assignSchemeToClasses } from '@/app/actions/assessmentConfigurations';
+import { getAssessmentSchemes, updateAssessmentScheme, createGradingPattern, getGradingPatterns, updateGradingPattern, deleteGradingPattern, assignSchemeToClass, unassignSchemeFromClass } from '@/app/actions/assessmentConfigurations';
 import { getAcademicYears } from "@/app/actions/academicYears";
 import type { AcademicYear } from "@/types/academicYear";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -74,16 +73,16 @@ export default function ConfigureMarksPage() {
   const [isSubmittingScheme, setIsSubmittingScheme] = useState(false);
   const [isSubmittingPattern, setIsSubmittingPattern] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [isAssigning, setIsAssigning] = useState(false);
+  const [isAssigning, setIsAssigning] = useState<string | null>(null); // Store classId being actioned on
 
   const [isSchemeFormOpen, setIsSchemeFormOpen] = useState(false);
   
   const [isPatternModalOpen, setIsPatternModalOpen] = useState(false);
   const [editingPattern, setEditingPattern] = useState<GradingPattern | null>(null);
   const [patternToDelete, setPatternToDelete] = useState<GradingPattern | null>(null);
-  const [selectedClasses, setSelectedClasses] = useState<Record<string, boolean>>({});
 
-  const classesWithSchemes = useMemo((): ClassWithScheme[] => {
+  const classesForSelectedYear = useMemo((): ClassWithScheme[] => {
+    if (!selectedAcademicYear) return [];
     const yearClasses = allClassOptions.filter(c => c.academicYear === selectedAcademicYear);
     return yearClasses.map(cls => ({
       classId: cls.value,
@@ -92,12 +91,6 @@ export default function ConfigureMarksPage() {
       isAssigned: defaultScheme?.classIds.includes(cls.value) ?? false,
     }));
   }, [allClassOptions, defaultScheme, selectedAcademicYear]);
-  
-  const allInYearSelected = useMemo(() => {
-    const yearClasses = classesWithSchemes;
-    if (yearClasses.length === 0) return false;
-    return yearClasses.every(c => selectedClasses[c.classId]);
-  }, [selectedClasses, classesWithSchemes]);
 
 
   useEffect(() => {
@@ -153,10 +146,6 @@ export default function ConfigureMarksPage() {
   useEffect(() => {
     if (authUser) fetchData();
   }, [authUser, fetchData]);
-  
-  useEffect(() => {
-    setSelectedClasses({});
-  }, [selectedAcademicYear]);
 
 
   const assessmentForm = useForm<AssessmentSchemeFormData>({
@@ -195,24 +184,19 @@ export default function ConfigureMarksPage() {
     setIsSubmittingScheme(false);
   }
   
-  const handleAssignmentAction = async (assign: boolean) => {
-      const classIdsToUpdate = Object.keys(selectedClasses).filter(id => selectedClasses[id]);
-      if (classIdsToUpdate.length === 0) {
-          toast({variant: 'info', title: 'No Classes Selected', description: 'Please select classes from the table first.'});
-          return;
-      }
+  const handleAssignmentAction = async (classId: string, assign: boolean) => {
       if (!authUser?.schoolId) return;
+      setIsAssigning(classId);
+      const action = assign ? assignSchemeToClass : unassignSchemeFromClass;
+      const result = await action(classId, authUser.schoolId);
 
-      setIsAssigning(true);
-      const result = await assignSchemeToClasses(classIdsToUpdate, authUser.schoolId, assign);
       if(result.success) {
         toast({ title: 'Assignment Updated', description: result.message });
         fetchData();
-        setSelectedClasses({});
       } else {
         toast({ variant: 'destructive', title: 'Assignment Failed', description: result.message });
       }
-      setIsAssigning(false);
+      setIsAssigning(null);
   };
   
   const gradingForm = useForm<GradingPatternFormData>({
@@ -278,7 +262,7 @@ export default function ConfigureMarksPage() {
                 <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <CardTitle>Default Assessment Scheme</CardTitle>
-                    <CardDescription>Edit the single default assessment scheme for your school. Assign or unassign it to classes below.</CardDescription>
+                    <CardDescription>Edit the single default assessment scheme for your school. This scheme can be applied to classes below.</CardDescription>
                   </div>
                   <Button onClick={handleOpenSchemeDialog}><Edit className="mr-2 h-4 w-4"/> Edit Default Scheme</Button>
                 </CardHeader>
@@ -298,31 +282,30 @@ export default function ConfigureMarksPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex justify-end gap-2 mb-4">
-                         <Button onClick={() => handleAssignmentAction(true)} disabled={isAssigning} variant="outline">
-                             {isAssigning ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Assign to Selected'}
-                        </Button>
-                        <Button onClick={() => handleAssignmentAction(false)} disabled={isAssigning} variant="destructive">
-                            {isAssigning ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Unassign from Selected'}
-                        </Button>
-                    </div>
                   {isLoading ? <div className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
-                  classesWithSchemes.length > 0 ? (
+                  classesForSelectedYear.length > 0 ? (
                     <Table>
                       <TableHeader><TableRow>
-                          <TableHead className="w-12"><Checkbox checked={allInYearSelected} onCheckedChange={(checked) => {
-                              const newSelected: Record<string, boolean> = {};
-                              if(checked) { classesWithSchemes.forEach(c => newSelected[c.classId] = true); }
-                              setSelectedClasses(newSelected);
-                          }}/></TableHead>
-                          <TableHead>Class</TableHead><TableHead>Scheme Status</TableHead>
+                          <TableHead>Class</TableHead><TableHead>Scheme Status</TableHead><TableHead className="text-right">Actions</TableHead>
                       </TableRow></TableHeader>
-                      <TableBody>{classesWithSchemes.map((item) => (
-                          <TableRow key={item.classId} data-state={selectedClasses[item.classId] ? "selected" : ""}>
-                            <TableCell><Checkbox checked={selectedClasses[item.classId] || false} onCheckedChange={(checked) => setSelectedClasses(prev => ({...prev, [item.classId]: !!checked}))} /></TableCell>
+                      <TableBody>{classesForSelectedYear.map((item) => (
+                          <TableRow key={item.classId}>
                             <TableCell className="font-medium">{item.className}</TableCell>
                             <TableCell>
                                 {item.isAssigned ? <span className="text-green-600 font-semibold flex items-center gap-1"><Star className="h-4 w-4"/>Assigned</span> : <span className="text-muted-foreground">Not Assigned</span>}
+                            </TableCell>
+                            <TableCell className="text-right">
+                                {item.isAssigned ? (
+                                    <Button variant="destructive" size="sm" onClick={() => handleAssignmentAction(item.classId, false)} disabled={isAssigning === item.classId}>
+                                        {isAssigning === item.classId ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ShieldOff className="mr-2 h-4 w-4"/>}
+                                        Unassign
+                                    </Button>
+                                ) : (
+                                    <Button variant="outline" size="sm" onClick={() => handleAssignmentAction(item.classId, true)} disabled={isAssigning === item.classId}>
+                                       {isAssigning === item.classId ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
+                                        Assign Scheme
+                                    </Button>
+                                )}
                             </TableCell>
                           </TableRow>
                         ))}</TableBody>
@@ -353,8 +336,14 @@ export default function ConfigureMarksPage() {
                             <TableCell>{pattern.grades.map(g => g.label).join(', ')}</TableCell>
                             <TableCell className="text-right space-x-1">
                               <Button variant="ghost" size="icon" onClick={() => handleEditPattern(pattern)} disabled={!!isDeleting}><Edit className="h-4 w-4" /></Button>
-                              <AlertDialog open={patternToDelete?._id === pattern._id} onOpenChange={(open) => !open && setPatternToDelete(null)}>
-                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Pattern?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete the pattern "{pattern.patternName}"?</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={onDeletePattern} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                               <AlertDialog open={patternToDelete?._id === pattern._id} onOpenChange={(open) => !open && setPatternToDelete(null)}>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setPatternToDelete(pattern)} disabled={!!isDeleting}><Trash2 className="h-4 w-4" /></Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader><AlertDialogTitle>Delete Pattern?</AlertDialogTitle><AlertDialogDescription>Are you sure you want to delete the pattern "{pattern.patternName}"?</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={onDeletePattern} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction></AlertDialogFooter>
+                                  </AlertDialogContent>
                               </AlertDialog>
                             </TableCell>
                           </TableRow>
