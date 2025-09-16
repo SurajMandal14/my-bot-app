@@ -20,7 +20,7 @@ import { getSchoolById } from "@/app/actions/schools";
 import type { School, AssessmentLocks } from "@/types/school";
 import { getAcademicYears } from '@/app/actions/academicYears';
 import type { AcademicYear } from '@/types/academicYear';
-import { getAssessmentSchemeForClass, getAssessmentSchemes } from '@/app/actions/assessmentConfigurations';
+import { getAssessmentSchemeForClass } from '@/app/actions/assessmentConfigurations';
 import type { AssessmentScheme } from '@/types/assessment';
 
 
@@ -149,25 +149,13 @@ export default function TeacherMarksEntryPage() {
   // Fetch assessment scheme when class changes
   useEffect(() => {
     const fetchScheme = async () => {
-      if (selectedClassId && authUser?.schoolId) {
-        const schemeResult = await getAssessmentSchemeForClass(selectedClassId, authUser.schoolId);
+      if (selectedClassId && authUser?.schoolId && selectedAcademicYear) {
+        const schemeResult = await getAssessmentSchemeForClass(selectedClassId, authUser.schoolId, selectedAcademicYear);
         if (schemeResult.success && schemeResult.scheme) {
           setAssessmentScheme(schemeResult.scheme);
         } else {
-          // If no custom scheme, load the default one for fallback
-           const defaultSchemeResult = await getAssessmentSchemes(authUser.schoolId);
-           if (defaultSchemeResult.success && defaultSchemeResult.schemes && defaultSchemeResult.schemes.length > 0) {
-               const defaultScheme = defaultSchemeResult.schemes.find(s => s._id === 'default_cbse_state');
-               if (defaultScheme) {
-                  setAssessmentScheme(defaultScheme);
-               } else {
-                  toast({ variant: 'destructive', title: 'Default Scheme Error', description: "Could not find a default assessment scheme." });
-                  setAssessmentScheme(null);
-               }
-           } else {
-               toast({ variant: 'destructive', title: 'Scheme Error', description: "Could not fetch any assessment schemes." });
-               setAssessmentScheme(null);
-           }
+            toast({ variant: 'destructive', title: 'Scheme Error', description: schemeResult.message || "Could not fetch assessment scheme for this class." });
+            setAssessmentScheme(null);
         }
       } else {
         setAssessmentScheme(null);
@@ -175,7 +163,7 @@ export default function TeacherMarksEntryPage() {
       setSelectedAssessmentName(""); // Reset assessment selection
     };
     fetchScheme();
-  }, [selectedClassId, authUser?.schoolId, toast]);
+  }, [selectedClassId, authUser?.schoolId, selectedAcademicYear, toast]);
 
 
   const fetchStudentsAndMarks = useCallback(async () => {
@@ -351,3 +339,5 @@ export default function TeacherMarksEntryPage() {
     </div>
   );
 }
+
+  
