@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { PlusCircle, Edit, Settings, Trash2, Loader2, Info, Star } from "lucide-react";
+import { PlusCircle, Edit, Settings, Trash2, Loader2, Info } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useForm, useFieldArray, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -159,7 +158,10 @@ export default function ConfigureMarksPage() {
     if (!authUser?.schoolId || !editingScheme) return;
     setIsSubmittingScheme(true);
     
-    const result = await updateAssessmentScheme(editingScheme._id.toString(), authUser.schoolId.toString(), data);
+    // Auto-set the scheme name before submission
+    const payload = { ...data, schemeName: `Scheme for ${currentClassLabel}` };
+    
+    const result = await updateAssessmentScheme(editingScheme._id.toString(), authUser.schoolId.toString(), payload);
 
     if (result.success) {
       toast({ title: "Scheme Updated", description: result.message });
@@ -218,7 +220,6 @@ export default function ConfigureMarksPage() {
       <DialogContent className="max-w-4xl"><DialogHeader><DialogTitle>{editingScheme ? `Edit Scheme for ${currentClassLabel}` : 'Edit Assessment Scheme'}</DialogTitle><DialogDescription>Define assessments and their tests. Changes will apply to this class.</DialogDescription></DialogHeader>
         <Form {...assessmentForm}>
           <form onSubmit={assessmentForm.handleSubmit(onAssessmentSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
-              <FormField control={assessmentForm.control} name="schemeName" render={({ field }) => (<FormItem><FormLabel>Scheme Name</FormLabel><FormControl><Input placeholder="e.g., Primary Wing Scheme, CBSE Standard" {...field}/></FormControl><FormMessage/></FormItem>)}/>
               <div><FormLabel>Assessments</FormLabel>
                 <div className="mt-2 space-y-4">{assessmentGroups.map((group, groupIndex) => (
                       <Card key={group.id} className="p-4 bg-muted/50">

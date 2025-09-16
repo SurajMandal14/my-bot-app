@@ -15,7 +15,7 @@ const assessmentGroupSchema = z.object({
 });
 
 export const assessmentSchemeSchema = z.object({
-  schemeName: z.string().min(3, "Scheme Name is required (e.g., Primary Wing Scheme)."),
+  schemeName: z.string().min(3, "Scheme Name is required (e.g., Primary Wing Scheme).").optional(),
   assessments: z.array(assessmentGroupSchema).min(1, "At least one assessment group is required."),
 });
 
@@ -24,8 +24,9 @@ export type AssessmentSchemeFormData = z.infer<typeof assessmentSchemeSchema>;
 export interface AssessmentScheme {
   _id: ObjectId | string;
   schoolId: ObjectId | string;
-  schemeName: string; 
-  classIds: string[]; // Storing class _id strings
+  classId: ObjectId | string;
+  academicYear: string;
+  schemeName: string;
   assessments: {
     groupName: string;
     tests: {
@@ -33,7 +34,8 @@ export interface AssessmentScheme {
       maxMarks: number;
     }[];
   }[];
-  createdBy: ObjectId | string;
+  isDefault: boolean;
+  createdBy?: ObjectId | string;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
