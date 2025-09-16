@@ -18,7 +18,8 @@ import { assessmentSchemeSchema, type AssessmentScheme, type AssessmentSchemeFor
 import { getAssessmentSchemeForClass, updateAssessmentScheme, getGradingPatterns, createGradingPattern, updateGradingPattern, deleteGradingPattern, assignGradingPatternToClass } from '@/app/actions/assessmentConfigurations';
 import { getAcademicYears } from "@/app/actions/academicYears";
 import type { AcademicYear } from "@/types/academicYear";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle as AlertDialogTitleElement, AlertDialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent as AlertDialogContentElement, AlertDialogDescription as AlertDialogDescriptionElement, AlertDialogHeader as AlertDialogHeaderElement, AlertDialogTitle as AlertDialogTitleElement, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import type { SchoolClass } from "@/types/classes";
 
@@ -342,10 +343,10 @@ export default function ConfigureMarksPage() {
                                         <Button variant="ghost" size="icon" onClick={() => handleOpenGradingPatternDialog(pattern)}><Edit className="h-4 w-4"/></Button>
                                         <AlertDialog open={patternToDelete?._id === pattern._id} onOpenChange={(open) => !open && setPatternToDelete(null)}>
                                           <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
-                                          <AlertDialogContent>
-                                            <AlertDialogHeader><AlertDialogTitleElement>Delete "{pattern.patternName}"?</AlertDialogTitleElement><AlertDialogDescription>This action cannot be undone. You cannot delete patterns currently assigned to classes.</AlertDialogDescription></AlertDialogHeader>
+                                          <AlertDialogContentElement>
+                                            <AlertDialogHeaderElement><AlertDialogTitleElement>Delete "{pattern.patternName}"?</AlertDialogTitleElement><AlertDialogDescriptionElement>This action cannot be undone. You cannot delete patterns currently assigned to classes.</AlertDialogDescriptionElement></AlertDialogHeaderElement>
                                             <AlertDialogFooter><AlertDialogCancel onClick={() => setPatternToDelete(null)}>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={onDeleteGradingPattern} disabled={isDeletingPattern}>Delete</AlertDialogAction></AlertDialogFooter>
-                                          </AlertDialogContent>
+                                          </AlertDialogContentElement>
                                         </AlertDialog>
                                     </TableCell>
                                 </TableRow>
@@ -404,3 +405,5 @@ export default function ConfigureMarksPage() {
     </div>
   );
 }
+
+    
