@@ -76,7 +76,14 @@ export async function createAssessmentScheme(
     return { 
         success: true, 
         message: 'Assessment scheme created successfully!',
-        scheme: { ...newScheme, _id: result.insertedId.toString() } as unknown as AssessmentScheme
+        scheme: { 
+          ...newScheme, 
+          _id: result.insertedId.toString(),
+          schoolId: newScheme.schoolId.toString(),
+          createdBy: newScheme.createdBy.toString(),
+          createdAt: newScheme.createdAt.toISOString(),
+          updatedAt: newScheme.updatedAt.toISOString(),
+        }
     };
   } catch (error) {
     console.error("createAssessmentScheme Error:", error);
@@ -99,6 +106,14 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
         createdBy: s.createdBy.toString(),
         createdAt: new Date(s.createdAt).toISOString(),
         updatedAt: new Date(s.updatedAt).toISOString(),
+        // Ensure nested objects are plain
+        assessments: s.assessments.map((assessment: any) => ({
+          groupName: assessment.groupName,
+          tests: assessment.tests.map((test: any) => ({
+            testName: test.testName,
+            maxMarks: test.maxMarks,
+          })),
+        })),
       })) as unknown as AssessmentScheme[];
 
     const defaultScheme: AssessmentScheme = {
@@ -127,6 +142,7 @@ export async function getAssessmentSchemes(schoolId: string): Promise<Assessment
       schemes: allSchemes,
     };
   } catch (error) {
+    console.error("getAssessmentSchemes Error:", error)
     return { success: false, message: 'Failed to fetch assessment schemes.' };
   }
 }
@@ -154,6 +170,13 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
         createdBy: schemeDoc.createdBy.toString(),
         createdAt: new Date(schemeDoc.createdAt).toISOString(),
         updatedAt: new Date(schemeDoc.updatedAt).toISOString(),
+        assessments: schemeDoc.assessments.map((assessment: any) => ({
+          groupName: assessment.groupName,
+          tests: assessment.tests.map((test: any) => ({
+            testName: test.testName,
+            maxMarks: test.maxMarks,
+          })),
+        })),
       } as unknown as AssessmentScheme;
 
     return {
@@ -388,3 +411,5 @@ export async function deleteGradingPattern(patternId: string, schoolId: string):
         return { success: false, message: 'An unexpected error occurred.' };
     }
 }
+
+    
