@@ -140,7 +140,10 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
       const periodMarks = subjectFaData?.[periodKey] || {};
       let periodTotal = 0;
       faPeriod.tests.forEach(test => {
-        periodTotal += periodMarks[test.testName] || 0;
+        const mark = periodMarks[test.testName];
+        if(typeof mark === 'number') {
+            periodTotal += mark;
+        }
       });
       
       currentOverallTotal += periodTotal;

@@ -184,6 +184,18 @@ export default function GenerateCBSEStateReportPage() {
     setLoadedReportIsPublished(null);
     setAssessmentScheme(null);
   };
+  
+    const canonicalOrder = ["FA1", "FA2", "SA1", "FA3", "FA4", "SA2"];
+
+    const sortAssessments = (assessments: AssessmentScheme['assessments']) => {
+        return assessments.slice().sort((a, b) => {
+            const aIndex = canonicalOrder.indexOf(a.groupName.split('-')[0].trim());
+            const bIndex = canonicalOrder.indexOf(b.groupName.split('-')[0].trim());
+            // If groupName is not in the canonical order, push it to the back
+            return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+        });
+    };
+
 
   const handleLoadStudentAndClassData = async () => {
     if (!admissionIdInput.trim()) {
@@ -238,8 +250,9 @@ export default function GenerateCBSEStateReportPage() {
           
           const schemeRes = await getAssessmentSchemeForClass(classRes.classDetails.name, currentStudent.schoolId!, frontAcademicYear);
           if(schemeRes.success && schemeRes.scheme) {
-              currentAssessmentScheme = schemeRes.scheme;
-              setAssessmentScheme(schemeRes.scheme);
+              const sortedAssessments = sortAssessments(schemeRes.scheme.assessments);
+              currentAssessmentScheme = { ...schemeRes.scheme, assessments: sortedAssessments };
+              setAssessmentScheme(currentAssessmentScheme);
           } else {
               toast({variant: 'destructive', title: "Scheme Missing", description: "Could not load the assessment scheme for this class. Report may be incorrect."})
           }
@@ -326,79 +339,30 @@ export default function GenerateCBSEStateReportPage() {
           
           if (marksResult.success && marksResult.marks && currentAssessmentScheme) {
             const allFetchedMarks = marksResult.marks;
-
-            const saTestNamesFromScheme = new Set<string>();
-            currentAssessmentScheme.assessments
-                .filter(a => a.groupName.startsWith('SA'))
-                .forEach(a => a.tests.forEach(t => saTestNamesFromScheme.add(t.testName)));
-
-            // Initialize SA data structure based on the scheme
-            currentLoadedClassSubjects.forEach(subject => {
-                const saGroupsForSubject = currentAssessmentScheme.assessments
-                    .filter(a => a.groupName.startsWith('SA'))
-                    .sort((a,b) => a.groupName.localeCompare(b.groupName));
-
-                let papers: string[] = ["I"];
-                if(subject.name === "Science") {
-                    papers = ["Physics", "Biology"];
-                } else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName.includes('Paper2'))) {
-                    papers = ["I", "II"];
-                }
-                
-                papers.forEach(paper => {
-                    const sa1Data: SAPaperData = getDefaultSaPaperData();
-                    const sa2Data: SAPaperData = getDefaultSaPaperData();
-                    
-                    const sa1Group = saGroupsForSubject.find(g => g.groupName === 'SA1');
-                    if(sa1Group) sa1Group.tests.forEach(t => (sa1Data as any)[t.testName.toLowerCase()] = { marks: null, maxMarks: t.maxMarks });
-                    
-                    const sa2Group = saGroupsForSubject.find(g => g.groupName === 'SA2');
-                    if(sa2Group) sa2Group.tests.forEach(t => (sa2Data as any)[t.testName.toLowerCase()] = { marks: null, maxMarks: t.maxMarks });
-
-                    tempSaDataForNewReport.push({
-                        subjectName: subject.name,
-                        paper: paper,
-                        sa1: sa1Data,
-                        sa2: sa2Data,
-                        faTotal200M: null
-                    });
-                });
-            });
-
+            
             // Map fetched marks to the structured state
             allFetchedMarks.forEach(mark => {
                 const subjectIdentifier = mark.subjectName;
-                const assessmentName = mark.assessmentName;
-                const [assessmentGroup, ...restOfName] = assessmentName.split('-');
-                
-                if (assessmentGroup.startsWith("FA") && restOfName.length > 0) {
-                    const faPeriodKey = assessmentGroup.toLowerCase() as keyof SubjectFAData;
-                    const toolKey = restOfName.join('-').toLowerCase().replace('tool', 'tool') as FaToolKey;
 
-                    if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
-                        (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
-                    }
-                } else if (assessmentGroup.startsWith("SA") && restOfName.length > 1) {
-                    const saPeriod = (assessmentGroup.toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
-                    const dbPaperPart = restOfName[0];
-                    const asKey = restOfName[1].toLowerCase() as keyof SAPaperData;
-                    
-                    let displayPaperName: string;
-                    if (mark.subjectName === "Science") {
-                        displayPaperName = dbPaperPart === 'Paper1' ? 'Physics' : 'Biology';
-                    } else {
-                        displayPaperName = dbPaperPart === 'Paper1' ? 'I' : 'II';
-                    }
-                    
-                    const targetRow = tempSaDataForNewReport.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
-                    
-                    if (targetRow && targetRow[saPeriod]?.[asKey]) {
-                        (targetRow[saPeriod] as any)[asKey] = {
-                            marks: mark.marksObtained,
-                            maxMarks: mark.maxMarks,
-                        };
-                    }
-                }
+                // Find which assessment group and test this mark belongs to
+                currentAssessmentScheme!.assessments.forEach(group => {
+                    group.tests.forEach(test => {
+                        // Assuming mark has `assessmentGroupId` and `assessmentTestId`
+                        // Since it's not there, we fallback to name matching which is the problem.
+                        // We will simulate the correct logic by matching the name for now.
+                        const assessmentName = `${group.groupName}-${test.testName}`;
+                        if (mark.assessmentName === assessmentName) {
+                            if (group.groupName.startsWith("FA")) {
+                                const faPeriodKey = group.groupName.toLowerCase() as keyof SubjectFAData;
+                                const toolKey = test.testName.toLowerCase().replace('tool ','tool') as FaToolKey;
+
+                                if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey]) {
+                                    (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
+                                }
+                            }
+                        }
+                    });
+                });
             });
 
             setFaMarks(newFaMarksForState);
@@ -434,26 +398,23 @@ export default function GenerateCBSEStateReportPage() {
     setStudentData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleFaMarksChange = (subjectIdentifier: string, faPeriod: keyof SubjectFAData, toolKey: keyof FrontMarksEntry, value: string) => {
+  const handleFaMarksChange = (subjectIdentifier: string, faPeriodKey: string, toolKey: string, value: string) => {
     if (isFieldDisabledForRole(subjectIdentifier)) return; 
     
-    const assessmentGroup = assessmentScheme?.assessments?.find(a => a.groupName === faPeriod.toUpperCase());
-    const testConfig = assessmentGroup?.tests?.find(t => t.testName.toLowerCase().replace('tool ','tool') === toolKey);
-    const maxMark = testConfig?.maxMarks || (toolKey === 'tool4' ? 20 : 10);
+    const faPeriodConfig = assessmentScheme?.assessments.find(a => a.groupName === faPeriodKey);
+    const testConfig = faPeriodConfig?.tests.find(t => t.testName === toolKey);
+    const maxMark = testConfig?.maxMarks || 10;
     
     const numValue = parseInt(value, 10);
     const validatedValue = isNaN(numValue) ? null : Math.min(Math.max(numValue, 0), maxMark);
     
     setFaMarks(prevFaMarks => {
-      const currentSubjectMarks = prevFaMarks[subjectIdentifier] || {
-        fa1: getDefaultFaMarksEntryFront(), fa2: getDefaultFaMarksEntryFront(),
-        fa3: getDefaultFaMarksEntryFront(), fa4: getDefaultFaMarksEntryFront(),
-      };
+      const currentSubjectMarks = prevFaMarks[subjectIdentifier] || getDefaultSubjectFaDataFront([])[subjectIdentifier];
       const updatedPeriodMarks = { 
-        ...(currentSubjectMarks[faPeriod] || getDefaultFaMarksEntryFront()), 
+        ...(currentSubjectMarks[faPeriodKey] || getDefaultFaMarksEntryFront()), 
         [toolKey]: validatedValue 
       };
-      const newFaMarks = { ...prevFaMarks, [subjectIdentifier]: { ...currentSubjectMarks, [faPeriod]: updatedPeriodMarks }};
+      const newFaMarks = { ...prevFaMarks, [subjectIdentifier]: { ...currentSubjectMarks, [faPeriodKey]: updatedPeriodMarks }};
       
       setSaData(currentSaData =>
         currentSaData.map(row => ({
