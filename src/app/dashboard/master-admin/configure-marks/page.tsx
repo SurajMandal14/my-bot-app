@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -68,6 +67,13 @@ function GradePatternForm({ control }: { control: Control<GradingPatternFormData
   )
 }
 
+interface GroupedClass {
+    name: string;
+    sections: string[];
+    representativeClassId: string; // The ID of the first section, used to fetch/edit the shared scheme
+    originalClass: SchoolClass; // Keep the original object for grading edits
+}
+
 export default function ConfigureMarksPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -127,9 +133,29 @@ export default function ConfigureMarksPage() {
 
   useEffect(() => { if (authUser) fetchData(); }, [authUser, fetchData]);
 
-  const classesForSelectedYear = useMemo(() => {
+  const groupedClassesForYear = useMemo(() => {
     if (!selectedAcademicYear) return [];
-    return allClasses.filter(c => c.academicYear === selectedAcademicYear);
+    
+    const classMap = new Map<string, { sections: string[], representativeClassId: string, originalClass: SchoolClass }>();
+
+    allClasses
+        .filter(c => c.academicYear === selectedAcademicYear)
+        .forEach(c => {
+            if (!classMap.has(c.name)) {
+                classMap.set(c.name, { sections: [], representativeClassId: c._id, originalClass: c });
+            }
+            if (c.section) {
+                classMap.get(c.name)!.sections.push(c.section);
+            }
+        });
+
+    return Array.from(classMap.entries()).map(([name, data]) => ({
+      name,
+      sections: data.sections.sort(),
+      representativeClassId: data.representativeClassId,
+      originalClass: data.originalClass,
+    }));
+
   }, [allClasses, selectedAcademicYear]);
 
 
@@ -142,12 +168,12 @@ export default function ConfigureMarksPage() {
     control: assessmentForm.control, name: "assessments",
   });
 
-  const handleOpenSchemeDialog = async (classItem: SchoolClass) => {
+  const handleOpenSchemeDialog = async (groupedClass: GroupedClass) => {
     if (!authUser?.schoolId) return;
-    const result = await getAssessmentSchemeForClass(classItem._id, authUser.schoolId, selectedAcademicYear, classItem.name);
+    const result = await getAssessmentSchemeForClass(groupedClass.representativeClassId, authUser.schoolId, selectedAcademicYear, groupedClass.name);
     if(result.success && result.scheme) {
       setEditingScheme(result.scheme);
-      setCurrentClassLabel(`${classItem.name} - ${classItem.section}`);
+      setCurrentClassLabel(groupedClass.name);
       assessmentForm.reset({ assessments: result.scheme.assessments });
       setIsSchemeModalOpen(true);
     } else {
@@ -175,7 +201,6 @@ export default function ConfigureMarksPage() {
   
   const handleOpenGradingDialog = (classItem: SchoolClass) => {
     setEditingClassForGrading(classItem);
-    // Use the embedded pattern if it exists, otherwise use the default
     const initialValues = classItem.gradingPattern || { patternName: `${classItem.name} Pattern`, grades: defaultGrades };
     gradingPatternForm.reset(initialValues);
     setIsGradingPatternModalOpen(true);
@@ -205,7 +230,7 @@ export default function ConfigureMarksPage() {
           <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <CardTitle>Class Configurations</CardTitle>
-              <CardDescription>Each class has an independent assessment scheme and grading pattern. Edit them from this table.</CardDescription>
+              <CardDescription>Each class has its own editable scheme and grading pattern, which applies to all sections.</CardDescription>
             </div>
             <div className="flex w-full sm:w-auto items-center gap-2">
                   <Select onValueChange={setSelectedAcademicYear} value={selectedAcademicYear} disabled={isLoading}>
@@ -216,20 +241,22 @@ export default function ConfigureMarksPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? <div className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
-            classesForSelectedYear.length > 0 ? (
+            groupedClassesForYear.length > 0 ? (
               <Table>
                 <TableHeader><TableRow>
                     <TableHead>Class</TableHead>
+                    <TableHead>Sections</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                 </TableRow></TableHeader>
-                <TableBody>{classesForSelectedYear.map((item) => (
-                    <TableRow key={item._id}>
-                      <TableCell className="font-medium">{item.name} - {item.section}</TableCell>
+                <TableBody>{groupedClassesForYear.map((item) => (
+                    <TableRow key={item.name}>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell>{item.sections.join(', ')}</TableCell>
                       <TableCell className="text-right space-x-2">
                           <Button variant="outline" size="sm" onClick={() => handleOpenSchemeDialog(item)}>
                               <GraduationCap className="mr-2 h-4 w-4"/> Edit Scheme
                           </Button>
-                           <Button variant="outline" size="sm" onClick={() => handleOpenGradingDialog(item)}>
+                           <Button variant="outline" size="sm" onClick={() => handleOpenGradingDialog(item.originalClass)}>
                               <SlidersHorizontal className="mr-2 h-4 w-4"/> Edit Grades
                           </Button>
                       </TableCell>
@@ -241,7 +268,7 @@ export default function ConfigureMarksPage() {
       </Card>
       
      <Dialog open={isSchemeModalOpen} onOpenChange={(isOpen) => { if(!isOpen) setEditingScheme(null); setIsSchemeModalOpen(isOpen);}}>
-      <DialogContent className="max-w-4xl"><DialogHeader><DialogTitle>{editingScheme ? `Edit Scheme for ${currentClassLabel}` : 'Edit Assessment Scheme'}</DialogTitle><DialogDescription>Define assessments and their tests. Changes will apply to this class.</DialogDescription></DialogHeader>
+      <DialogContent className="max-w-4xl"><DialogHeader><DialogTitle>{editingScheme ? `Edit Scheme for Class ${currentClassLabel}` : 'Edit Assessment Scheme'}</DialogTitle><DialogDescription>Define assessments and their tests. Changes will apply to all sections of this class.</DialogDescription></DialogHeader>
         <Form {...assessmentForm}>
           <form onSubmit={assessmentForm.handleSubmit(onAssessmentSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
               <div>
@@ -272,8 +299,8 @@ export default function ConfigureMarksPage() {
     <Dialog open={isGradingPatternModalOpen} onOpenChange={setIsGradingPatternModalOpen}>
         <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit Grading for {editingClassForGrading?.name} - {editingClassForGrading?.section}</DialogTitle>
-              <DialogDescription>Set the grade labels and percentage ranges for this specific class.</DialogDescription>
+              <DialogTitle>Edit Grading for {editingClassForGrading?.name}</DialogTitle>
+              <DialogDescription>Set the grade labels and percentage ranges for this specific class. This will apply to all sections.</DialogDescription>
             </DialogHeader>
             <Form {...gradingPatternForm}>
                 <form onSubmit={gradingPatternForm.handleSubmit(onGradingPatternSubmit)} className="space-y-4">
