@@ -149,8 +149,9 @@ export default function TeacherMarksEntryPage() {
   // Fetch assessment scheme when class changes
   useEffect(() => {
     const fetchScheme = async () => {
-      if (selectedClassId && authUser?.schoolId && selectedAcademicYear) {
-        const schemeResult = await getAssessmentSchemeForClass(selectedClassId, authUser.schoolId, selectedAcademicYear);
+      const selectedClassInfo = allTaughtSubjects.find(s => s.classId === selectedClassId);
+      if (selectedClassId && authUser?.schoolId && selectedAcademicYear && selectedClassInfo?.className) {
+        const schemeResult = await getAssessmentSchemeForClass(selectedClassInfo.className, authUser.schoolId, selectedAcademicYear);
         if (schemeResult.success && schemeResult.scheme) {
           setAssessmentScheme(schemeResult.scheme);
         } else {
@@ -163,7 +164,7 @@ export default function TeacherMarksEntryPage() {
       setSelectedAssessmentName(""); // Reset assessment selection
     };
     fetchScheme();
-  }, [selectedClassId, authUser?.schoolId, selectedAcademicYear, toast]);
+  }, [selectedClassId, allTaughtSubjects, authUser?.schoolId, selectedAcademicYear, toast]);
 
 
   const fetchStudentsAndMarks = useCallback(async () => {
@@ -340,4 +341,4 @@ export default function TeacherMarksEntryPage() {
   );
 }
 
-  
+    

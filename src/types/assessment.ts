@@ -15,7 +15,6 @@ const assessmentGroupSchema = z.object({
 });
 
 export const assessmentSchemeSchema = z.object({
-  schemeName: z.string().min(3, "Scheme Name is required (e.g., Primary Wing Scheme).").optional(),
   assessments: z.array(assessmentGroupSchema).min(1, "At least one assessment group is required."),
 });
 
@@ -24,9 +23,8 @@ export type AssessmentSchemeFormData = z.infer<typeof assessmentSchemeSchema>;
 export interface AssessmentScheme {
   _id: ObjectId | string;
   schoolId: ObjectId | string;
-  classId: ObjectId | string;
+  className: string; // Changed from classId
   academicYear: string;
-  schemeName: string;
   assessments: {
     groupName: string;
     tests: {
@@ -69,3 +67,5 @@ export const defaultGrades: GradingPatternFormData['grades'] = [
   { label: 'D1', minPercentage: 35, maxPercentage: 40 },
   { label: 'D2', minPercentage: 0, maxPercentage: 34 },
 ];
+
+    

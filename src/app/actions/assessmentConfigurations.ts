@@ -26,8 +26,8 @@ export interface AssessmentSchemesResult {
   schemes?: AssessmentScheme[];
 }
 
-// Default structure for a new assessment scheme when one doesn't exist for a class.
-const defaultSchemeStructure: Omit<AssessmentScheme, '_id' | 'schoolId' | 'classId' | 'academicYear' | 'schemeName'> = {
+// Default structure for a new assessment scheme.
+const defaultSchemeStructure: Omit<AssessmentScheme, '_id' | 'schoolId' | 'className' | 'academicYear'> = {
     assessments: [
         { groupName: 'FA1', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
         { groupName: 'FA2', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
@@ -40,29 +40,28 @@ const defaultSchemeStructure: Omit<AssessmentScheme, '_id' | 'schoolId' | 'class
 
 // --- Assessment Scheme Actions ---
 
-// Get or create a scheme for a specific class
-export async function getAssessmentSchemeForClass(classId: string, schoolId: string, academicYear: string, className?: string): Promise<AssessmentSchemeResult> {
+// Get or create a scheme for a specific class NAME.
+export async function getAssessmentSchemeForClass(className: string, schoolId: string, academicYear: string): Promise<AssessmentSchemeResult> {
   try {
-    if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
-      return { success: false, message: 'Invalid School or Class ID.' };
+    if (!ObjectId.isValid(schoolId)) {
+      return { success: false, message: 'Invalid School ID.' };
     }
     
     const { db } = await connectToDatabase();
     const collection = db.collection('assessment_schemes');
     
     let schemeDoc = await collection.findOne({ 
-      classId: new ObjectId(classId),
+      className: className, // Query by class name
       schoolId: new ObjectId(schoolId),
       academicYear: academicYear,
     });
 
-    // If it doesn't exist for the class, create it based on the default structure.
+    // If it doesn't exist for the class name, create it.
     if (!schemeDoc) {
         const newSchemeData = {
             schoolId: new ObjectId(schoolId),
-            classId: new ObjectId(classId),
+            className: className, // Store the class name
             academicYear: academicYear,
-            schemeName: `Scheme for ${className || classId}`,
             ...defaultSchemeStructure,
             createdBy: 'system',
             createdAt: new Date(),
@@ -79,9 +78,8 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
     const finalScheme: AssessmentScheme = {
         _id: schemeDoc._id.toString(),
         schoolId: schemeDoc.schoolId.toString(),
-        classId: schemeDoc.classId.toString(),
+        className: schemeDoc.className,
         academicYear: schemeDoc.academicYear,
-        schemeName: schemeDoc.schemeName,
         assessments: schemeDoc.assessments,
         createdBy: schemeDoc.createdBy?.toString(),
         createdAt: new Date(schemeDoc.createdAt).toISOString(),
@@ -102,16 +100,14 @@ export async function getAssessmentSchemeForClass(classId: string, schoolId: str
 export async function updateAssessmentScheme(
   schemeId: string,
   schoolId: string,
-  formData: Omit<AssessmentSchemeFormData, 'schemeName'>, // schemeName is now optional
+  formData: AssessmentSchemeFormData,
 ): Promise<AssessmentSchemeResult> {
     try {
         if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(schemeId)) {
             return { success: false, message: 'Invalid School or Scheme ID format.' };
         }
         
-        // Use a more specific schema that doesn't require schemeName for updates
-        const updateSchema = assessmentSchemeSchema.omit({ schemeName: true });
-        const validatedFields = updateSchema.safeParse(formData);
+        const validatedFields = assessmentSchemeSchema.safeParse(formData);
         
         if (!validatedFields.success) {
             return { success: false, message: 'Validation failed.', error: validatedFields.error.flatten().fieldErrors.toString() };
@@ -176,3 +172,5 @@ export async function updateGradingForClass(
     return { success: false, message: 'An unexpected error occurred during grading update.' };
   }
 }
+
+    

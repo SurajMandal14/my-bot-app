@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import type { SchoolClass } from "@/types/classes";
 
 
-function AssessmentGroupTests({ control, groupIndex }: { control: Control<Omit<AssessmentSchemeFormData, 'schemeName'>>, groupIndex: number }) {
+function AssessmentGroupTests({ control, groupIndex }: { control: Control<AssessmentSchemeFormData>, groupIndex: number }) {
   const { fields: testFields, append: appendTest, remove: removeTest } = useFieldArray({
     control: control,
     name: `assessments.${groupIndex}.tests`,
@@ -54,8 +55,8 @@ function GradePatternForm({ control }: { control: Control<GradingPatternFormData
         <Card key={field.id} className="p-4 bg-muted/50">
           <div className="grid grid-cols-3 gap-2 items-end">
             <FormField control={control} name={`grades.${index}.label`} render={({ field }) => (<FormItem><FormLabel>Grade</FormLabel><FormControl><Input placeholder="A1" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={control} name={`grades.${index}.minPercentage`} render={({ field }) => (<FormItem><FormLabel>Min %</FormLabel><FormControl><Input type="number" placeholder="91" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={control} name={`grades.${index}.maxPercentage`} render={({ field }) => (<FormItem><FormLabel>Max %</FormLabel><FormControl><Input type="number" placeholder="100" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={control} name={`grades.${index}.minPercentage`} render={({ field }) => (<FormItem><FormLabel>Min %</FormLabel><FormControl><Input type="number" placeholder="91" {...field} onChange={e => field.onChange(Number(e.target.value))}/></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={control} name={`grades.${index}.maxPercentage`} render={({ field }) => (<FormItem><FormLabel>Max %</FormLabel><FormControl><Input type="number" placeholder="100" {...field} onChange={e => field.onChange(Number(e.target.value))}/></FormControl><FormMessage /></FormItem>)}/>
           </div>
            {fields.length > 1 && <Button type="button" variant="link" size="sm" className="text-destructive h-auto p-1 mt-1" onClick={() => remove(index)}>Remove</Button>}
         </Card>
@@ -70,8 +71,8 @@ function GradePatternForm({ control }: { control: Control<GradingPatternFormData
 interface GroupedClass {
     name: string;
     sections: string[];
-    representativeClassId: string; // The ID of the first section, used to fetch/edit the shared scheme
-    originalClass: SchoolClass; // Keep the original object for grading edits
+    representativeClassId: string;
+    originalClass: SchoolClass;
 }
 
 export default function ConfigureMarksPage() {
@@ -160,8 +161,8 @@ export default function ConfigureMarksPage() {
 
 
   // --- Assessment Scheme Logic ---
-  const assessmentForm = useForm<Omit<AssessmentSchemeFormData, 'schemeName'>>({
-    resolver: zodResolver(assessmentSchemeSchema.omit({ schemeName: true })),
+  const assessmentForm = useForm<AssessmentSchemeFormData>({
+    resolver: zodResolver(assessmentSchemeSchema),
   });
 
   const { fields: assessmentGroups, append: appendAssessmentGroup, remove: removeAssessmentGroup } = useFieldArray({
@@ -170,7 +171,7 @@ export default function ConfigureMarksPage() {
 
   const handleOpenSchemeDialog = async (groupedClass: GroupedClass) => {
     if (!authUser?.schoolId) return;
-    const result = await getAssessmentSchemeForClass(groupedClass.representativeClassId, authUser.schoolId, selectedAcademicYear, groupedClass.name);
+    const result = await getAssessmentSchemeForClass(groupedClass.name, authUser.schoolId, selectedAcademicYear);
     if(result.success && result.scheme) {
       setEditingScheme(result.scheme);
       setCurrentClassLabel(groupedClass.name);
@@ -181,7 +182,7 @@ export default function ConfigureMarksPage() {
     }
   };
   
-  async function onAssessmentSubmit(data: Omit<AssessmentSchemeFormData, 'schemeName'>) {
+  async function onAssessmentSubmit(data: AssessmentSchemeFormData) {
     if (!authUser?.schoolId || !editingScheme) return;
     setIsSubmittingScheme(true);
     const result = await updateAssessmentScheme(editingScheme._id.toString(), authUser.schoolId.toString(), data);
@@ -317,3 +318,5 @@ export default function ConfigureMarksPage() {
     </div>
   );
 }
+
+    
