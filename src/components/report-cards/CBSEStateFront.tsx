@@ -138,7 +138,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 
     faPeriods.forEach(faPeriod => {
       const periodKey = faPeriod.groupName;
-      const periodMarks = subjectFaData?.[periodKey] || {};
+      const periodMarks = subjectFaData?.[faPeriod.groupName] || {};
       let periodTotal = 0;
       faPeriod.tests.forEach(test => {
         const mark = periodMarks[test.testName];
