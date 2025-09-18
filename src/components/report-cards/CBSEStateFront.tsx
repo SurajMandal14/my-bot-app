@@ -1,9 +1,9 @@
-
 "use client";
 
 import React from 'react';
 import type { SchoolClassSubject } from '@/types/classes';
 import type { UserRole } from '@/types/user';
+import type { AssessmentScheme } from '@/types/assessment';
 
 // Define interfaces for props and state
 export interface StudentData {
@@ -23,17 +23,11 @@ export interface StudentData {
 }
 
 export interface MarksEntry {
-  tool1: number | null;
-  tool2: number | null;
-  tool3: number | null;
-  tool4: number | null; // This is the 20M tool
+  [key: string]: number | null; // Allow dynamic keys for tool names
 }
 
 export interface SubjectFAData {
-  fa1: MarksEntry;
-  fa2: MarksEntry;
-  fa3: MarksEntry;
-  fa4: MarksEntry;
+  [key: string]: MarksEntry; // Allow dynamic keys for FA periods
 }
 
 export interface CoCurricularSAData {
@@ -51,10 +45,10 @@ interface CBSEStateFrontProps {
   
   academicSubjects: SchoolClassSubject[]; 
   faMarks: Record<string, SubjectFAData>; 
-  onFaMarksChange: (subjectIdentifier: string, faPeriod: keyof SubjectFAData, toolKey: keyof MarksEntry, value: string) => void;
+  onFaMarksChange: (subjectIdentifier: string, faPeriodKey: string, toolKey: string, value: string) => void;
   
-  coMarks: CoCurricularSAData[]; // Kept for structure, but rendering removed
-  onCoMarksChange: (subjectIndex: number, saPeriod: 'sa1' | 'sa2' | 'sa3', type: 'Marks' | 'Max', value: string) => void; // Kept for structure
+  coMarks: CoCurricularSAData[];
+  onCoMarksChange: (subjectIndex: number, saPeriod: 'sa1' | 'sa2' | 'sa3', type: 'Marks' | 'Max', value: string) => void;
   
   secondLanguage: 'Hindi' | 'Telugu';
   onSecondLanguageChange: (value: 'Hindi' | 'Telugu') => void;
@@ -64,6 +58,8 @@ interface CBSEStateFrontProps {
 
   currentUserRole: UserRole;
   editableSubjects?: string[];
+
+  assessmentScheme: AssessmentScheme | null;
 }
 
 // Grade scales
@@ -102,14 +98,13 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   academicSubjects, 
   faMarks, 
   onFaMarksChange, 
-  // coMarks, // Prop kept
-  // onCoMarksChange, // Prop kept
   secondLanguage,
   onSecondLanguageChange,
   academicYear,
   onAcademicYearChange,
   currentUserRole,
   editableSubjects = [],
+  assessmentScheme,
 }) => {
 
   const isTeacher = currentUserRole === 'teacher';
@@ -118,49 +113,49 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 
   const isFieldDisabledForRole = (subjectName?: string): boolean => {
     if (isStudent) return true;
-    if (isAdmin && !!studentData.studentIdNo) return true; 
+    if (isAdmin && !!studentData.studentIdNo) return false; 
     if (isTeacher) {
       if (!subjectName) return true; 
       return !editableSubjects.includes(subjectName);
     }
-    return false; 
+    return true; 
   };
 
 
   const calculateFaResults = React.useCallback((subjectIdentifier: string) => {
     const subjectFaData = faMarks[subjectIdentifier];
+    const faPeriods = (assessmentScheme?.assessments || []).filter(a => a.groupName.startsWith('FA'));
     
-    const defaultFaPeriodMarks: MarksEntry = { tool1: null, tool2: null, tool3: null, tool4: null };
-    const defaultSubjectFaDataForCalc: SubjectFAData = { 
-        fa1: {...defaultFaPeriodMarks}, fa2: {...defaultFaPeriodMarks}, 
-        fa3: {...defaultFaPeriodMarks}, fa4: {...defaultFaPeriodMarks}
-    };
-
-    const currentSubjectData = subjectFaData || defaultSubjectFaDataForCalc;
-
     const results: Record<string, { total: number; grade: string }> & { overallTotal: number; overallGrade: string } = {
       overallTotal: 0,
       overallGrade: 'N/A',
     };
     let currentOverallTotal = 0;
 
-    const subjectName = subjectIdentifier; 
-    const isSecondLang = subjectName === secondLanguage;
+    const isSecondLang = subjectIdentifier === secondLanguage;
     const currentFaPeriodGradeScale = isSecondLang ? faPeriodGradeScale2ndLang : faPeriodGradeScale;
 
-    (['fa1', 'fa2', 'fa3', 'fa4'] as const).forEach(faPeriodKey => {
-      const periodMarks = currentSubjectData[faPeriodKey]; 
-      const periodTotal = (periodMarks.tool1 || 0) + (periodMarks.tool2 || 0) + (periodMarks.tool3 || 0) + (periodMarks.tool4 || 0);
+    faPeriods.forEach(faPeriod => {
+      const periodKey = faPeriod.groupName;
+      const periodMarks = subjectFaData?.[periodKey] || {};
+      let periodTotal = 0;
+      faPeriod.tests.forEach(test => {
+        periodTotal += periodMarks[test.testName] || 0;
+      });
+      
       currentOverallTotal += periodTotal;
-      results[faPeriodKey] = {
+      results[periodKey] = {
         total: periodTotal,
         grade: getGrade(periodTotal, currentFaPeriodGradeScale),
       };
     });
+
     results.overallTotal = currentOverallTotal;
     results.overallGrade = getGrade(currentOverallTotal, overallSubjectGradeScale); 
     return results;
-  }, [faMarks, secondLanguage]);
+  }, [faMarks, secondLanguage, assessmentScheme]);
+
+  const faPeriods = (assessmentScheme?.assessments || []).filter(a => a.groupName.startsWith("FA"));
 
 
   return (
@@ -315,53 +310,52 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             <tr>
               <th rowSpan={2}>Sl. No</th>
               <th rowSpan={2}>Subject</th>
-              <th colSpan={6}>FA-1 (50M)</th>
-              <th colSpan={6}>FA-2 (50M)</th>
-              <th colSpan={6}>FA-3 (50M)</th>
-              <th colSpan={6}>FA-4 (50M)</th>
+              {faPeriods.map(period => (
+                <th key={period.groupName} colSpan={period.tests.length + 2}>{period.groupName} ({period.tests.reduce((sum, t) => sum + t.maxMarks, 0)}M)</th>
+              ))}
               <th rowSpan={2}>TOTAL (200M)</th>
               <th rowSpan={2}>GRADE</th>
             </tr>
             <tr>
-              <th>1</th><th>2</th><th>3</th><th>4(20M)</th><th>Total</th><th>Grade</th>
-              <th>1</th><th>2</th><th>3</th><th>4(20M)</th><th>Total</th><th>Grade</th>
-              <th>1</th><th>2</th><th>3</th><th>4(20M)</th><th>Total</th><th>Grade</th>
-              <th>1</th><th>2</th><th>3</th><th>4(20M)</th><th>Total</th><th>Grade</th>
+              {faPeriods.map(period => (
+                <React.Fragment key={`${period.groupName}-tests`}>
+                  {period.tests.map(test => (
+                    <th key={test.testName}>{test.testName} ({test.maxMarks}M)</th>
+                  ))}
+                  <th>Total</th>
+                  <th>Grade</th>
+                </React.Fragment>
+              ))}
             </tr>
           </thead>
           <tbody>
             {(academicSubjects || []).map((subject, SIndex) => { 
               const subjectIdentifier = subject.name; 
               const isCurrentSubjectDisabled = isFieldDisabledForRole(subjectIdentifier);
-              const subjectFaData = faMarks[subjectIdentifier] || { 
-                fa1: { tool1: null, tool2: null, tool3: null, tool4: null }, 
-                fa2: { tool1: null, tool2: null, tool3: null, tool4: null }, 
-                fa3: { tool1: null, tool2: null, tool3: null, tool4: null }, 
-                fa4: { tool1: null, tool2: null, tool3: null, tool4: null }
-              };
               const results = calculateFaResults(subjectIdentifier);
               return (
                 <tr key={subject.name}>
                   <td>{SIndex + 1}</td>
                   <td style={{textAlign: 'left', paddingLeft: '5px'}}>{subject.name}</td>
-                  {(['fa1', 'fa2', 'fa3', 'fa4'] as const).map(faPeriodKey => {
-                     const periodData = subjectFaData[faPeriodKey];
+                  {faPeriods.map(faPeriod => {
+                     const periodKey = faPeriod.groupName;
+                     const periodData = faMarks[subjectIdentifier]?.[periodKey] || {};
                      return (
-                        <React.Fragment key={faPeriodKey}>
-                        {(['tool1', 'tool2', 'tool3', 'tool4'] as const).map(toolKey => (
-                            <td key={toolKey}>
+                        <React.Fragment key={periodKey}>
+                        {faPeriod.tests.map(test => (
+                            <td key={test.testName}>
                             <input
                                 type="number"
-                                value={periodData[toolKey] ?? ''}
-                                onChange={(e) => onFaMarksChange(subjectIdentifier, faPeriodKey, toolKey, e.target.value)}
-                                max={toolKey === 'tool4' ? 20 : 10}
+                                value={periodData[test.testName] ?? ''}
+                                onChange={(e) => onFaMarksChange(subjectIdentifier, periodKey, test.testName, e.target.value)}
+                                max={test.maxMarks}
                                 min="0"
                                 disabled={isCurrentSubjectDisabled}
                             />
                             </td>
                         ))}
-                        <td>{results[faPeriodKey]?.total ?? ''}</td>
-                        <td>{results[faPeriodKey]?.grade ?? ''}</td>
+                        <td>{results[periodKey]?.total ?? ''}</td>
+                        <td>{results[periodKey]?.grade ?? ''}</td>
                         </React.Fragment>
                      );
                   })}
@@ -373,11 +367,11 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           </tbody>
         </table>
         <p className="small-note">
-          Formative Assessment Tools: (1) Children Participation and Reflections, (2) Project work, (3) Written work, (4) Slip Test (20M)
+          Formative Assessment Tools as configured in Master Admin settings.
         </p>
         
         <p className="small-note" style={{marginTop: '15px'}}>
-            NOTE: In case of Science, Physical Science & Biological Science Teachers conduct & Record Formative Assessment Separately for 50 Marks each. Sum of FA1 to FA4 for Phy.Sci (200M) and Bio.Sci (200M) to be considered for respective rows on backside.
+            NOTE: In case of Science, Physical Science & Biological Science Teachers conduct & Record Formative Assessment Separately for 50 Marks each. Sum of all FAs for Phy.Sci (200M) and Bio.Sci (200M) to be considered for respective rows on backside.
         </p>
       </div>
     </>
@@ -385,4 +379,3 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 };
 
 export default CBSEStateFront;
-

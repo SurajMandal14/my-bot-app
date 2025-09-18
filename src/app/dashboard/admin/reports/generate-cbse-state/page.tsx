@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -16,7 +15,7 @@ import CBSEStateBack, {
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Printer, RotateCcw, Eye, EyeOff, Save, Loader2, User, School as SchoolIconUI, Search as SearchIcon, AlertTriangle, UploadCloud, XOctagon } from 'lucide-react';
+import { FileText, Printer, RotateCcw, Eye, EyeOff, Save, Loader2, User, School as SchoolIconUI, Search as SearchIcon, AlertTriangle, UploadCloud, XOctagon, CheckCircle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -755,6 +754,7 @@ export default function GenerateCBSEStateReportPage() {
                   academicYear={frontAcademicYear} onAcademicYearChange={(val) => {if(!isFieldDisabledForRole()) setFrontAcademicYear(val)}}
                   currentUserRole={currentUserRole}
                   editableSubjects={teacherEditableSubjects}
+                  assessmentScheme={assessmentScheme}
                 />
             </div>
           
@@ -768,6 +768,7 @@ export default function GenerateCBSEStateReportPage() {
                   secondLanguageSubjectName={frontSecondLanguage} 
                   currentUserRole={currentUserRole}
                   editableSubjects={teacherEditableSubjects} 
+                  assessmentScheme={assessmentScheme}
                 />
             </div>
         </div>

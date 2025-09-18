@@ -1,16 +1,16 @@
-
 "use client";
 
 import React from 'react';
 import type { UserRole } from '@/types/user';
 import type { ReportCardSASubjectEntry, ReportCardAttendanceMonth, SAPaperData } from '@/types/report';
+import type { AssessmentScheme } from '@/types/assessment';
 
 export type { ReportCardSASubjectEntry, ReportCardAttendanceMonth, SAPaperData };
 
 
 interface CBSEStateBackProps {
   saData: ReportCardSASubjectEntry[];
-  onSaDataChange: (rowIndex: number, period: 'sa1' | 'sa2', fieldKey: keyof SAPaperData, value: string) => void;
+  onSaDataChange: (rowIndex: number, periodKey: string, fieldKey: string, value: string) => void;
   onFaTotalChange: (rowIndex: number, value: string) => void; 
   
   attendanceData: ReportCardAttendanceMonth[];
@@ -23,6 +23,7 @@ interface CBSEStateBackProps {
 
   currentUserRole: UserRole;
   editableSubjects?: string[];
+  assessmentScheme: AssessmentScheme | null;
 }
 
 // Grading Scales
@@ -52,9 +53,6 @@ const finalGradeScale = (marks: number, _isSecondLang: boolean) => {
 };
 
 const monthNames = ["June", "July", "August", "September", "October", "November", "December", "January", "February", "March", "April"];
-const saSkills = ['as1', 'as2', 'as3', 'as4', 'as5', 'as6'] as const;
-type SaSkillKey = (typeof saSkills)[number];
-
 
 const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
   saData,
@@ -67,6 +65,7 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
   secondLanguageSubjectName,
   currentUserRole,
   editableSubjects = [],
+  assessmentScheme,
 }) => {
 
   const isTeacher = currentUserRole === 'teacher';
@@ -86,14 +85,23 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
   const calculateRowDerivedData = (rowData: ReportCardSASubjectEntry) => {
     const isSecondLang = rowData.subjectName === secondLanguageSubjectName;
 
-    const sa1_data = rowData.sa1 || {};
-    const sa2_data = rowData.sa2 || {};
-    
-    const sa1_total_marks = Object.values(sa1_data).reduce((sum, skill) => sum + (skill?.marks || 0), 0);
-    const sa1_total_max_marks = Object.values(sa1_data).reduce((sum, skill) => sum + (skill?.maxMarks || 0), 0);
+    let sa1_total_marks = 0;
+    let sa1_total_max_marks = 0;
+    if(rowData.sa1) {
+      Object.values(rowData.sa1).forEach(skill => {
+        sa1_total_marks += skill?.marks || 0;
+        sa1_total_max_marks += skill?.maxMarks || 0;
+      });
+    }
 
-    const sa2_total_marks = Object.values(sa2_data).reduce((sum, skill) => sum + (skill?.marks || 0), 0);
-    const sa2_total_max_marks = Object.values(sa2_data).reduce((sum, skill) => sum + (skill?.maxMarks || 0), 0);
+    let sa2_total_marks = 0;
+    let sa2_total_max_marks = 0;
+     if(rowData.sa2) {
+      Object.values(rowData.sa2).forEach(skill => {
+        sa2_total_marks += skill?.marks || 0;
+        sa2_total_max_marks += skill?.maxMarks || 0;
+      });
+    }
     
     const sa1Grade = saGradeScale(sa1_total_marks, sa1_total_max_marks, isSecondLang);
     const sa2Grade = saGradeScale(sa2_total_marks, sa2_total_max_marks, isSecondLang);
@@ -155,6 +163,7 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
   
   const isPageReadOnlyForAdmin = isAdmin;
 
+  const saPeriods = (assessmentScheme?.assessments || []).filter(a => a.groupName.startsWith("SA"));
 
   return (
     <>
@@ -259,17 +268,19 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                 <tr>
                     <th rowSpan={3}>Subject</th>
                     <th rowSpan={3} className="paper-cell">Paper</th>
-                    <th colSpan={8}>Summative Assessment-1 (SA1)</th>
-                    <th colSpan={8}>Summative Assessment-2 (SA2)</th>
+                    {saPeriods.map(sa => (
+                      <th key={sa.groupName} colSpan={sa.tests.length + 2}>{sa.groupName}</th>
+                    ))}
                     <th colSpan={7}>Final Result (Based on FA+SA1 and Internal+SA2)</th>
                 </tr>
                 <tr>
-                    <th colSpan={6}>Assessment Skills</th>
-                    <th rowSpan={2}>Total Marks</th>
-                    <th rowSpan={2}>Grade</th>
-                    <th colSpan={6}>Assessment Skills</th>
-                    <th rowSpan={2}>Total Marks</th>
-                    <th rowSpan={2}>Grade</th>
+                    {saPeriods.map(sa => (
+                      <React.Fragment key={`${sa.groupName}-skills`}>
+                        <th colSpan={sa.tests.length}>Assessment Skills</th>
+                        <th rowSpan={2}>Total Marks</th>
+                        <th rowSpan={2}>Grade</th>
+                      </React.Fragment>
+                    ))}
                     <th rowSpan={2} className="small">FA (Total)</th>
                     <th rowSpan={2} className="small">SA1 (Adj)</th>
                     <th rowSpan={2} className="small">FA(Avg)+SA1 (100M)</th>
@@ -279,12 +290,11 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                     <th rowSpan={2}>GRADE</th>
                 </tr>
                 <tr>
-                    {/* SA1 AS Headers */}
-                    <th>AS1</th><th>AS2</th><th>AS3</th>
-                    <th>AS4</th><th>AS5</th><th>AS6</th>
-                    {/* SA2 AS Headers */}
-                    <th>AS1</th><th>AS2</th><th>AS3</th>
-                    <th>AS4</th><th>AS5</th><th>AS6</th>
+                    {saPeriods.map(sa => (
+                      <React.Fragment key={`${sa.groupName}-tests`}>
+                        {sa.tests.map(test => <th key={test.testName}>{test.testName}</th>)}
+                      </React.Fragment>
+                    ))}
                 </tr>
             </thead>
             <tbody>
@@ -303,31 +313,22 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                             {isFirstPaperOfSubject && <td rowSpan={subjectPaperCount} className="subject-cell">{rowData.subjectName}</td>}
                             <td className="paper-cell">{rowData.paper}</td>
                             
-                            {/* SA1 Marks */}
-                            {saSkills.map(skill => (
-                                <td key={`sa1-${skill}`}>
+                            {/* SA Marks */}
+                            {saPeriods.map(saPeriod => (
+                              <React.Fragment key={saPeriod.groupName}>
+                                {saPeriod.tests.map(test => (
+                                  <td key={test.testName}>
                                     <input type="number" 
-                                        value={rowData.sa1?.[skill]?.marks ?? ''} 
-                                        onChange={e => onSaDataChange(rowIndex, 'sa1', skill, e.target.value)}
-                                        disabled={isInputDisabled} 
+                                      value={(rowData as any)[saPeriod.groupName.toLowerCase()]?.[test.testName.toLowerCase()]?.marks ?? ''} 
+                                      onChange={e => onSaDataChange(rowIndex, saPeriod.groupName.toLowerCase(), test.testName.toLowerCase(), e.target.value)}
+                                      disabled={isInputDisabled} 
                                     />
-                                </td>
+                                  </td>
+                                ))}
+                                <td className="calculated">{saPeriod.groupName === 'SA1' ? derived.sa1Total : derived.sa2Total}</td>
+                                <td className="calculated">{saPeriod.groupName === 'SA1' ? derived.sa1Grade : derived.sa2Grade}</td>
+                              </React.Fragment>
                             ))}
-                            <td className="calculated">{derived.sa1Total}</td>
-                            <td className="calculated">{derived.sa1Grade}</td>
-                            
-                            {/* SA2 Marks */}
-                            {saSkills.map(skill => (
-                                <td key={`sa2-${skill}`}>
-                                    <input type="number" 
-                                        value={rowData.sa2?.[skill]?.marks ?? ''} 
-                                        onChange={e => onSaDataChange(rowIndex, 'sa2', skill, e.target.value)}
-                                        disabled={isInputDisabled} 
-                                    />
-                                </td>
-                            ))}
-                            <td className="calculated">{derived.sa2Total}</td>
-                            <td className="calculated">{derived.sa2Grade}</td>
 
                             {/* Final Result */}
                             <td><input type="number" className="fatotal-input" value={faTotal200M_display} onChange={e => onFaTotalChange(rowIndex, e.target.value)} disabled={isInputDisabled} /></td>
