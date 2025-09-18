@@ -172,5 +172,3 @@ export async function updateGradingForClass(
     return { success: false, message: 'An unexpected error occurred during grading update.' };
   }
 }
-
-    
