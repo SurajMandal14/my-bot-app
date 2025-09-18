@@ -237,7 +237,7 @@ export default function GenerateCBSEStateReportPage() {
             setTeacherEditableSubjects(editableSubs);
           }
           
-          const schemeRes = await getAssessmentSchemeForClass(classRes.classDetails._id.toString(), currentStudent.schoolId!, frontAcademicYear);
+          const schemeRes = await getAssessmentSchemeForClass(classRes.classDetails.name, currentStudent.schoolId!, frontAcademicYear);
           if(schemeRes.success && schemeRes.scheme) {
               currentAssessmentScheme = schemeRes.scheme;
               setAssessmentScheme(schemeRes.scheme);
@@ -794,5 +794,3 @@ export default function GenerateCBSEStateReportPage() {
     </div>
   );
 }
-
-    
