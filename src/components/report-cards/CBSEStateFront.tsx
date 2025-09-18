@@ -86,6 +86,7 @@ const faPeriodGradeScale2ndLang = [
 ];
 
 const getGrade = (totalMarks: number, scale: { min: number; grade: string }[]): string => {
+  if (totalMarks === null) return 'N/A';
   for (let i = 0; i < scale.length; i++) {
     if (totalMarks >= scale[i].min) return scale[i].grade;
   }
@@ -138,7 +139,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 
     faPeriods.forEach(faPeriod => {
       const periodKey = faPeriod.groupName;
-      const periodMarks = subjectFaData?.[faPeriod.groupName] || {};
+      const periodMarks = subjectFaData?.[periodKey] || {};
       let periodTotal = 0;
       faPeriod.tests.forEach(test => {
         const mark = periodMarks[test.testName];
@@ -383,3 +384,5 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 };
 
 export default CBSEStateFront;
+
+    

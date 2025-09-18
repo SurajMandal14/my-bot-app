@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -313,18 +314,24 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                             {isFirstPaperOfSubject && <td rowSpan={subjectPaperCount} className="subject-cell">{rowData.subjectName}</td>}
                             <td className="paper-cell">{rowData.paper}</td>
                             
-                            {/* SA Marks */}
                             {saPeriods.map(saPeriod => (
                               <React.Fragment key={saPeriod.groupName}>
-                                {saPeriod.tests.map(test => (
-                                  <td key={test.testName}>
-                                    <input type="number" 
-                                      value={(rowData as any)[saPeriod.groupName.toLowerCase()]?.[test.testName.toLowerCase()]?.marks ?? ''} 
-                                      onChange={e => onSaDataChange(rowIndex, saPeriod.groupName.toLowerCase(), test.testName.toLowerCase(), e.target.value)}
-                                      disabled={isInputDisabled} 
-                                    />
-                                  </td>
-                                ))}
+                                {saPeriod.tests.map(test => {
+                                  // Find the correct data for the cell
+                                  const periodKey = saPeriod.groupName.toLowerCase() as 'sa1' | 'sa2';
+                                  const testKey = test.testName.toLowerCase() as keyof SAPaperData;
+                                  const cellData = rowData[periodKey]?.[testKey];
+                                  
+                                  return (
+                                    <td key={test.testName}>
+                                      <input type="number" 
+                                        value={cellData?.marks ?? ''} 
+                                        onChange={e => onSaDataChange(rowIndex, periodKey, testKey, e.target.value)}
+                                        disabled={isInputDisabled} 
+                                      />
+                                    </td>
+                                  );
+                                })}
                                 <td className="calculated">{saPeriod.groupName === 'SA1' ? derived.sa1Total : derived.sa2Total}</td>
                                 <td className="calculated">{saPeriod.groupName === 'SA1' ? derived.sa1Grade : derived.sa2Grade}</td>
                               </React.Fragment>
@@ -417,3 +424,5 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
 };
 
 export default CBSEStateBack;
+
+    

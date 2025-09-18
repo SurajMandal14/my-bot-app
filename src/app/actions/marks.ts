@@ -114,27 +114,16 @@ export async function getMarksForAssessment(
 
     const { db } = await connectToDatabase();
     const marksCollection = db.collection<MarkEntry>('marks');
-
-    // More robust regex to handle custom test names (e.g., "FA1-My Custom Test")
-    const queryAssessmentFilter = { $regex: `^${assessmentNameBase}-` };
     
-    let paperFilter = {};
-    if (assessmentNameBase.startsWith("SA") && paper) {
-        paperFilter = { assessmentName: { $regex: `^${assessmentNameBase}-${paper}-` }};
-    } else if (assessmentNameBase.startsWith("SA") && !paper) {
-        // If it's SA but no paper, we need to decide what to do. 
-        // For now, let's assume we fetch all for that SA.
-        paperFilter = { assessmentName: { $regex: `^${assessmentNameBase}-` }};
-    }
-
-    const marks = await marksCollection.find({
+    const query = {
       schoolId: new ObjectId(schoolId),
       classId: new ObjectId(classId),
       subjectId: subjectNameParam,
-      assessmentName: queryAssessmentFilter,
+      assessmentName: { $regex: `^${assessmentNameBase}-` },
       academicYear: academicYear,
-      ...paperFilter
-    }).toArray();
+    };
+
+    const marks = await marksCollection.find(query).toArray();
 
     const marksWithStrId = marks.map(mark => ({
         ...mark,
@@ -254,3 +243,5 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
     return { success: false, error: errorMessage, message: 'Failed to fetch marks for report card.' };
   }
 }
+
+    

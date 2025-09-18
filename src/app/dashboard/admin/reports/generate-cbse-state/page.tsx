@@ -192,7 +192,6 @@ export default function GenerateCBSEStateReportPage() {
         return assessments.slice().sort((a, b) => {
             const aIndex = canonicalOrder.indexOf(a.groupName.split('-')[0].trim());
             const bIndex = canonicalOrder.indexOf(b.groupName.split('-')[0].trim());
-            // If groupName is not in the canonical order, push it to the back
             return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
         });
     };
@@ -341,29 +340,20 @@ export default function GenerateCBSEStateReportPage() {
           if (marksResult.success && marksResult.marks && currentAssessmentScheme) {
             const allFetchedMarks = marksResult.marks;
             
-            // Map fetched marks to the structured state
             allFetchedMarks.forEach(mark => {
                 const subjectIdentifier = mark.subjectName;
 
-                // Find which assessment group and test this mark belongs to
-                currentAssessmentScheme!.assessments.forEach(group => {
-                    group.tests.forEach(test => {
-                        // Assuming mark has `assessmentGroupId` and `assessmentTestId`
-                        // Since it's not there, we fallback to name matching which is the problem.
-                        // We will simulate the correct logic by matching the name for now.
-                        const assessmentName = `${group.groupName}-${test.testName}`;
-                        if (mark.assessmentName === assessmentName) {
-                            if (group.groupName.startsWith("FA")) {
-                                const faPeriodKey = group.groupName.toLowerCase() as keyof SubjectFAData;
-                                const toolKey = test.testName.toLowerCase().replace('tool ','tool') as FaToolKey;
-
-                                if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey]) {
-                                    (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
-                                }
-                            }
-                        }
-                    });
-                });
+                if (newFaMarksForState[subjectIdentifier]) {
+                    const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
+                    const testName = restOfName.join('-');
+                    
+                    const faPeriodKey = assessmentGroup.toLowerCase() as keyof SubjectFAData;
+                    const toolKey = testName.toLowerCase().replace('tool ','tool') as FaToolKey;
+                    
+                    if (newFaMarksForState[subjectIdentifier][faPeriodKey] && testName) {
+                        (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
+                    }
+                }
             });
 
             setFaMarks(newFaMarksForState);
@@ -758,3 +748,4 @@ export default function GenerateCBSEStateReportPage() {
   );
 }
 
+    
