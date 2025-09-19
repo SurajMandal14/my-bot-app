@@ -384,5 +384,3 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 };
 
 export default CBSEStateFront;
-
-    

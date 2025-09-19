@@ -424,5 +424,3 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
 };
 
 export default CBSEStateBack;
-
-    
