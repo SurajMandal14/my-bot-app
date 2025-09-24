@@ -16,7 +16,7 @@ import CBSEStateBack, {
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Printer, RotateCcw, Eye, EyeOff, Save, Loader2, User, School as SchoolIconUI, Search as SearchIcon, AlertTriangle, UploadCloud, XOctagon } from 'lucide-react';
+import { FileText, Printer, RotateCcw, Eye, EyeOff, Save, Loader2, User, School as SchoolIconUI, Search as SearchIcon, AlertTriangle, UploadCloud, XOctagon, AlertDialogTrigger } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +26,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import type { AuthUser, UserRole } from '@/types/user';
@@ -749,6 +748,7 @@ export default function GenerateCBSEStateReportPage() {
                 <CBSEStateFront
                   studentData={studentData} onStudentDataChange={handleStudentDataChange}
                   academicSubjects={loadedClassSubjects} 
+                  assessmentScheme={assessmentScheme}
                   faMarks={faMarks} onFaMarksChange={handleFaMarksChange} 
                   coMarks={coMarks} onCoMarksChange={handleCoMarksChange} 
                   secondLanguage={frontSecondLanguage} onSecondLanguageChange={(val) => { if(!isFieldDisabledForRole()) setFrontSecondLanguage(val)}}
@@ -761,6 +761,7 @@ export default function GenerateCBSEStateReportPage() {
             <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden lg:block' : ''}`}>
                 <CBSEStateBack
                   saData={saData}
+                  assessmentScheme={assessmentScheme}
                   onSaDataChange={handleSaDataChange}
                   onFaTotalChange={handleFaTotalChangeBack}
                   attendanceData={attendanceData} onAttendanceDataChange={handleAttendanceDataChange}

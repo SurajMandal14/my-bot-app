@@ -4,6 +4,7 @@
 import React from 'react';
 import type { SchoolClassSubject } from '@/types/classes';
 import type { UserRole } from '@/types/user';
+import type { AssessmentScheme } from '@/types/assessment';
 
 // Define interfaces for props and state
 export interface StudentData {
@@ -50,6 +51,7 @@ interface CBSEStateFrontProps {
   onStudentDataChange: (field: keyof StudentData, value: string) => void;
   
   academicSubjects: SchoolClassSubject[]; 
+  assessmentScheme: AssessmentScheme | null;
   faMarks: Record<string, SubjectFAData>; 
   onFaMarksChange: (subjectIdentifier: string, faPeriod: keyof SubjectFAData, toolKey: keyof MarksEntry, value: string) => void;
   
@@ -100,6 +102,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   studentData,
   onStudentDataChange,
   academicSubjects, 
+  assessmentScheme,
   faMarks, 
   onFaMarksChange, 
   // coMarks, // Prop kept
@@ -148,19 +151,23 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
     const isSecondLang = subjectName === secondLanguage;
     const currentFaPeriodGradeScale = isSecondLang ? faPeriodGradeScale2ndLang : faPeriodGradeScale;
 
-    (['fa1', 'fa2', 'fa3', 'fa4'] as const).forEach(faPeriodKey => {
-      const periodMarks = currentSubjectData[faPeriodKey]; 
-      const periodTotal = (periodMarks.tool1 || 0) + (periodMarks.tool2 || 0) + (periodMarks.tool3 || 0) + (periodMarks.tool4 || 0);
-      currentOverallTotal += periodTotal;
-      results[faPeriodKey] = {
-        total: periodTotal,
-        grade: getGrade(periodTotal, currentFaPeriodGradeScale),
-      };
-    });
+    (assessmentScheme?.assessments || [])
+      .filter(a => a.groupName.startsWith("FA"))
+      .forEach(assessment => {
+        const faPeriodKey = assessment.groupName.toLowerCase() as keyof SubjectFAData;
+        const periodMarks = currentSubjectData[faPeriodKey]; 
+        const periodTotal = (periodMarks.tool1 || 0) + (periodMarks.tool2 || 0) + (periodMarks.tool3 || 0) + (periodMarks.tool4 || 0);
+        currentOverallTotal += periodTotal;
+        results[faPeriodKey] = {
+          total: periodTotal,
+          grade: getGrade(periodTotal, currentFaPeriodGradeScale),
+        };
+      });
+      
     results.overallTotal = currentOverallTotal;
     results.overallGrade = getGrade(currentOverallTotal, overallSubjectGradeScale); 
     return results;
-  }, [faMarks, secondLanguage]);
+  }, [faMarks, secondLanguage, assessmentScheme]);
 
 
   return (
@@ -315,18 +322,21 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             <tr>
               <th rowSpan={2}>Sl. No</th>
               <th rowSpan={2}>Subject</th>
-              <th colSpan={6}>FA-1 (50M)</th>
-              <th colSpan={6}>FA-2 (50M)</th>
-              <th colSpan={6}>FA-3 (50M)</th>
-              <th colSpan={6}>FA-4 (50M)</th>
+              {(assessmentScheme?.assessments || []).filter(a => a.groupName.startsWith("FA")).map(assessment => (
+                  <th key={assessment.groupName} colSpan={6}>{assessment.groupName} (50M)</th>
+              ))}
               <th rowSpan={2}>TOTAL (200M)</th>
               <th rowSpan={2}>GRADE</th>
             </tr>
             <tr>
-              <th>1</th><th>2</th><th>3</th><th>4(20M)</th><th>Total</th><th>Grade</th>
-              <th>1</th><th>2</th><th>3</th><th>4(20M)</th><th>Total</th><th>Grade</th>
-              <th>1</th><th>2</th><th>3</th><th>4(20M)</th><th>Total</th><th>Grade</th>
-              <th>1</th><th>2</th><th>3</th><th>4(20M)</th><th>Total</th><th>Grade</th>
+              {(assessmentScheme?.assessments || []).filter(a => a.groupName.startsWith("FA")).flatMap(assessment => 
+                  assessment.tests.map((test, index) => (
+                      <th key={`${assessment.groupName}-${test.testName}`}>{test.testName} {test.maxMarks !== 10 ? `(${test.maxMarks}M)` : ''}</th>
+                  )).concat([
+                      <th key={`${assessment.groupName}-Total`}>Total</th>,
+                      <th key={`${assessment.groupName}-Grade`}>Grade</th>
+                  ])
+              )}
             </tr>
           </thead>
           <tbody>
@@ -344,22 +354,26 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                 <tr key={subject.name}>
                   <td>{SIndex + 1}</td>
                   <td style={{textAlign: 'left', paddingLeft: '5px'}}>{subject.name}</td>
-                  {(['fa1', 'fa2', 'fa3', 'fa4'] as const).map(faPeriodKey => {
+                  {(assessmentScheme?.assessments || []).filter(a => a.groupName.startsWith("FA")).map(assessment => {
+                     const faPeriodKey = assessment.groupName.toLowerCase() as keyof SubjectFAData;
                      const periodData = subjectFaData[faPeriodKey];
                      return (
                         <React.Fragment key={faPeriodKey}>
-                        {(['tool1', 'tool2', 'tool3', 'tool4'] as const).map(toolKey => (
-                            <td key={toolKey}>
-                            <input
-                                type="number"
-                                value={periodData[toolKey] ?? ''}
-                                onChange={(e) => onFaMarksChange(subjectIdentifier, faPeriodKey, toolKey, e.target.value)}
-                                max={toolKey === 'tool4' ? 20 : 10}
-                                min="0"
-                                disabled={isCurrentSubjectDisabled}
-                            />
-                            </td>
-                        ))}
+                        {assessment.tests.map((test, testIndex) => {
+                            const toolKey = `tool${testIndex+1}` as keyof MarksEntry;
+                            return (
+                                <td key={`${faPeriodKey}-${toolKey}`}>
+                                <input
+                                    type="number"
+                                    value={periodData[toolKey] ?? ''}
+                                    onChange={(e) => onFaMarksChange(subjectIdentifier, faPeriodKey, toolKey, e.target.value)}
+                                    max={test.maxMarks}
+                                    min="0"
+                                    disabled={isCurrentSubjectDisabled}
+                                />
+                                </td>
+                            );
+                        })}
                         <td>{results[faPeriodKey]?.total ?? ''}</td>
                         <td>{results[faPeriodKey]?.grade ?? ''}</td>
                         </React.Fragment>
@@ -385,4 +399,3 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 };
 
 export default CBSEStateFront;
-
