@@ -153,12 +153,12 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 
     (assessmentScheme?.assessments || [])
       .filter(a => a.groupName.startsWith("FA"))
-      .forEach(assessment => {
-        const faPeriodKey = assessment.groupName.toLowerCase() as keyof SubjectFAData;
-        const periodMarks = currentSubjectData[faPeriodKey]; 
+      .forEach((assessment, index) => {
+        const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
+        const periodMarks = currentSubjectData[faPeriodKey] || defaultFaPeriodMarks; 
         const periodTotal = (periodMarks.tool1 || 0) + (periodMarks.tool2 || 0) + (periodMarks.tool3 || 0) + (periodMarks.tool4 || 0);
         currentOverallTotal += periodTotal;
-        results[faPeriodKey] = {
+        results[assessment.groupName] = { // Use dynamic group name for results key
           total: periodTotal,
           grade: getGrade(periodTotal, currentFaPeriodGradeScale),
         };
@@ -354,8 +354,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                 <tr key={subject.name}>
                   <td>{SIndex + 1}</td>
                   <td style={{textAlign: 'left', paddingLeft: '5px'}}>{subject.name}</td>
-                  {(assessmentScheme?.assessments || []).filter(a => a.groupName.startsWith("FA")).map(assessment => {
-                     const faPeriodKey = assessment.groupName.toLowerCase() as keyof SubjectFAData;
+                  {(assessmentScheme?.assessments || []).filter(a => a.groupName.startsWith("FA")).map((assessment, index) => {
+                     const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
                      const periodData = subjectFaData[faPeriodKey];
                      return (
                         <React.Fragment key={faPeriodKey}>
@@ -365,7 +365,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                                 <td key={`${faPeriodKey}-${toolKey}`}>
                                 <input
                                     type="number"
-                                    value={periodData[toolKey] ?? ''}
+                                    value={periodData?.[toolKey] ?? ''}
                                     onChange={(e) => onFaMarksChange(subjectIdentifier, faPeriodKey, toolKey, e.target.value)}
                                     max={test.maxMarks}
                                     min="0"
@@ -374,8 +374,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                                 </td>
                             );
                         })}
-                        <td>{results[faPeriodKey]?.total ?? ''}</td>
-                        <td>{results[faPeriodKey]?.grade ?? ''}</td>
+                        <td>{results[assessment.groupName]?.total ?? ''}</td>
+                        <td>{results[assessment.groupName]?.grade ?? ''}</td>
                         </React.Fragment>
                      );
                   })}
