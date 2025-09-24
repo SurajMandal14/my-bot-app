@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search, ArrowUpDown, Bus, Download, History, X, ArrowLeft, ArrowRight } from "lucide-react";
+import { DollarSign, Printer, Loader2, Info, CalendarDays, BadgePercent, Search, ArrowUpDown, Bus, Download, History, X, ArrowLeft, ArrowRight, Edit } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser } from "@/types/attendance";
@@ -23,7 +23,7 @@ import { PAYMENT_METHODS, PAYMENT_TOWARDS_OPTIONS } from "@/types/fees";
 import type { FeeConcession } from "@/types/concessions";
 import { getSchoolUsers } from "@/app/actions/schoolUsers";
 import { getSchoolById } from "@/app/actions/schools";
-import { recordFeePayment, getFeePaymentsBySchool } from "@/app/actions/fees";
+import { recordFeePayment, getFeePaymentsBySchool, updateFeePayment } from "@/app/actions/fees";
 import { getFeeConcessionsForSchool } from "@/app/actions/concessions";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
 import { format } from "date-fns";
@@ -79,6 +79,8 @@ interface BusFeeSummary {
     collectionPercentage: number;
 }
 
+type StudentSortKeys = 'name' | 'admissionId' | 'dueAmount';
+
 export default function FeeManagementPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [schoolDetails, setSchoolDetails] = useState<School | null>(null);
@@ -94,6 +96,7 @@ export default function FeeManagementPage() {
   const [selectedBusFeeRoute, setSelectedBusFeeRoute] = useState<BusFeeSummary | null>(null);
   const [studentToRecordPayment, setStudentToRecordPayment] = useState<StudentFeeDetailsProcessed | null>(null);
   const [studentForHistory, setStudentForHistory] = useState<StudentFeeDetailsProcessed | null>(null);
+  const [paymentToEdit, setPaymentToEdit] = useState<FeePayment | null>(null);
 
   const [paymentAmount, setPaymentAmount] = useState<number | string>("");
   const [paymentDate, setPaymentDate] = useState<Date | undefined>(undefined);
@@ -112,6 +115,9 @@ export default function FeeManagementPage() {
 
   const [busFeeSearchTerm, setBusFeeSearchTerm] = useState("");
   const [busFeeSummaries, setBusFeeSummaries] = useState<BusFeeSummary[]>([]);
+  
+  const [studentFilter, setStudentFilter] = useState('');
+  const [studentSortConfig, setStudentSortConfig] = useState<{ key: StudentSortKeys; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
 
   const [historyFilterType, setHistoryFilterType] = useState<'all' | 'bus_fees_only'>('all');
 
@@ -229,8 +235,38 @@ export default function FeeManagementPage() {
 
   const studentsInSelectedClass = useMemo(() => {
     if (!selectedClass) return [];
-    return studentFeeList.filter(s => s.classLabel === selectedClass.className);
-  }, [selectedClass, studentFeeList]);
+    
+    let filtered = studentFeeList.filter(s => s.classLabel === selectedClass.className);
+    
+    if (studentFilter) {
+      const lowercasedFilter = studentFilter.toLowerCase();
+      filtered = filtered.filter(s =>
+        s.name?.toLowerCase().includes(lowercasedFilter) ||
+        s.admissionId?.toLowerCase().includes(lowercasedFilter)
+      );
+    }
+    
+    return filtered.sort((a, b) => {
+        const { key, direction } = studentSortConfig;
+        if (!a[key] && !b[key]) return 0;
+        if (!a[key]) return 1;
+        if (!b[key]) return -1;
+        
+        let aVal = a[key];
+        let bVal = b[key];
+        
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+            return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        }
+        
+        if(typeof aVal === 'number' && typeof bVal === 'number') {
+            return direction === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+        
+        return 0;
+    });
+
+  }, [selectedClass, studentFeeList, studentFilter, studentSortConfig]);
   
   const studentsInSelectedBusRoute = useMemo(() => {
     if (!selectedBusFeeRoute) return [];
@@ -253,6 +289,16 @@ export default function FeeManagementPage() {
       setPaymentNotes("");
     }
   }, [studentToRecordPayment]);
+  
+  useEffect(() => {
+    if (paymentToEdit) {
+      setPaymentAmount(paymentToEdit.amountPaid);
+      setPaymentDate(new Date(paymentToEdit.paymentDate));
+      setPaymentMethod(paymentToEdit.paymentMethod || "");
+      setPaymentTowards(paymentToEdit.paymentTowards || "");
+      setPaymentNotes(paymentToEdit.notes || "");
+    }
+  }, [paymentToEdit]);
 
   useEffect(() => {
     if (!schoolDetails || studentFeeList.length === 0) {
@@ -345,6 +391,29 @@ export default function FeeManagementPage() {
     setIsSubmittingPayment(false);
   };
   
+  const handleUpdatePayment = async () => {
+    if (!paymentToEdit || !paymentAmount || +paymentAmount <= 0 || !paymentDate || !paymentTowards) {
+      toast({ variant: "destructive", title: "Missing Information", description: "Please fill all required fields to update the payment."});
+      return;
+    }
+    setIsSubmittingPayment(true);
+    const payload = {
+        amountPaid: +paymentAmount, paymentDate: paymentDate,
+        paymentMethod: paymentMethod || undefined, paymentTowards: paymentTowards, notes: paymentNotes || undefined,
+    };
+    
+    const result = await updateFeePayment(paymentToEdit._id.toString(), payload);
+    if (result.success) {
+      toast({ title: "Payment Updated", description: result.message });
+      loadReportData();
+      setPaymentToEdit(null);
+      setStudentForHistory(null); // Close history dialog
+    } else {
+      toast({ variant: "destructive", title: "Update Failed", description: result.error || result.message });
+    }
+    setIsSubmittingPayment(false);
+  };
+
   const handlePrintReceipt = (paymentId: string) => {
     window.open(`/dashboard/admin/fees/receipt/${paymentId}`, '_blank');
   };
@@ -456,6 +525,18 @@ export default function FeeManagementPage() {
     
     return filteredPayments.sort((a,b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
   }, [allSchoolPayments, studentForHistory, historyFilterType]);
+  
+  const handleSort = (key: StudentSortKeys) => {
+    setStudentSortConfig(prev => ({
+        key,
+        direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+  
+  const renderSortIcon = (key: StudentSortKeys) => {
+      if (studentSortConfig.key !== key) return <ArrowUpDown className="ml-2 h-4 w-4" />;
+      return studentSortConfig.direction === 'asc' ? '▲' : '▼';
+  };
 
   if (!authUser) {
     if (!isLoading) return <Card><CardHeader><CardTitle>Access Denied</CardTitle></CardHeader><CardContent><p>Please log in as an admin.</p></CardContent></Card>;
@@ -536,22 +617,31 @@ export default function FeeManagementPage() {
       {selectedClass && (
         <Card>
             <CardHeader>
-                <div className="flex justify-between items-center">
-                    <CardTitle>Fee Details for Class: {selectedClass.className}</CardTitle>
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+                    <div>
+                        <CardTitle>Fee Details for Class: {selectedClass.className}</CardTitle>
+                        <CardDescription>Detailed fee breakdown for each student in the selected class.</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <Input placeholder="Filter students..." className="flex-1" value={studentFilter} onChange={(e) => setStudentFilter(e.target.value)}/>
                        <Button onClick={handleDownloadStudentList} variant="outline" size="sm" disabled={isDownloadingStudentList}>
                             {isDownloadingStudentList ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}
-                            Download List
+                            Download
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => setSelectedClass(null)}><X className="h-5 w-5"/></Button>
                     </div>
                 </div>
-                <CardDescription>Detailed fee breakdown for each student in the selected class.</CardDescription>
             </CardHeader>
             <CardContent>
                 {studentsInSelectedClass.length > 0 ? (
                     <Table>
-                        <TableHeader><TableRow><TableHead>Student Name</TableHead><TableHead>Admission No.</TableHead><TableHead className="text-right">School Fee</TableHead><TableHead className="text-right">Bus Fee</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Amount Paid</TableHead><TableHead className="text-right">Amount Due</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow>
+                            <TableHead><Button variant="ghost" onClick={() => handleSort('name')}>Student Name {renderSortIcon('name')}</Button></TableHead>
+                            <TableHead><Button variant="ghost" onClick={() => handleSort('admissionId')}>Admission No. {renderSortIcon('admissionId')}</Button></TableHead>
+                            <TableHead className="text-right">School Fee</TableHead><TableHead className="text-right">Bus Fee</TableHead><TableHead className="text-right">Concessions</TableHead><TableHead className="text-right">Amount Paid</TableHead>
+                            <TableHead className="text-right"><Button variant="ghost" onClick={() => handleSort('dueAmount')}>Amount Due {renderSortIcon('dueAmount')}</Button></TableHead>
+                            <TableHead className="text-center">Actions</TableHead>
+                        </TableRow></TableHeader>
                         <TableBody>
                             {studentsInSelectedClass.map(student => (
                                 <TableRow key={student._id}>
@@ -571,7 +661,7 @@ export default function FeeManagementPage() {
                         </TableBody>
                     </Table>
                 ) : (
-                    <p className="text-center text-muted-foreground py-4">No students found in this class for the selected academic year.</p>
+                    <p className="text-center text-muted-foreground py-4">No students found that match your filter.</p>
                 )}
             </CardContent>
         </Card>
@@ -637,6 +727,29 @@ export default function FeeManagementPage() {
         </DialogContent>
       </Dialog>
       
+      <Dialog open={!!paymentToEdit} onOpenChange={(isOpen) => !isOpen && setPaymentToEdit(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Edit Payment for {studentForHistory?.name}</DialogTitle>
+                <DialogDescription>Update the details for this payment record.</DialogDescription>
+            </DialogHeader>
+            <div className="pt-2 space-y-3">
+                <div><Label htmlFor="edit-payment-towards">Payment Towards</Label><Select value={paymentTowards} onValueChange={(v) => setPaymentTowards(v as PaymentTowards)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select purpose..."/></SelectTrigger><SelectContent>{PAYMENT_TOWARDS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label htmlFor="edit-payment-amount">Payment Amount (<span className="font-sans">₹</span>)</Label><Input id="edit-payment-amount" type="number" placeholder="Enter amount" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} disabled={isSubmittingPayment}/></div>
+                <div><Label htmlFor="edit-payment-date">Payment Date</Label><Popover><PopoverTrigger asChild><Button id="edit-payment-date" variant={"outline"} className="w-full justify-start text-left font-normal" disabled={isSubmittingPayment || !paymentDate}><CalendarDays className="mr-2 h-4 w-4" />{paymentDate ? format(paymentDate, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={paymentDate} onSelect={setPaymentDate} initialFocus disabled={(date) => date > new Date()}/></PopoverContent></Popover></div>
+                <div><Label htmlFor="edit-payment-method">Payment Method (Optional)</Label><Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)} disabled={isSubmittingPayment}><SelectTrigger><SelectValue placeholder="Select method..."/></SelectTrigger><SelectContent>{PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label htmlFor="edit-payment-notes">Notes</Label><Textarea id="edit-payment-notes" placeholder="e.g., Part payment for Term 1" value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} disabled={isSubmittingPayment}/></div>
+            </div>
+            <DialogFooter>
+                <Button onClick={() => setPaymentToEdit(null)} variant="outline">Cancel</Button>
+                <Button onClick={handleUpdatePayment} disabled={!paymentAmount || +paymentAmount <= 0 || isSubmittingPayment || !paymentTowards}>
+                    {isSubmittingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Update Payment
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
       <Dialog open={!!studentForHistory} onOpenChange={(isOpen) => !isOpen && setStudentForHistory(null)}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
@@ -658,8 +771,9 @@ export default function FeeManagementPage() {
                                     <TableCell>{payment.paymentTowards || 'N/A'}</TableCell>
                                     <TableCell>{payment.paymentMethod || 'N/A'}</TableCell>
                                     <TableCell>{payment.notes || 'N/A'}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="sm" onClick={() => handlePrintReceipt(payment._id.toString())}><Printer className="mr-2 h-4 w-4"/>Print</Button>
+                                    <TableCell className="text-right space-x-1">
+                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setPaymentToEdit(payment)}><Edit className="h-4 w-4"/></Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handlePrintReceipt(payment._id.toString())}><Printer className="h-4 w-4"/></Button>
                                     </TableCell>
                                 </TableRow>
                             ))}

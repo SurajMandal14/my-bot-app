@@ -21,14 +21,23 @@ const feePaymentPayloadSchema = z.object({
   notes: z.string().optional(),
 });
 
-export interface RecordFeePaymentResult {
+// Create a separate schema for updates, as not all fields are required/editable.
+const updateFeePaymentPayloadSchema = feePaymentPayloadSchema.omit({
+    studentId: true,
+    studentName: true,
+    schoolId: true,
+    classId: true,
+    recordedByAdminId: true,
+});
+
+export interface FeePaymentResult {
   success: boolean;
   message: string;
   error?: string;
   payment?: FeePayment;
 }
 
-export async function recordFeePayment(payload: FeePaymentPayload): Promise<RecordFeePaymentResult> {
+export async function recordFeePayment(payload: FeePaymentPayload): Promise<FeePaymentResult> {
   try {
     const validatedPayload = feePaymentPayloadSchema.safeParse(payload);
     if (!validatedPayload.success) {
@@ -85,6 +94,55 @@ export async function recordFeePayment(payload: FeePaymentPayload): Promise<Reco
     return { success: false, message: 'An unexpected error occurred during payment recording.', error: errorMessage };
   }
 }
+
+export async function updateFeePayment(paymentId: string, payload: Partial<FeePaymentPayload>): Promise<FeePaymentResult> {
+    try {
+        if (!ObjectId.isValid(paymentId)) {
+            return { success: false, message: 'Invalid Payment ID format.' };
+        }
+
+        const validatedPayload = updateFeePaymentPayloadSchema.safeParse(payload);
+        if (!validatedPayload.success) {
+            const errors = validatedPayload.error.errors.map(e => e.message).join(' ');
+            return { success: false, message: 'Validation failed', error: errors || 'Invalid payload!' };
+        }
+
+        const { db } = await connectToDatabase();
+        const updateData: Partial<FeePayment> = {
+            ...validatedPayload.data,
+            paymentDate: new Date(validatedPayload.data.paymentDate),
+            updatedAt: new Date(),
+        };
+
+        const result = await db.collection('fee_payments').updateOne(
+            { _id: new ObjectId(paymentId) },
+            { $set: updateData }
+        );
+
+        if (result.matchedCount === 0) {
+            return { success: false, message: 'Fee payment not found or access denied.' };
+        }
+        
+        revalidatePath('/dashboard/admin/fees');
+        revalidatePath('/dashboard/student/fees');
+
+        const updatedDoc = await db.collection('fee_payments').findOne({_id: new ObjectId(paymentId)});
+
+        return { 
+            success: true, 
+            message: 'Fee payment updated successfully.',
+            payment: {
+                ...updatedDoc,
+                _id: updatedDoc!._id.toString(),
+            } as FeePayment
+        };
+    } catch (error) {
+        console.error('Update fee payment server action error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
+        return { success: false, message: 'An unexpected error occurred during payment update.', error: errorMessage };
+    }
+}
+
 
 export interface GetFeePaymentsResult {
   success: boolean;
