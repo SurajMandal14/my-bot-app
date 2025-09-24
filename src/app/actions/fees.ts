@@ -58,7 +58,7 @@ export async function recordFeePayment(payload: FeePaymentPayload): Promise<FeeP
     const { db } = await connectToDatabase();
     const feePaymentsCollection = db.collection<Omit<FeePayment, '_id'>>('fee_payments');
 
-    const newPayment: Omit<FeePayment, '_id'> = {
+    const newPayment: Omit<FeePayment, '_id' | 'createdAt' | 'updatedAt'> & {createdAt: Date, updatedAt: Date} = {
       studentId: new ObjectId(studentId),
       studentName,
       schoolId: new ObjectId(schoolId),
@@ -85,7 +85,13 @@ export async function recordFeePayment(payload: FeePaymentPayload): Promise<FeeP
     return {
       success: true,
       message: 'Fee payment recorded successfully!',
-      payment: { ...newPayment, _id: result.insertedId.toString() } as FeePayment,
+      payment: { 
+          ...newPayment, 
+          _id: result.insertedId.toString(),
+          studentId: newPayment.studentId.toString(),
+          schoolId: newPayment.schoolId.toString(),
+          recordedByAdminId: newPayment.recordedByAdminId.toString(),
+      },
     };
 
   } catch (error) {
@@ -127,14 +133,20 @@ export async function updateFeePayment(paymentId: string, payload: Partial<FeePa
         revalidatePath('/dashboard/student/fees');
 
         const updatedDoc = await db.collection('fee_payments').findOne({_id: new ObjectId(paymentId)});
+        if (!updatedDoc) {
+             return { success: false, message: 'Failed to retrieve updated payment.' };
+        }
 
         return { 
             success: true, 
             message: 'Fee payment updated successfully.',
             payment: {
                 ...updatedDoc,
-                _id: updatedDoc!._id.toString(),
-            } as FeePayment
+                _id: updatedDoc._id.toString(),
+                studentId: updatedDoc.studentId.toString(),
+                schoolId: updatedDoc.schoolId.toString(),
+                recordedByAdminId: updatedDoc.recordedByAdminId.toString(),
+            }
         };
     } catch (error) {
         console.error('Update fee payment server action error:', error);
@@ -158,10 +170,10 @@ export async function getFeePaymentsBySchool(schoolId: string): Promise<GetFeePa
     }
 
     const { db } = await connectToDatabase();
-    const feePaymentsCollection = db.collection<FeePayment>('fee_payments');
+    const feePaymentsCollection = db.collection('fee_payments');
     
     const payments = await feePaymentsCollection.find({
-      schoolId: new ObjectId(schoolId) as any, 
+      schoolId: new ObjectId(schoolId), 
     }).sort({ paymentDate: -1, createdAt: -1 }).toArray();
     
     const paymentsWithStrId = payments.map(payment => ({
@@ -188,11 +200,11 @@ export async function getFeePaymentsByStudent(studentId: string, schoolId: strin
     }
 
     const { db } = await connectToDatabase();
-    const feePaymentsCollection = db.collection<FeePayment>('fee_payments');
+    const feePaymentsCollection = db.collection('fee_payments');
     
     const payments = await feePaymentsCollection.find({
-      studentId: new ObjectId(studentId) as any,
-      schoolId: new ObjectId(schoolId) as any, 
+      studentId: new ObjectId(studentId),
+      schoolId: new ObjectId(schoolId), 
     }).sort({ paymentDate: -1, createdAt: -1 }).toArray();
     
     const paymentsWithStrId = payments.map(payment => ({
@@ -220,13 +232,13 @@ export async function getPaymentById(paymentId: string): Promise<GetFeePaymentRe
     const { db } = await connectToDatabase();
     const feePaymentsCollection = db.collection('fee_payments');
     
-    const payment = await feePaymentsCollection.findOne({ _id: new ObjectId(paymentId) as any });
+    const payment = await feePaymentsCollection.findOne({ _id: new ObjectId(paymentId) });
 
     if (!payment) {
       return { success: false, message: 'Payment not found.' };
     }
     
-    const paymentWithStrId = {
+    const paymentWithStrId: FeePayment = {
       ...payment,
       _id: payment._id.toString(),
       studentId: payment.studentId.toString(),
