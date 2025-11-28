@@ -279,7 +279,7 @@ export default function GenerateCBSEStateReportPage() {
             let papers: string[] = ["I"];
             if(subject.name === "Science") {
                 papers = ["Physics", "Biology"];
-            } else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName && m.assessmentName.includes('Paper2'))) {
+            } else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName?.includes('Paper2'))) {
                 papers = ["I", "II"];
             }
             
@@ -307,6 +307,7 @@ export default function GenerateCBSEStateReportPage() {
         allFetchedMarks.forEach(mark => {
             const subjectIdentifier = mark.subjectName;
             const assessmentName = mark.assessmentName;
+            if (!assessmentName) return; // FIX: Guard against undefined assessmentName
             const [assessmentGroup, ...restOfName] = assessmentName.split('-');
             
             if (currentAssessmentScheme.assessments.some(a => a.groupName === assessmentGroup) && restOfName.length > 0) {
@@ -625,4 +626,5 @@ export default function GenerateCBSEStateReportPage() {
     </div>
   );
 }
+
 
