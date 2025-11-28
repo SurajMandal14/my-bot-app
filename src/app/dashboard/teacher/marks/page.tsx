@@ -22,6 +22,7 @@ import { getAcademicYears } from '@/app/actions/academicYears';
 import type { AcademicYear } from '@/types/academicYear';
 import { getAssessmentSchemeForClass } from '@/app/actions/assessmentConfigurations';
 import type { AssessmentScheme } from '@/types/assessment';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 // STATE INTERFACES
@@ -312,7 +313,7 @@ export default function TeacherMarksEntryPage() {
           <CardHeader><CardTitle>Enter Marks for: {availableClasses.find(c=>c.value === selectedClassId)?.label} - {selectedSubjectName} - {selectedAssessmentName}</CardTitle></CardHeader>
           <CardContent>
             {isLoadingStudentsAndMarks ? <div className="flex items-center justify-center py-6"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading...</p></div>
-            : <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}><div className="overflow-x-auto"><Table>
+            : <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}><ScrollArea className="h-[60vh]"><div className="overflow-x-auto"><Table>
                   <TableHeader><TableRow>
                       <TableHead className="w-12 sticky left-0 bg-card z-20"><Checkbox checked={selectAllCheckboxState} onCheckedChange={handleSelectAllChange} /></TableHead>
                       <TableHead className="sticky left-12 bg-card z-30 min-w-[150px]">Student Name</TableHead>
@@ -329,7 +330,7 @@ export default function TeacherMarksEntryPage() {
                           {currentAssessmentConfig?.tests.map(test => <TableCell key={test.testName}><Input type="number" value={(currentMarks as StudentMarksCustomState)?.[test.testName] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.testName, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
                       </TableRow>);
                   })}</TableBody>
-              </Table></div><div className="mt-6 flex justify-end"><Button type="submit" disabled={isSubmitting || isLoadingStudentsAndMarks}><Save className="mr-2 h-4 w-4" /> Submit Marks</Button></div></form>}
+              </Table></div></ScrollArea><div className="mt-6 flex justify-end"><Button type="submit" disabled={isSubmitting || isLoadingStudentsAndMarks}><Save className="mr-2 h-4 w-4" /> Submit Marks</Button></div></form>}
           </CardContent>
         </Card>
       )}
@@ -340,3 +341,5 @@ export default function TeacherMarksEntryPage() {
     </div>
   );
 }
+
+    
