@@ -74,7 +74,6 @@ export default function StudentResultsPage() {
       return;
     }
     if (!targetAcademicYear || !targetAcademicYear.match(/^\d{4}-\d{4}$/)) {
-        // Don't show an error if it's just not selected yet
         if (targetAcademicYear !== "") {
           setError("Invalid academic year format. Please use YYYY-YYYY.");
         }
@@ -88,14 +87,14 @@ export default function StudentResultsPage() {
     setReportCardData(null);
 
     try {
-      // Students should only see published reports
-      const result = await getStudentReportCard(authUser._id, authUser.schoolId, targetAcademicYear, undefined, true); 
+      // Students can now see any saved report, not just published ones
+      const result = await getStudentReportCard(authUser._id, authUser.schoolId, targetAcademicYear, undefined); 
       if (result.success && result.reportCard) {
         setReportCardData(result.reportCard);
       } else {
         setReportCardData(null);
-        setError(result.message || "Failed to load report card."); // Show message from action
-        if (result.message && !result.message.toLowerCase().includes('not found') && !result.message.toLowerCase().includes('not published')) {
+        setError(result.message || "Failed to load report card."); 
+        if (result.message) {
              toast({ variant: "info", title: "Report Card Status", description: result.message });
         }
       }
@@ -219,7 +218,7 @@ export default function StudentResultsPage() {
             <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-lg font-semibold">No Report Card Found</p>
             <p className="text-muted-foreground">
-              Your report card for the academic year '{targetAcademicYear}' has not been published or does not exist.
+              Your report card for the academic year '{targetAcademicYear}' has not been generated or is not available yet.
               Please check back later or contact your school administration.
             </p>
           </CardContent>
@@ -240,3 +239,5 @@ export default function StudentResultsPage() {
     </div>
   );
 }
+
+    

@@ -16,7 +16,7 @@ import CBSEStateBack, {
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Printer, RotateCcw, Eye, EyeOff, Save, Loader2, User, School as SchoolIconUI, Search as SearchIcon, AlertTriangle, UploadCloud, XOctagon } from 'lucide-react';
+import { FileText, Printer, RotateCcw, Eye, EyeOff, Save, Loader2, User, School as SchoolIconUI, Search as SearchIcon, AlertTriangle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import type { AuthUser, UserRole } from '@/types/user';
-import { saveReportCard, getStudentReportCard, setReportCardPublicationStatus } from '@/app/actions/reports';
+import { saveReportCard, getStudentReportCard } from '@/app/actions/reports';
 import type { ReportCardData, FormativeAssessmentEntryForStorage } from '@/types/report';
 import { Input } from '@/components/ui/input'; 
 import { Label } from '@/components/ui/label'; 
@@ -129,11 +129,7 @@ export default function GenerateCBSEStateReportPage() {
   const [isSaving, setIsSaving] = useState(false);
   
   const [loadedReportId, setLoadedReportId] = useState<string | null>(null);
-  const [loadedReportIsPublished, setLoadedReportIsPublished] = useState<boolean | null>(null);
-  const [isPublishing, setIsPublishing] = useState(false);
   
-  const [actionToConfirm, setActionToConfirm] = useState<'publish' | 'unpublish' | null>(null);
-
   const [assessmentScheme, setAssessmentScheme] = useState<AssessmentScheme | null>(null);
 
 
@@ -182,7 +178,6 @@ export default function GenerateCBSEStateReportPage() {
     setAttendanceData(defaultAttendanceDataBack);
     setFinalOverallGradeInput(null);
     setLoadedReportId(null);
-    setLoadedReportIsPublished(null);
     setAssessmentScheme(null);
   };
 
@@ -276,8 +271,7 @@ export default function GenerateCBSEStateReportPage() {
           currentStudent._id, 
           currentStudent.schoolId!, 
           frontAcademicYear,
-          "Annual", 
-          false 
+          "Annual"
       );
 
       if (existingReportRes.success && existingReportRes.reportCard) {
@@ -309,11 +303,9 @@ export default function GenerateCBSEStateReportPage() {
           setAttendanceData(report.attendance.length > 0 ? report.attendance : defaultAttendanceDataBack);
           setFinalOverallGradeInput(report.finalOverallGrade);
           setLoadedReportId(report._id!.toString());
-          setLoadedReportIsPublished(report.isPublished || false);
 
       } else { 
           setLoadedReportId(null);
-          setLoadedReportIsPublished(null);
           toast({title: "Generating New Report", description: "Fetching all available marks..."});
 
           const marksResult = await getStudentMarksForReportCard(
@@ -513,8 +505,8 @@ export default function GenerateCBSEStateReportPage() {
   
   const isFieldDisabledForRole = (subjectName?: string): boolean => {
     if (currentUserRole === 'student') return true;
-    if (currentUserRole === 'admin' && !!loadedStudent) return false; 
-    if (currentUserRole === 'teacher') {
+    if (isAdmin && !!loadedStudent) return false; 
+    if (isTeacher) {
       if (!subjectName) return true; 
       if (subjectName === "Science" && (teacherEditableSubjects.includes("Physics") || teacherEditableSubjects.includes("Biology"))) return false;
       return !teacherEditableSubjects.includes(subjectName);
@@ -576,32 +568,13 @@ export default function GenerateCBSEStateReportPage() {
     if (result.success) {
       if(!isAutoSave) toast({ title: "Report Card Saved", description: result.message + (result.reportCardId ? ` ID: ${result.reportCardId}` : '') });
       if(result.reportCardId) setLoadedReportId(result.reportCardId);
-      if(result.isPublished !== undefined) setLoadedReportIsPublished(result.isPublished);
     } else {
       if(!isAutoSave) toast({ variant: "destructive", title: "Save Failed", description: result.error || result.message });
     }
   };
 
-  const handleConfirmPublishAction = async () => {
-    if (!loadedReportId || !authUser || !authUser.schoolId || loadedReportIsPublished === null || !actionToConfirm) {
-        toast({ variant: "destructive", title: "Error", description: "No report loaded or publication status unknown."});
-        return;
-    }
-    await handleSaveReportCard(true); // Auto-save before publishing
-    setIsPublishing(true);
-    const result = await setReportCardPublicationStatus(loadedReportId, authUser.schoolId.toString(), actionToConfirm === 'publish');
-    setIsPublishing(false);
-    setActionToConfirm(null);
-    if (result.success && result.isPublished !== undefined) {
-        setLoadedReportIsPublished(result.isPublished);
-        toast({ title: "Status Updated", description: result.message });
-    } else {
-        toast({ variant: "destructive", title: "Update Failed", description: result.error || result.message });
-    }
-  };
-
   const currentUserRole = authUser?.role as UserRole;
-  const canPublish = authUser?.role === 'admin' && !!loadedStudent && !!loadedReportId && !isPublishing;
+  const canSave = authUser?.role === 'admin' && !!loadedStudent && !!loadedReportId;
 
   return (
     <div className="space-y-6">
@@ -648,7 +621,7 @@ export default function GenerateCBSEStateReportPage() {
               <Input 
                 id="admissionIdInput" placeholder="Enter Admission ID" value={admissionIdInput}
                 onChange={(e) => setAdmissionIdInput(e.target.value)} className="w-full sm:min-w-[200px]"
-                disabled={isLoadingStudentAndClassData || isSaving || isPublishing}
+                disabled={isLoadingStudentAndClassData || isSaving}
               />
             </div>
              {authUser?.schoolId && 
@@ -676,55 +649,16 @@ export default function GenerateCBSEStateReportPage() {
                   </SelectContent>
                 </Select>
             </div>
-            <Button onClick={handleLoadStudentAndClassData} disabled={isLoadingStudentAndClassData || isSaving || isPublishing || !admissionIdInput.trim() || !authUser || !authUser.schoolId}>
+            <Button onClick={handleLoadStudentAndClassData} disabled={isLoadingStudentAndClassData || isSaving || !admissionIdInput.trim() || !authUser || !authUser.schoolId}>
                 {isLoadingStudentAndClassData ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchIcon className="mr-2 h-4 w-4"/>}
                 Load Student Data
             </Button>
           </div>
-          {loadedReportId && loadedReportIsPublished !== null && (
-             <p className="text-sm font-medium">
-                Current Report Status: <span className={loadedReportIsPublished ? "text-green-600 font-semibold" : "text-destructive font-semibold"}>
-                    {loadedReportIsPublished ? "Published" : "Not Published"}
-                </span>
-            </p>
-          )}
           <div className="flex flex-wrap gap-2">
             <Button onClick={()=>handleSaveReportCard(false)} disabled={isSaving || !loadedStudent}>
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
               {isSaving ? 'Saving...' : 'Save Report'}
             </Button>
-            {currentUserRole === 'admin' && (
-                <AlertDialog open={!!actionToConfirm} onOpenChange={(open) => !open && setActionToConfirm(null)}>
-                  <AlertDialogTrigger asChild>
-                    <Button 
-                      onClick={() => setActionToConfirm(loadedReportIsPublished ? 'unpublish' : 'publish')}
-                      disabled={!canPublish}
-                    >
-                      {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : (loadedReportIsPublished ? <XOctagon className="mr-2 h-4 w-4"/> : <UploadCloud className="mr-2 h-4 w-4"/>)}
-                      {isPublishing ? "Updating..." : (loadedReportIsPublished ? "Unpublish Report" : "Publish Report")}
-                    </Button>
-                  </AlertDialogTrigger>
-                  {actionToConfirm && (
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Confirm Action: {actionToConfirm === 'publish' ? 'Publish' : 'Unpublish'} Report?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will make the report card for <strong>{studentData.studentName}</strong> {actionToConfirm === 'publish' ? 'VISIBLE' : 'HIDDEN'} to the student. Are you sure you want to proceed?
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={handleConfirmPublishAction}
-                        className={actionToConfirm === 'unpublish' ? 'bg-destructive hover:bg-destructive/90' : ''}
-                      >
-                        Confirm {actionToConfirm === 'publish' ? 'Publish' : 'Unpublish'}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                  )}
-                </AlertDialog>
-            )}
             <Button onClick={handlePrint} variant="outline" disabled={!loadedStudent}><Printer className="mr-2 h-4 w-4"/> Print Preview</Button>
             <Button onClick={() => setShowBackSide(prev => !prev)} variant="secondary" className="ml-auto mr-2" disabled={!loadedStudent}>
                 {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
@@ -796,5 +730,7 @@ export default function GenerateCBSEStateReportPage() {
     </div>
   );
 }
+
+    
 
     

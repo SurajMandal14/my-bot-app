@@ -1,4 +1,5 @@
 
+
 import type { ObjectId } from 'mongodb';
 import { z } from 'zod';
 import type { ReportCardTemplateKey } from './school';
@@ -56,7 +57,6 @@ export interface ReportCardData {
   attendance: ReportCardAttendanceMonth[];
   finalOverallGrade: string | null;
 
-  isPublished?: boolean;
   generatedByAdminId?: ObjectId | string;
   createdAt?: Date;
   updatedAt?: Date;
@@ -111,14 +111,6 @@ export interface SaveReportCardResult {
   message: string;
   error?: string;
   reportCardId?: string;
-  isPublished?: boolean;
-}
-
-export interface SetReportCardPublicationStatusResult {
-    success: boolean;
-    message: string;
-    error?: string;
-    isPublished?: boolean;
 }
 
 export interface GetStudentReportCardResult {
@@ -128,11 +120,4 @@ export interface GetStudentReportCardResult {
   error?: string;
 }
 
-export interface BulkPublishReportInfo {
-  reportId: string | null;
-  studentId: string;
-  studentName: string;
-  admissionId?: string;
-  isPublished: boolean;
-  hasReport: boolean;
-}
+    
