@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -278,7 +279,7 @@ export default function GenerateCBSEStateReportPage() {
             let papers: string[] = ["I"];
             if(subject.name === "Science") {
                 papers = ["Physics", "Biology"];
-            } else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName.includes('Paper2'))) {
+            } else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName && m.assessmentName.includes('Paper2'))) {
                 papers = ["I", "II"];
             }
             
@@ -624,3 +625,4 @@ export default function GenerateCBSEStateReportPage() {
     </div>
   );
 }
+
