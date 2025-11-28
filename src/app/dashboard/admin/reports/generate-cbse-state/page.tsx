@@ -16,21 +16,10 @@ import CBSEStateBack, {
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Printer, RotateCcw, Eye, EyeOff, Save, Loader2, User, School as SchoolIconUI, Search as SearchIcon, AlertTriangle } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { FileText, Printer, RotateCcw, Eye, EyeOff, Loader2, User, School as SchoolIconUI, Search as SearchIcon, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { AuthUser, UserRole } from '@/types/user';
-import { saveReportCard, getStudentReportCard } from '@/app/actions/reports';
+import { getStudentReportCard } from '@/app/actions/reports';
 import type { ReportCardData, FormativeAssessmentEntryForStorage } from '@/types/report';
 import { Input } from '@/components/ui/input'; 
 import { Label } from '@/components/ui/label'; 
@@ -126,9 +115,6 @@ export default function GenerateCBSEStateReportPage() {
   const [finalOverallGradeInput, setFinalOverallGradeInput] = useState<string | null>(null);
 
   const [showBackSide, setShowBackSide] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  
-  const [loadedReportId, setLoadedReportId] = useState<string | null>(null);
   
   const [assessmentScheme, setAssessmentScheme] = useState<AssessmentScheme | null>(null);
 
@@ -177,7 +163,6 @@ export default function GenerateCBSEStateReportPage() {
     setSaData([]); 
     setAttendanceData(defaultAttendanceDataBack);
     setFinalOverallGradeInput(null);
-    setLoadedReportId(null);
     setAssessmentScheme(null);
   };
 
@@ -267,115 +252,79 @@ export default function GenerateCBSEStateReportPage() {
          return;
       }
       
-      const existingReportRes = await getStudentReportCard(
-          currentStudent._id, 
-          currentStudent.schoolId!, 
-          frontAcademicYear,
-          "Annual"
+      const marksResult = await getStudentMarksForReportCard(
+        currentStudent._id,
+        currentStudent.schoolId!,
+        frontAcademicYear
       );
+      
+      const newFaMarksForState: Record<string, FrontSubjectFAData> = getDefaultSubjectFaDataFront(currentLoadedClassSubjects);
+      let tempSaDataForNewReport: ReportCardSASubjectEntry[] = [];
+      
+      if (marksResult.success && marksResult.marks && currentAssessmentScheme) {
+        const allFetchedMarks = marksResult.marks;
 
-      if (existingReportRes.success && existingReportRes.reportCard) {
-          const report = existingReportRes.reportCard;
-          toast({title: "Existing Report Loaded", description: `Report for ${report.studentInfo.studentName} (${report.academicYear}) loaded.`});
-          setStudentData(report.studentInfo);
-          setFrontSecondLanguage(report.secondLanguage || 'Hindi');
-          setFrontAcademicYear(report.academicYear);
+        const saTestNamesFromScheme = new Set<string>();
+        currentAssessmentScheme.assessments
+            .filter(a => a.groupName.startsWith('SA'))
+            .forEach(a => a.tests.forEach(t => saTestNamesFromScheme.add(t.testName)));
 
-          const loadedFaMarksState: Record<string, FrontSubjectFAData> = getDefaultSubjectFaDataFront(currentLoadedClassSubjects);
-          report.formativeAssessments.forEach(reportSubjectFa => {
-              if (loadedFaMarksState[reportSubjectFa.subjectName]) {
-                loadedFaMarksState[reportSubjectFa.subjectName] = {
-                    fa1: reportSubjectFa.fa1, fa2: reportSubjectFa.fa2,
-                    fa3: reportSubjectFa.fa3, fa4: reportSubjectFa.fa4,
-                };
-              }
-          });
-          setFaMarks(loadedFaMarksState);
-          setCoMarks(report.coCurricularAssessments || defaultCoMarksFront);
-          
-          let tempSaData = report.summativeAssessments;
-          tempSaData = tempSaData.map(row => ({
-              ...row,
-              faTotal200M: calculateFaTotal200MForRow(row.subjectName, row.paper, loadedFaMarksState)
-          }));
-          setSaData(tempSaData);
-
-          setAttendanceData(report.attendance.length > 0 ? report.attendance : defaultAttendanceDataBack);
-          setFinalOverallGradeInput(report.finalOverallGrade);
-          setLoadedReportId(report._id!.toString());
-
-      } else { 
-          setLoadedReportId(null);
-          toast({title: "Generating New Report", description: "Fetching all available marks..."});
-
-          const marksResult = await getStudentMarksForReportCard(
-            currentStudent._id,
-            currentStudent.schoolId!,
-            frontAcademicYear
-          );
-          
-          const newFaMarksForState: Record<string, FrontSubjectFAData> = getDefaultSubjectFaDataFront(currentLoadedClassSubjects);
-          let tempSaDataForNewReport: ReportCardSASubjectEntry[] = [];
-          
-          if (marksResult.success && marksResult.marks && currentAssessmentScheme) {
-            const allFetchedMarks = marksResult.marks;
-
-            const saTestNamesFromScheme = new Set<string>();
-            currentAssessmentScheme.assessments
+        // Initialize SA data structure based on the scheme
+        currentLoadedClassSubjects.forEach(subject => {
+            const saGroupsForSubject = currentAssessmentScheme.assessments
                 .filter(a => a.groupName.startsWith('SA'))
-                .forEach(a => a.tests.forEach(t => saTestNamesFromScheme.add(t.testName)));
+                .sort((a,b) => a.groupName.localeCompare(b.groupName));
 
-            // Initialize SA data structure based on the scheme
-            currentLoadedClassSubjects.forEach(subject => {
-                const saGroupsForSubject = currentAssessmentScheme.assessments
-                    .filter(a => a.groupName.startsWith('SA'))
-                    .sort((a,b) => a.groupName.localeCompare(b.groupName));
-
-                let papers: string[] = ["I"];
-                if(subject.name === "Science") {
-                    papers = ["Physics", "Biology"];
-                } else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName.includes('Paper2'))) {
-                    papers = ["I", "II"];
-                }
+            let papers: string[] = ["I"];
+            if(subject.name === "Science") {
+                papers = ["Physics", "Biology"];
+            } else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName.includes('Paper2'))) {
+                papers = ["I", "II"];
+            }
+            
+            papers.forEach(paper => {
+                const sa1Data: SAPaperData = getDefaultSaPaperData();
+                const sa2Data: SAPaperData = getDefaultSaPaperData();
                 
-                papers.forEach(paper => {
-                    const sa1Data: SAPaperData = getDefaultSaPaperData();
-                    const sa2Data: SAPaperData = getDefaultSaPaperData();
-                    
-                    const sa1Group = saGroupsForSubject.find(g => g.groupName === 'SA1');
-                    if(sa1Group) sa1Group.tests.forEach(t => (sa1Data as any)[t.testName.toLowerCase()] = { marks: null, maxMarks: t.maxMarks });
-                    
-                    const sa2Group = saGroupsForSubject.find(g => g.groupName === 'SA2');
-                    if(sa2Group) sa2Group.tests.forEach(t => (sa2Data as any)[t.testName.toLowerCase()] = { marks: null, maxMarks: t.maxMarks });
+                const sa1Group = saGroupsForSubject.find(g => g.groupName === 'SA1');
+                if(sa1Group) sa1Group.tests.forEach(t => (sa1Data as any)[t.testName.toLowerCase()] = { marks: null, maxMarks: t.maxMarks });
+                
+                const sa2Group = saGroupsForSubject.find(g => g.groupName === 'SA2');
+                if(sa2Group) sa2Group.tests.forEach(t => (sa2Data as any)[t.testName.toLowerCase()] = { marks: null, maxMarks: t.maxMarks });
 
-                    tempSaDataForNewReport.push({
-                        subjectName: subject.name,
-                        paper: paper,
-                        sa1: sa1Data,
-                        sa2: sa2Data,
-                        faTotal200M: null
-                    });
+                tempSaDataForNewReport.push({
+                    subjectName: subject.name,
+                    paper: paper,
+                    sa1: sa1Data,
+                    sa2: sa2Data,
+                    faTotal200M: null
                 });
             });
+        });
 
-            // Map fetched marks to the structured state
-            allFetchedMarks.forEach(mark => {
-                const subjectIdentifier = mark.subjectName;
-                const assessmentName = mark.assessmentName;
-                const [assessmentGroup, ...restOfName] = assessmentName.split('-');
-                
-                if (assessmentGroup.startsWith("FA") && restOfName.length > 0) {
-                    const faPeriodKey = assessmentGroup.toLowerCase() as keyof SubjectFAData;
-                    const toolKey = restOfName.join('-').toLowerCase().replace('tool', 'tool') as FaToolKey;
+        // Map fetched marks to the structured state
+        allFetchedMarks.forEach(mark => {
+            const subjectIdentifier = mark.subjectName;
+            const assessmentName = mark.assessmentName;
+            const [assessmentGroup, ...restOfName] = assessmentName.split('-');
+            
+            if (currentAssessmentScheme.assessments.some(a => a.groupName === assessmentGroup) && restOfName.length > 0) {
+              const assessmentConfig = currentAssessmentScheme.assessments.find(a => a.groupName === assessmentGroup)!;
+              const testConfig = assessmentConfig.tests.find(t => t.testName === restOfName.join('-'));
 
-                    if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
-                        (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
-                    }
-                } else if (assessmentGroup.startsWith("SA") && restOfName.length > 1) {
+              if (testConfig) {
+                if (assessmentGroup.startsWith("FA")) {
+                  const faPeriodKey = assessmentGroup.toLowerCase() as keyof SubjectFAData;
+                  const toolKey = testConfig.testName.toLowerCase().replace('tool ', 'tool') as FaToolKey;
+
+                  if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
+                      (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
+                  }
+                } else if (assessmentGroup.startsWith("SA")) {
                     const saPeriod = (assessmentGroup.toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
-                    const dbPaperPart = restOfName[0];
-                    const asKey = restOfName[1].toLowerCase() as keyof SAPaperData;
+                    const asKey = testConfig.testName.toLowerCase() as keyof SAPaperData;
                     
+                    const dbPaperPart = "Paper1"; // Fallback, logic might need to be smarter if P1/P2 is in test name
                     let displayPaperName: string;
                     if (mark.subjectName === "Science") {
                         displayPaperName = dbPaperPart === 'Paper1' ? 'Physics' : 'Biology';
@@ -392,26 +341,26 @@ export default function GenerateCBSEStateReportPage() {
                         };
                     }
                 }
-            });
-
-            setFaMarks(newFaMarksForState);
-          } else { 
-            if (marksResult.message) {
-                toast({ variant: "info", title: "Marks Info", description: marksResult.message });
+              }
             }
-            setFaMarks(getDefaultSubjectFaDataFront(currentLoadedClassSubjects)); 
-          }
-          
-          tempSaDataForNewReport = tempSaDataForNewReport.map(row => ({
-              ...row,
-              faTotal200M: calculateFaTotal200MForRow(row.subjectName, row.paper, newFaMarksForState)
-          }));
-          setSaData(tempSaDataForNewReport);
-          setCoMarks(defaultCoMarksFront);
-          setAttendanceData(defaultAttendanceDataBack);
-          setFinalOverallGradeInput(null);
-          await handleSaveReportCard(true); // Initial autosave for a new report
+        });
+
+        setFaMarks(newFaMarksForState);
+      } else { 
+        if (marksResult.message) {
+            toast({ variant: "info", title: "Marks Info", description: marksResult.message });
+        }
+        setFaMarks(getDefaultSubjectFaDataFront(currentLoadedClassSubjects)); 
       }
+      
+      tempSaDataForNewReport = tempSaDataForNewReport.map(row => ({
+          ...row,
+          faTotal200M: calculateFaTotal200MForRow(row.subjectName, row.paper, newFaMarksForState)
+      }));
+      setSaData(tempSaDataForNewReport);
+      setCoMarks(defaultCoMarksFront);
+      setAttendanceData(defaultAttendanceDataBack);
+      setFinalOverallGradeInput(null);
     } catch (error) {
       toast({ variant: "destructive", title: "Error Loading Data", description: "An unexpected error occurred."});
       console.error("Error loading student/class data:", error);
@@ -504,9 +453,10 @@ export default function GenerateCBSEStateReportPage() {
   };
   
   const isFieldDisabledForRole = (subjectName?: string): boolean => {
+    const currentUserRole = authUser?.role as UserRole;
     if (currentUserRole === 'student') return true;
-    if (isAdmin && !!loadedStudent) return false; 
-    if (isTeacher) {
+    if (currentUserRole === 'admin' && !!loadedStudent) return false; 
+    if (currentUserRole === 'teacher') {
       if (!subjectName) return true; 
       if (subjectName === "Science" && (teacherEditableSubjects.includes("Physics") || teacherEditableSubjects.includes("Biology"))) return false;
       return !teacherEditableSubjects.includes(subjectName);
@@ -522,59 +472,7 @@ export default function GenerateCBSEStateReportPage() {
     toast({ title: "Data Reset", description: "All fields have been reset for current view."});
   }
 
-  const handleSaveReportCard = async (isAutoSave = false) => {
-    if (!authUser || !authUser.schoolId || !authUser._id) {
-      if(!isAutoSave) toast({ variant: "destructive", title: "Error", description: "Admin/Teacher session not found." });
-      return;
-    }
-    if (!loadedStudent || !loadedStudent._id) {
-       if(!isAutoSave) toast({ variant: "destructive", title: "Missing Student ID", description: "Please load student data first using Admission ID." });
-      return;
-    }
-    setIsSaving(true);
-    const formativeAssessmentsForStorage: FormativeAssessmentEntryForStorage[] = Object.entries(faMarks)
-      .map(([subjectName, marksData]) => ({ subjectName, ...marksData }));
-    
-    for (const row of saData) {
-        for (const saPeriod of ['sa1', 'sa2'] as const) {
-            for (const asKey of Object.keys(row[saPeriod] || {}) as (keyof SAPaperData)[]) {
-                const skill = row[saPeriod]?.[asKey];
-                if (skill && skill.marks !== null && skill.maxMarks !== null && skill.marks > skill.maxMarks) {
-                    if(!isAutoSave) toast({ variant: "destructive", title: "Validation Error", description: `${row.subjectName} (${row.paper}) ${saPeriod.toUpperCase()}-${asKey.toUpperCase()} marks (${skill.marks}) exceed max marks (${skill.maxMarks}).` });
-                    setIsSaving(false); return;
-                }
-            }
-        }
-    }
-
-
-    const reportPayload: Omit<ReportCardData, '_id' | 'createdAt' | 'updatedAt' | 'isPublished'> = {
-      studentId: loadedStudent._id, 
-      schoolId: (loadedSchool?._id || authUser.schoolId).toString(),
-      academicYear: frontAcademicYear, 
-      reportCardTemplateKey: 'cbse_state', 
-      studentInfo: studentData,
-      formativeAssessments: formativeAssessmentsForStorage, 
-      coCurricularAssessments: coMarks,
-      secondLanguage: frontSecondLanguage, 
-      summativeAssessments: saData, 
-      attendance: attendanceData,
-      finalOverallGrade: finalOverallGradeInput, 
-      generatedByAdminId: authUser._id.toString(), 
-      term: "Annual",
-    };
-    const result = await saveReportCard(reportPayload);
-    setIsSaving(false);
-    if (result.success) {
-      if(!isAutoSave) toast({ title: "Report Card Saved", description: result.message + (result.reportCardId ? ` ID: ${result.reportCardId}` : '') });
-      if(result.reportCardId) setLoadedReportId(result.reportCardId);
-    } else {
-      if(!isAutoSave) toast({ variant: "destructive", title: "Save Failed", description: result.error || result.message });
-    }
-  };
-
   const currentUserRole = authUser?.role as UserRole;
-  const canSave = authUser?.role === 'admin' && !!loadedStudent && !!loadedReportId;
 
   return (
     <div className="space-y-6">
@@ -621,7 +519,7 @@ export default function GenerateCBSEStateReportPage() {
               <Input 
                 id="admissionIdInput" placeholder="Enter Admission ID" value={admissionIdInput}
                 onChange={(e) => setAdmissionIdInput(e.target.value)} className="w-full sm:min-w-[200px]"
-                disabled={isLoadingStudentAndClassData || isSaving}
+                disabled={isLoadingStudentAndClassData}
               />
             </div>
              {authUser?.schoolId && 
@@ -649,16 +547,12 @@ export default function GenerateCBSEStateReportPage() {
                   </SelectContent>
                 </Select>
             </div>
-            <Button onClick={handleLoadStudentAndClassData} disabled={isLoadingStudentAndClassData || isSaving || !admissionIdInput.trim() || !authUser || !authUser.schoolId}>
+            <Button onClick={handleLoadStudentAndClassData} disabled={isLoadingStudentAndClassData || !admissionIdInput.trim() || !authUser || !authUser.schoolId}>
                 {isLoadingStudentAndClassData ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <SearchIcon className="mr-2 h-4 w-4"/>}
                 Load Student Data
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={()=>handleSaveReportCard(false)} disabled={isSaving || !loadedStudent}>
-              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
-              {isSaving ? 'Saving...' : 'Save Report'}
-            </Button>
             <Button onClick={handlePrint} variant="outline" disabled={!loadedStudent}><Printer className="mr-2 h-4 w-4"/> Print Preview</Button>
             <Button onClick={() => setShowBackSide(prev => !prev)} variant="secondary" className="ml-auto mr-2" disabled={!loadedStudent}>
                 {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
@@ -730,7 +624,3 @@ export default function GenerateCBSEStateReportPage() {
     </div>
   );
 }
-
-    
-
-    

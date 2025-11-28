@@ -4,87 +4,11 @@
 
 import { z } from 'zod';
 import { connectToDatabase } from '@/lib/mongodb';
-import type { ReportCardData, SaveReportCardResult, GetStudentReportCardResult } from '@/types/report';
+import type { ReportCardData, GetStudentReportCardResult } from '@/types/report';
 import { reportCardDataSchemaForSave } from '@/types/report'; // Import the new schema from types/report
 import { ObjectId } from 'mongodb';
 import type { User } from '@/types/user'; 
 import { revalidatePath } from 'next/cache';
-
-export async function saveReportCard(data: Omit<ReportCardData, '_id' | 'createdAt' | 'updatedAt' | 'isPublished'>): Promise<SaveReportCardResult> {
-  try {
-    const validatedData = reportCardDataSchemaForSave.safeParse(data);
-    if (!validatedData.success) {
-      const errors = validatedData.error.errors.map(e => `${e.path.join('.')} - ${e.message}`).join('; ');
-      return { success: false, message: 'Validation failed', error: errors };
-    }
-
-    const { db } = await connectToDatabase();
-    const reportCardsCollection = db.collection('report_cards');
-
-    const { studentId, schoolId: schoolIdStr, academicYear, reportCardTemplateKey, studentInfo, formativeAssessments, coCurricularAssessments, secondLanguage, summativeAssessments, attendance, finalOverallGrade, generatedByAdminId: adminIdStr, term } = validatedData.data;
-    
-    const reportBaseData = {
-        studentId, 
-        schoolId: new ObjectId(schoolIdStr),
-        academicYear,
-        reportCardTemplateKey,
-        studentInfo,
-        formativeAssessments,
-        coCurricularAssessments,
-        secondLanguage,
-        summativeAssessments, 
-        attendance,
-        finalOverallGrade,
-        generatedByAdminId: adminIdStr ? new ObjectId(adminIdStr) : undefined,
-        term,
-        updatedAt: new Date(),
-    };
-
-
-    const existingReport = await reportCardsCollection.findOne({
-        studentId: reportBaseData.studentId,
-        schoolId: reportBaseData.schoolId,
-        academicYear: reportBaseData.academicYear,
-        reportCardTemplateKey: reportBaseData.reportCardTemplateKey,
-        term: reportBaseData.term 
-    });
-
-    if (existingReport) {
-        const result = await reportCardsCollection.updateOne(
-            { _id: existingReport._id as ObjectId },
-            { $set: reportBaseData } 
-        );
-        if (result.modifiedCount === 0 && result.matchedCount === 0) {
-             return { success: false, message: 'Failed to update report card. Report not found after initial check, or no changes made.' };
-        }
-         return { 
-            success: true, 
-            message: 'Report card updated successfully!', 
-            reportCardId: existingReport._id.toString(),
-        };
-
-    } else {
-        const reportToInsert: Omit<ReportCardData, '_id'> = {
-            ...reportBaseData,
-            createdAt: new Date(),
-        };
-        const result = await reportCardsCollection.insertOne(reportToInsert as any);
-        if (!result.insertedId) {
-          return { success: false, message: 'Failed to save report card.', error: 'Database insertion failed.' };
-        }
-        return { 
-            success: true, 
-            message: 'Report card saved successfully!', 
-            reportCardId: result.insertedId.toString(),
-        };
-    }
-
-  } catch (error) {
-    console.error('Save report card server action error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
-    return { success: false, message: 'An unexpected error occurred during report card saving.', error: errorMessage };
-  }
-}
 
 export async function getStudentReportCard(
   studentId: string, 
@@ -111,12 +35,15 @@ export async function getStudentReportCard(
       query.term = term;
     }
 
+    // Since we are no longer saving reports, this will likely not find anything.
+    // This function can be kept for future use or adapted.
+    // For now, it will return "not found" which the client will handle by fetching live marks.
     const reportCardDoc = await reportCardsCollection.findOne(query, {
       sort: { updatedAt: -1 }, 
     });
 
     if (!reportCardDoc) {
-      let message = 'No report card found for the specified criteria.';
+      let message = 'No pre-saved report card found. A live report will be generated from current marks.';
       return { success: false, message };
     }
     

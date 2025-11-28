@@ -106,12 +106,16 @@ export const reportCardDataSchemaForSave = z.object({
 
 // --- Server Action Result Types ---
 
+// SaveReportCardResult is no longer needed as we are not saving reports.
+// Keeping it commented out for now in case the feature is re-introduced.
+/*
 export interface SaveReportCardResult {
   success: boolean;
   message: string;
   error?: string;
   reportCardId?: string;
 }
+*/
 
 export interface GetStudentReportCardResult {
   success: boolean;
