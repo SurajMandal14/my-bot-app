@@ -4,6 +4,9 @@ import type { ObjectId } from 'mongodb';
 import { z } from 'zod';
 import type { ReportCardTemplateKey } from './school';
 import type { StudentData as FrontStudentData, MarksEntry as FrontMarksEntryType } from '@/components/report-cards/CBSEStateFront';
+import type { MarkEntry } from './marks';
+import type { AssessmentScheme } from './assessment';
+import type { SchoolClass } from './classes';
 
 export interface FormativeAssessmentEntryForStorage {
   subjectName: string;
@@ -61,6 +64,11 @@ export interface ReportCardData {
   createdAt?: Date;
   updatedAt?: Date;
   term?: string;
+  
+  // Fields for live data transfer
+  _rawMarksData?: MarkEntry[];
+  _rawSchemeData?: AssessmentScheme;
+  _rawClassData?: SchoolClass;
 }
 
 // --- Zod Schemas for Validation ---

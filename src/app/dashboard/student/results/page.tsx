@@ -4,19 +4,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Award, Printer, Loader2, Info, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Award, Printer, Loader2, Info, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { AuthUser, UserRole, User as AppUser } from '@/types/user';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStudentData } from '@/contexts/StudentDataContext';
 import { getAcademicYears } from '@/app/actions/academicYears';
-import { getStudentMarksForReportCard } from '@/app/actions/marks';
-import type { MarkEntry } from '@/types/marks';
-import { getAssessmentSchemeForClass } from '@/app/actions/assessmentConfigurations';
-import type { AssessmentScheme } from '@/types/assessment';
-import { getStudentMonthlyAttendance } from '@/app/actions/attendance';
-import type { MonthlyAttendanceRecord } from '@/types/attendance';
+import { getStudentReportCard } from '@/app/actions/reports';
+import type { ReportCardData } from '@/types/report';
 
 import CBSEStateFront, { 
     type StudentData as FrontStudentData, 
@@ -29,36 +25,26 @@ import CBSEStateBack, {
     type SAPaperData
 } from '@/components/report-cards/CBSEStateBack';
 import { getClassDetailsById } from '@/app/actions/classes';
+import type { AssessmentScheme } from '@/types/assessment';
 
 const getDefaultFaMarksEntryFront = (): FrontMarksEntryType => ({ tool1: null, tool2: null, tool3: null, tool4: null });
 const getDefaultSaPaperData = (): SAPaperData => ({ as1: { marks: null, maxMarks: 20 }, as2: { marks: null, maxMarks: 20 }, as3: { marks: null, maxMarks: 20 }, as4: { marks: null, maxMarks: 20 }, as5: { marks: null, maxMarks: 20 }, as6: { marks: null, maxMarks: 20 }});
 
 export default function StudentResultsPage() {
   const { toast } = useToast();
-  const { authUser: contextAuthUser, schoolDetails, activeAcademicYear, isLoading: isContextLoading } = useStudentData();
-  const [authUser, setAuthUser] = useState<AppUser | null>(null);
-
+  const { authUser: contextAuthUser, isLoading: isContextLoading, activeAcademicYear } = useStudentData();
+  
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [targetAcademicYear, setTargetAcademicYear] = useState<string>("");
   const [availableYears, setAvailableYears] = useState<string[]>([]);
-  const [showBackSide, setShowBackSide] = useState(false);
-
-  // State to hold live report data
+  
   const [studentData, setStudentData] = useState<FrontStudentData | null>(null);
   const [faMarks, setFaMarks] = useState<Record<string, FrontSubjectFAData>>({});
   const [saData, setSaData] = useState<ReportCardSASubjectEntry[]>([]);
   const [attendanceData, setAttendanceData] = useState<ReportCardAttendanceMonth[]>([]);
   const [assessmentScheme, setAssessmentScheme] = useState<AssessmentScheme | null>(null);
   const [secondLanguage, setSecondLanguage] = useState<'Hindi' | 'Telugu'>('Hindi');
-
-
-  useEffect(() => {
-    const fullUserString = localStorage.getItem('loggedInUser');
-    if (fullUserString && fullUserString !== "undefined") {
-      setAuthUser(JSON.parse(fullUserString));
-    }
-  }, [contextAuthUser]);
 
 
   useEffect(() => {
@@ -81,7 +67,7 @@ export default function StudentResultsPage() {
       if (!subjectFaData) return null;
       let overallTotal = 0;
       scheme.assessments.filter(a => a.groupName.startsWith("FA")).forEach((assessment, index) => {
-        const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
+        const faPeriodKey = `fa${index + 1}` as keyof FrontSubjectFAData;
         const periodMarks = subjectFaData[faPeriodKey];
         if (periodMarks) {
           assessment.tests.forEach((test, testIndex) => {
@@ -95,7 +81,7 @@ export default function StudentResultsPage() {
 
 
   const fetchReport = useCallback(async () => {
-    if (!authUser || !authUser._id || !authUser.schoolId || !authUser.classId || !targetAcademicYear) {
+    if (!contextAuthUser || !contextAuthUser._id || !contextAuthUser.schoolId || !targetAcademicYear) {
       setError("Student information is incomplete.");
       setIsLoading(false);
       return;
@@ -105,133 +91,92 @@ export default function StudentResultsPage() {
     setError(null);
 
     try {
-      // 1. Fetch all necessary data in parallel
-      const [classRes, schemeRes, marksRes, attendanceRes] = await Promise.all([
-        getClassDetailsById(authUser.classId, authUser.schoolId.toString()),
-        getClassDetailsById(authUser.classId, authUser.schoolId.toString()).then(res => 
-            res.success && res.classDetails ? getAssessmentSchemeForClass(res.classDetails.name, authUser.schoolId!.toString(), targetAcademicYear) : null
-        ),
-        getStudentMarksForReportCard(authUser._id.toString(), authUser.schoolId.toString(), targetAcademicYear),
-        getStudentMonthlyAttendance(authUser._id.toString())
-      ]);
-
-      // 2. Validate essential data
-      if (!classRes.success || !classRes.classDetails) throw new Error("Could not load class details.");
-      if (!schemeRes || !schemeRes.success || !schemeRes.scheme) throw new Error("Could not load assessment scheme for this class.");
+      const reportRes = await getStudentReportCard(contextAuthUser._id.toString(), contextAuthUser.schoolId.toString(), targetAcademicYear);
       
-      const currentClass = classRes.classDetails;
-      const currentScheme = schemeRes.scheme;
-      setAssessmentScheme(currentScheme);
+      if (!reportRes.success || !reportRes.reportCard) {
+        throw new Error(reportRes.message || "Could not generate the report card data.");
+      }
+      
+      const { reportCard } = reportRes;
+      const currentAssessmentScheme = reportCard._rawSchemeData!;
+      const currentClass = reportCard._rawClassData!;
+      const allFetchedMarks = reportCard._rawMarksData || [];
+
+      setAssessmentScheme(currentAssessmentScheme);
+      setStudentData(reportCard.studentInfo);
       setSecondLanguage(currentClass.secondLanguageSubjectName === 'Telugu' ? 'Telugu' : 'Hindi');
 
-      // 3. Process Student Info
-      setStudentData({
-        udiseCodeSchoolName: schoolDetails?.schoolName || '',
-        studentName: authUser.name || '',
-        fatherName: authUser.fatherName || '',
-        motherName: authUser.motherName || '',
-        class: currentClass.name || '',
-        section: authUser.section || '',
-        studentIdNo: authUser._id.toString(),
-        rollNo: authUser.rollNo || '',
-        medium: 'English',
-        dob: authUser.dob || '',
-        admissionNo: authUser.admissionId || '',
-        examNo: authUser.examNo || '',
-        aadharNo: authUser.aadharNo || '',
-      });
-
-      const allFetchedMarks = marksRes.success ? marksRes.marks || [] : [];
-      
-      // 4. Process FA and SA Marks
       const newFaMarks: Record<string, FrontSubjectFAData> = {};
       const newSaData: ReportCardSASubjectEntry[] = [];
       
       currentClass.subjects.forEach(subject => {
-        // Initialize FA marks structure
-        newFaMarks[subject.name] = {
-            fa1: getDefaultFaMarksEntryFront(),
-            fa2: getDefaultFaMarksEntryFront(),
-            fa3: getDefaultFaMarksEntryFront(),
-            fa4: getDefaultFaMarksEntryFront(),
-        };
-
-        // Initialize SA data structure
+        newFaMarks[subject.name] = { fa1: getDefaultFaMarksEntryFront(), fa2: getDefaultFaMarksEntryFront(), fa3: getDefaultFaMarksEntryFront(), fa4: getDefaultFaMarksEntryFront() };
         let papers: string[] = ["I"];
         if(subject.name === "Science") papers = ["Physics", "Biology"];
-        else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName?.includes('Paper2'))) papers = ["I", "II"];
+        else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName && m.assessmentName.includes('Paper2'))) papers = ["I", "II"];
         
         papers.forEach(paper => {
-            const sa1Data: SAPaperData = JSON.parse(JSON.stringify(getDefaultSaPaperData()));
-            const sa2Data: SAPaperData = JSON.parse(JSON.stringify(getDefaultSaPaperData()));
-            newSaData.push({ subjectName: subject.name, paper, sa1: sa1Data, sa2: sa2Data, faTotal200M: null });
+            newSaData.push({ subjectName: subject.name, paper, sa1: JSON.parse(JSON.stringify(getDefaultSaPaperData())), sa2: JSON.parse(JSON.stringify(getDefaultSaPaperData())), faTotal200M: null });
         });
       });
 
-      // Populate marks from fetched data
       allFetchedMarks.forEach(mark => {
         if (!mark.assessmentName) return;
         const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
         const testName = restOfName.join('-');
         
-        const assessmentConfig = currentScheme.assessments.find(a => a.groupName === assessmentGroup);
+        const assessmentConfig = currentAssessmentScheme.assessments.find(a => a.groupName === assessmentGroup);
         if (!assessmentConfig) return;
         const testConfig = assessmentConfig.tests.find(t => t.testName === testName);
         if(!testConfig) return;
 
         if (assessmentGroup.startsWith("FA")) {
-            const faPeriodIndex = currentScheme.assessments.filter(a => a.groupName.startsWith("FA")).findIndex(a => a.groupName === assessmentGroup);
+            const faPeriodIndex = currentAssessmentScheme.assessments.filter(a => a.groupName.startsWith("FA")).findIndex(a => a.groupName === assessmentGroup);
             if (faPeriodIndex === -1) return;
-            const faPeriodKey = `fa${faPeriodIndex + 1}` as keyof SubjectFAData;
+            const faPeriodKey = `fa${faPeriodIndex + 1}` as keyof FrontSubjectFAData;
             
             const testIndex = assessmentConfig.tests.findIndex(t => t.testName === testName);
             if (testIndex === -1) return;
             const toolKey = `tool${testIndex + 1}` as keyof FrontMarksEntryType;
 
-            if (newFaMarks[mark.subjectName]?.[faPeriodKey] && toolKey in newFaMarks[mark.subjectName][faPeriodKey]) {
+            if (newFaMarks[mark.subjectName]?.[faPeriodKey]) {
                 (newFaMarks[mark.subjectName][faPeriodKey] as any)[toolKey] = mark.marksObtained;
             }
         } else if (assessmentGroup.startsWith("SA")) {
             const saPeriod = (assessmentGroup.toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
             const asKey = testConfig.testName.toLowerCase() as keyof SAPaperData;
-            const dbPaperPart = "Paper1"; // Simplified assumption
+            const dbPaperPart = "Paper1";
             let displayPaperName = (mark.subjectName === "Science") ? (dbPaperPart === 'Paper1' ? 'Physics' : 'Biology') : (dbPaperPart === 'Paper1' ? 'I' : 'II');
             
             const targetRow = newSaData.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
-            if (targetRow && targetRow[saPeriod]?.[asKey]) {
+            if (targetRow?.[saPeriod]?.[asKey]) {
                 (targetRow[saPeriod] as any)[asKey] = { marks: mark.marksObtained, maxMarks: mark.maxMarks };
             }
         }
       });
       setFaMarks(newFaMarks);
-      setSaData(newSaData.map(row => ({ ...row, faTotal200M: calculateFaTotal200MForRow(row.subjectName, newFaMarks, currentScheme) })));
-
-      // 5. Process Attendance
-      if (attendanceRes.success && attendanceRes.records) {
-        const attendanceMap = new Map<number, ReportCardAttendanceMonth>();
-        attendanceRes.records.forEach(r => attendanceMap.set(r.month, { workingDays: r.totalWorkingDays, presentDays: r.daysPresent }));
-        
-        const completeAttendance: ReportCardAttendanceMonth[] = Array(11).fill(null).map((_, i) => {
-            const monthIndex = (i + 5) % 12; // June is 0, May is 10
-            return attendanceMap.get(monthIndex) || { workingDays: null, presentDays: null };
-        });
-        setAttendanceData(completeAttendance);
-      } else {
-        setAttendanceData(Array(11).fill(null).map(() => ({ workingDays: null, presentDays: null })));
-      }
+      setSaData(newSaData.map(row => ({ ...row, faTotal200M: calculateFaTotal200MForRow(row.subjectName, newFaMarks, currentAssessmentScheme) })));
+      
+      const attendanceMap = new Map<number, ReportCardAttendanceMonth>();
+      (reportCard.attendance || []).forEach(r => attendanceMap.set(r.month, { workingDays: r.totalWorkingDays, presentDays: r.daysPresent }));
+      const completeAttendance: ReportCardAttendanceMonth[] = Array(11).fill(null).map((_, i) => {
+          const monthIndex = (i + 5) % 12;
+          return attendanceMap.get(monthIndex) || { workingDays: null, presentDays: null };
+      });
+      setAttendanceData(completeAttendance);
 
     } catch (e: any) {
       setError(e.message || "An unexpected error occurred while fetching the report card.");
     } finally {
       setIsLoading(false);
     }
-  }, [authUser, targetAcademicYear, toast, schoolDetails]);
+  }, [contextAuthUser, targetAcademicYear, toast]);
 
   useEffect(() => {
-    if (authUser?._id && authUser?.schoolId && targetAcademicYear) {
+    if (contextAuthUser?._id && contextAuthUser?.schoolId && targetAcademicYear) {
       fetchReport();
     }
-  }, [authUser, targetAcademicYear, fetchReport]);
+  }, [contextAuthUser, targetAcademicYear, fetchReport]);
 
   const handlePrint = () => window.print();
 
@@ -239,7 +184,7 @@ export default function StudentResultsPage() {
     return <div className="flex justify-center items-center p-10"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
   
-  if (!authUser) {
+  if (!contextAuthUser) {
     return <Card><CardHeader><CardTitle>Please Log In</CardTitle></CardHeader><CardContent><p>You must be logged in as a student to view results.</p></CardContent></Card>;
   }
 
@@ -267,11 +212,7 @@ export default function StudentResultsPage() {
                 </Select>
             </div>
             <div className="flex gap-2">
-                 <Button onClick={() => setShowBackSide(prev => !prev)} variant="secondary" disabled={!studentData}>
-                    {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
-                    {showBackSide ? "View Front" : "View Back"}
-                </Button>
-                <Button onClick={handlePrint} variant="outline" disabled={!studentData}><Printer className="mr-2 h-4 w-4"/> Print</Button>
+                <Button onClick={handlePrint} variant="outline" disabled={!studentData}><Printer className="mr-2 h-4 w-4"/> Print Report</Button>
             </div>
         </CardContent>
       </Card>
@@ -280,11 +221,11 @@ export default function StudentResultsPage() {
 
       {error && !isLoading && <Card className="border-destructive"><CardHeader className="flex-row items-center gap-2"><AlertTriangle className="h-6 w-6 text-destructive"/><CardTitle className="text-destructive">Report Not Available</CardTitle></CardHeader><CardContent><p>{error}</p></CardContent></Card>}
 
-      {!isLoading && !error && !studentData && authUser && <Card><CardContent className="p-10 text-center"><Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" /><p className="text-lg font-semibold">No Report Card Data</p><p className="text-muted-foreground">Your report for '{targetAcademicYear}' has not been generated or is not available. Please check back later.</p></CardContent></Card>}
+      {!isLoading && !error && !studentData && contextAuthUser && <Card><CardContent className="p-10 text-center"><Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" /><p className="text-lg font-semibold">No Report Card Data</p><p className="text-muted-foreground">Your report for '{targetAcademicYear}' has not been generated or is not available. Please check back later.</p></CardContent></Card>}
 
       {studentData && assessmentScheme && (
         <div className="space-y-4">
-          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide ? 'hidden lg:block' : ''}`}>
+          <div className="printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md">
             <CBSEStateFront
               studentData={studentData}
               academicSubjects={Object.keys(faMarks).map(name => ({ name, teacherId: '' }))} 
@@ -298,7 +239,7 @@ export default function StudentResultsPage() {
               onStudentDataChange={() => {}} onFaMarksChange={() => {}} onCoMarksChange={() => {}} onSecondLanguageChange={() => {}} onAcademicYearChange={() => {}}
             />
           </div>
-          <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden lg:block' : ''}`}>
+          <div className="printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md">
             <CBSEStateBack
               saData={saData}
               assessmentScheme={assessmentScheme}
@@ -315,3 +256,4 @@ export default function StudentResultsPage() {
     </div>
   );
 }
+
