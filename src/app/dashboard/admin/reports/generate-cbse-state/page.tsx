@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -17,11 +16,9 @@ import CBSEStateBack, {
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Printer, RotateCcw, Eye, EyeOff, Loader2, User, School as SchoolIconUI, Search as SearchIcon, AlertTriangle } from 'lucide-react';
+import { FileText, Printer, RotateCcw, Loader2, User, School as SchoolIconUI, Search as SearchIcon, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { AuthUser, UserRole } from '@/types/user';
-import { getStudentReportCard } from '@/app/actions/reports';
-import type { ReportCardData, FormativeAssessmentEntryForStorage } from '@/types/report';
 import { Input } from '@/components/ui/input'; 
 import { Label } from '@/components/ui/label'; 
 import { getStudentDetailsForReportCard, type StudentDetailsForReportCard } from '@/app/actions/schoolUsers';
@@ -115,7 +112,6 @@ export default function GenerateCBSEStateReportPage() {
   const [attendanceData, setAttendanceData] = useState<ReportCardAttendanceMonth[]>(defaultAttendanceDataBack);
   const [finalOverallGradeInput, setFinalOverallGradeInput] = useState<string | null>(null);
 
-  const [showBackSide, setShowBackSide] = useState(false);
   
   const [assessmentScheme, setAssessmentScheme] = useState<AssessmentScheme | null>(null);
 
@@ -279,7 +275,7 @@ export default function GenerateCBSEStateReportPage() {
             let papers: string[] = ["I"];
             if(subject.name === "Science") {
                 papers = ["Physics", "Biology"];
-            } else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName?.includes('Paper2'))) {
+            } else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName && m.assessmentName.includes('Paper2'))) {
                 papers = ["I", "II"];
             }
             
@@ -307,7 +303,7 @@ export default function GenerateCBSEStateReportPage() {
         allFetchedMarks.forEach(mark => {
             const subjectIdentifier = mark.subjectName;
             const assessmentName = mark.assessmentName;
-            if (!assessmentName) return; // FIX: Guard against undefined assessmentName
+            if (!assessmentName) return;
             const [assessmentGroup, ...restOfName] = assessmentName.split('-');
             
             if (currentAssessmentScheme.assessments.some(a => a.groupName === assessmentGroup) && restOfName.length > 0) {
@@ -381,7 +377,7 @@ export default function GenerateCBSEStateReportPage() {
   const handleFaMarksChange = (subjectIdentifier: string, faPeriod: keyof SubjectFAData, toolKey: keyof FrontMarksEntry, value: string) => {
     if (isFieldDisabledForRole(subjectIdentifier)) return; 
     
-    const assessmentGroup = assessmentScheme?.assessments?.find(a => a.groupName === faPeriod.toUpperCase());
+    const assessmentGroup = assessmentScheme?.assessments?.find(a => a.groupName.toLowerCase() === faPeriod);
     const testConfig = assessmentGroup?.tests?.find(t => t.testName.toLowerCase().replace('tool ','tool') === toolKey);
     const maxMark = testConfig?.maxMarks || (toolKey === 'tool4' ? 20 : 10);
     
@@ -556,11 +552,7 @@ export default function GenerateCBSEStateReportPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={handlePrint} variant="outline" disabled={!loadedStudent}><Printer className="mr-2 h-4 w-4"/> Print Preview</Button>
-            <Button onClick={() => setShowBackSide(prev => !prev)} variant="secondary" className="ml-auto mr-2" disabled={!loadedStudent}>
-                {showBackSide ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
-                {showBackSide ? "View Front" : "View Back"}
-            </Button>
-            <Button onClick={handleResetData} variant="destructive"><RotateCcw className="mr-2 h-4 w-4"/> Reset All</Button>
+            <Button onClick={handleResetData} variant="destructive" className="ml-auto"><RotateCcw className="mr-2 h-4 w-4"/> Reset All</Button>
           </div>
         </CardContent>
       </Card>
@@ -575,7 +567,7 @@ export default function GenerateCBSEStateReportPage() {
       {/* Report Card Display Area */}
       {!isLoadingStudentAndClassData && loadedStudent && authUser && (
         <div className="space-y-4">
-            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${showBackSide ? 'hidden lg:block' : ''}`}>
+            <div className="printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md">
                 <CBSEStateFront
                   studentData={studentData} onStudentDataChange={handleStudentDataChange}
                   academicSubjects={loadedClassSubjects} 
@@ -589,7 +581,7 @@ export default function GenerateCBSEStateReportPage() {
                 />
             </div>
           
-            <div className={`printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md ${!showBackSide ? 'hidden lg:block' : ''}`}>
+            <div className="printable-report-card bg-white p-2 sm:p-4 rounded-lg shadow-md">
                 <CBSEStateBack
                   saData={saData}
                   assessmentScheme={assessmentScheme}
@@ -626,5 +618,3 @@ export default function GenerateCBSEStateReportPage() {
     </div>
   );
 }
-
-
