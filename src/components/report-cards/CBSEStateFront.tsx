@@ -121,12 +121,13 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 
   const isFieldDisabledForRole = (subjectName?: string): boolean => {
     if (isStudent) return true;
+    // Admins can see but not edit if a student is loaded.
     if (isAdmin && !!studentData.studentIdNo) return true; 
     if (isTeacher) {
-      if (!subjectName) return true; 
+      if (!subjectName) return true; // Disable general fields for teachers
       return !editableSubjects.includes(subjectName);
     }
-    return false; 
+    return false; // Superadmin can edit
   };
 
 
@@ -155,8 +156,14 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
       .filter(a => a.groupName.startsWith("FA"))
       .forEach((assessment, index) => {
         const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
-        const periodMarks = currentSubjectData[faPeriodKey] || defaultFaPeriodMarks; 
-        const periodTotal = (periodMarks.tool1 || 0) + (periodMarks.tool2 || 0) + (periodMarks.tool3 || 0) + (periodMarks.tool4 || 0);
+        const periodMarks = currentSubjectData[faPeriodKey] || defaultFaPeriodMarks;
+        
+        let periodTotal = 0;
+        assessment.tests.forEach((test, testIndex) => {
+          const toolKey = `tool${testIndex + 1}` as keyof MarksEntry;
+          periodTotal += periodMarks[toolKey] || 0;
+        });
+
         currentOverallTotal += periodTotal;
         results[assessment.groupName] = { // Use dynamic group name for results key
           total: periodTotal,

@@ -75,14 +75,19 @@ export default function StudentResultsPage() {
     fetchYears();
   }, [activeAcademicYear, targetAcademicYear]);
 
-  const calculateFaTotal200MForRow = (subjectName: string, allFaMarks: Record<string, FrontSubjectFAData>): number | null => {
+  const calculateFaTotal200MForRow = (subjectName: string, allFaMarks: Record<string, FrontSubjectFAData>, scheme: AssessmentScheme | null): number | null => {
+      if (!scheme) return null;
       const subjectFaData = allFaMarks[subjectName];
       if (!subjectFaData) return null;
       let overallTotal = 0;
-      (['fa1', 'fa2', 'fa3', 'fa4'] as const).forEach(faPeriodKey => {
+      scheme.assessments.filter(a => a.groupName.startsWith("FA")).forEach((assessment, index) => {
+        const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
         const periodMarks = subjectFaData[faPeriodKey];
         if (periodMarks) {
-          overallTotal += (periodMarks.tool1 || 0) + (periodMarks.tool2 || 0) + (periodMarks.tool3 || 0) + (periodMarks.tool4 || 0);
+          assessment.tests.forEach((test, testIndex) => {
+              const toolKey = `tool${testIndex + 1}` as keyof FrontMarksEntryType;
+              overallTotal += periodMarks[toolKey] || 0;
+          });
         }
       });
       return overallTotal > 200 ? 200 : overallTotal;
@@ -171,16 +176,24 @@ export default function StudentResultsPage() {
         
         const assessmentConfig = currentScheme.assessments.find(a => a.groupName === assessmentGroup);
         if (!assessmentConfig) return;
+        const testConfig = assessmentConfig.tests.find(t => t.testName === testName);
+        if(!testConfig) return;
 
         if (assessmentGroup.startsWith("FA")) {
-            const faPeriodKey = assessmentGroup.toLowerCase() as keyof SubjectFAData;
-            const toolKey = testName.toLowerCase().replace('tool ', 'tool') as keyof FrontMarksEntryType;
+            const faPeriodIndex = currentScheme.assessments.filter(a => a.groupName.startsWith("FA")).findIndex(a => a.groupName === assessmentGroup);
+            if (faPeriodIndex === -1) return;
+            const faPeriodKey = `fa${faPeriodIndex + 1}` as keyof SubjectFAData;
+            
+            const testIndex = assessmentConfig.tests.findIndex(t => t.testName === testName);
+            if (testIndex === -1) return;
+            const toolKey = `tool${testIndex + 1}` as keyof FrontMarksEntryType;
+
             if (newFaMarks[mark.subjectName]?.[faPeriodKey] && toolKey in newFaMarks[mark.subjectName][faPeriodKey]) {
                 (newFaMarks[mark.subjectName][faPeriodKey] as any)[toolKey] = mark.marksObtained;
             }
         } else if (assessmentGroup.startsWith("SA")) {
             const saPeriod = (assessmentGroup.toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
-            const asKey = testName.toLowerCase() as keyof SAPaperData;
+            const asKey = testConfig.testName.toLowerCase() as keyof SAPaperData;
             const dbPaperPart = "Paper1"; // Simplified assumption
             let displayPaperName = (mark.subjectName === "Science") ? (dbPaperPart === 'Paper1' ? 'Physics' : 'Biology') : (dbPaperPart === 'Paper1' ? 'I' : 'II');
             
@@ -191,7 +204,7 @@ export default function StudentResultsPage() {
         }
       });
       setFaMarks(newFaMarks);
-      setSaData(newSaData.map(row => ({ ...row, faTotal200M: calculateFaTotal200MForRow(row.subjectName, newFaMarks) })));
+      setSaData(newSaData.map(row => ({ ...row, faTotal200M: calculateFaTotal200MForRow(row.subjectName, newFaMarks, currentScheme) })));
 
       // 5. Process Attendance
       if (attendanceRes.success && attendanceRes.records) {

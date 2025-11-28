@@ -48,6 +48,7 @@ const getDefaultSaPaperData = (): SAPaperData => ({
 });
 
 const getDefaultFaMarksEntryFront = (): FrontMarksEntry => ({ tool1: null, tool2: null, tool3: null, tool4: null });
+
 const getDefaultSubjectFaDataFront = (subjects: SchoolClassSubject[]): Record<string, FrontSubjectFAData> => {
     const initialFaMarks: Record<string, FrontSubjectFAData> = {};
     (subjects || []).forEach(subject => {
@@ -71,17 +72,22 @@ const defaultStudentDataFront: FrontStudentData = {
 
 const defaultAttendanceDataBack: ReportCardAttendanceMonth[] = Array(11).fill(null).map(() => ({ workingDays: null, presentDays: null }));
 
-const calculateFaTotal200MForRow = (subjectNameForBack: string, paperNameForBack: string, currentFaMarks: Record<string, FrontSubjectFAData>): number | null => {
+const calculateFaTotal200MForRow = (subjectNameForBack: string, paperNameForBack: string, currentFaMarks: Record<string, FrontSubjectFAData>, scheme: AssessmentScheme | null): number | null => {
+  if (!scheme) return null;
   const faSubjectKey = (subjectNameForBack === "Science") ? "Science" : subjectNameForBack;
   const subjectFaData = currentFaMarks[faSubjectKey];
 
   if (!subjectFaData) return null;
 
   let overallTotal = 0;
-  (['fa1', 'fa2', 'fa3', 'fa4'] as const).forEach(faPeriodKey => {
+  scheme.assessments.filter(a => a.groupName.startsWith("FA")).forEach((assessment, index) => {
+    const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
     const periodMarks = subjectFaData[faPeriodKey];
     if (periodMarks) {
-      overallTotal += (periodMarks.tool1 || 0) + (periodMarks.tool2 || 0) + (periodMarks.tool3 || 0) + (periodMarks.tool4 || 0);
+        assessment.tests.forEach((test, testIndex) => {
+            const toolKey = `tool${testIndex + 1}` as keyof MarksEntry;
+            overallTotal += periodMarks[toolKey] || 0;
+        });
     }
   });
   
@@ -261,11 +267,6 @@ export default function GenerateCBSEStateReportPage() {
       if (marksResult.success && marksResult.marks && currentAssessmentScheme) {
         const allFetchedMarks = marksResult.marks;
 
-        const saTestNamesFromScheme = new Set<string>();
-        currentAssessmentScheme.assessments
-            .filter(a => a.groupName.startsWith('SA'))
-            .forEach(a => a.tests.forEach(t => saTestNamesFromScheme.add(t.testName)));
-
         // Initialize SA data structure based on the scheme
         currentLoadedClassSubjects.forEach(subject => {
             const saGroupsForSubject = currentAssessmentScheme.assessments
@@ -280,8 +281,8 @@ export default function GenerateCBSEStateReportPage() {
             }
             
             papers.forEach(paper => {
-                const sa1Data: SAPaperData = getDefaultSaPaperData();
-                const sa2Data: SAPaperData = getDefaultSaPaperData();
+                const sa1Data: SAPaperData = JSON.parse(JSON.stringify(getDefaultSaPaperData()));
+                const sa2Data: SAPaperData = JSON.parse(JSON.stringify(getDefaultSaPaperData()));
                 
                 const sa1Group = saGroupsForSubject.find(g => g.groupName === 'SA1');
                 if(sa1Group) sa1Group.tests.forEach(t => (sa1Data as any)[t.testName.toLowerCase()] = { marks: null, maxMarks: t.maxMarks });
@@ -302,45 +303,52 @@ export default function GenerateCBSEStateReportPage() {
         // Map fetched marks to the structured state
         allFetchedMarks.forEach(mark => {
             const subjectIdentifier = mark.subjectName;
-            const assessmentName = mark.assessmentName;
-            if (!assessmentName) return;
-            const [assessmentGroup, ...restOfName] = assessmentName.split('-');
+            if (!mark.assessmentName) return;
+
+            const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
+            const testName = restOfName.join('-');
             
-            if (currentAssessmentScheme.assessments.some(a => a.groupName === assessmentGroup) && restOfName.length > 0) {
-              const assessmentConfig = currentAssessmentScheme.assessments.find(a => a.groupName === assessmentGroup)!;
-              const testConfig = assessmentConfig.tests.find(t => t.testName === restOfName.join('-'));
+            const assessmentConfig = currentAssessmentScheme.assessments.find(a => a.groupName === assessmentGroup);
+            if (!assessmentConfig) return;
+            const testConfig = assessmentConfig.tests.find(t => t.testName === testName);
+            if(!testConfig) return;
 
-              if (testConfig) {
-                if (assessmentGroup.startsWith("FA")) {
-                  const faPeriodKey = assessmentGroup.toLowerCase() as keyof SubjectFAData;
-                  const toolKey = testConfig.testName.toLowerCase().replace('tool ', 'tool') as FaToolKey;
+            if (assessmentGroup.startsWith("FA")) {
+                const faPeriodIndex = currentAssessmentScheme.assessments.filter(a => a.groupName.startsWith("FA")).findIndex(a => a.groupName === assessmentGroup);
+                if (faPeriodIndex === -1) return;
 
-                  if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
-                      (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
-                  }
-                } else if (assessmentGroup.startsWith("SA")) {
-                    const saPeriod = (assessmentGroup.toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
-                    const asKey = testConfig.testName.toLowerCase() as keyof SAPaperData;
-                    
-                    const dbPaperPart = "Paper1"; // Fallback, logic might need to be smarter if P1/P2 is in test name
-                    let displayPaperName: string;
-                    if (mark.subjectName === "Science") {
-                        displayPaperName = dbPaperPart === 'Paper1' ? 'Physics' : 'Biology';
-                    } else {
-                        displayPaperName = dbPaperPart === 'Paper1' ? 'I' : 'II';
-                    }
-                    
-                    const targetRow = tempSaDataForNewReport.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
-                    
-                    if (targetRow && targetRow[saPeriod]?.[asKey]) {
-                        (targetRow[saPeriod] as any)[asKey] = {
-                            marks: mark.marksObtained,
-                            maxMarks: mark.maxMarks,
-                        };
-                    }
+                const faPeriodKey = `fa${faPeriodIndex + 1}` as keyof SubjectFAData;
+                
+                const testIndex = assessmentConfig.tests.findIndex(t => t.testName === testName);
+                if (testIndex === -1) return;
+                const toolKey = `tool${testIndex + 1}` as keyof MarksEntry;
+
+                if (newFaMarksForState[subjectIdentifier]?.[faPeriodKey] && toolKey in newFaMarksForState[subjectIdentifier][faPeriodKey]) {
+                    (newFaMarksForState[subjectIdentifier][faPeriodKey] as any)[toolKey] = mark.marksObtained;
                 }
-              }
+
+            } else if (assessmentGroup.startsWith("SA")) {
+                const saPeriod = (assessmentGroup.toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
+                const asKey = testConfig.testName.toLowerCase() as keyof SAPaperData;
+                
+                const dbPaperPart = "Paper1"; // Simplified assumption
+                let displayPaperName: string;
+                if (mark.subjectName === "Science") {
+                    displayPaperName = dbPaperPart === 'Paper1' ? 'Physics' : 'Biology';
+                } else {
+                    displayPaperName = dbPaperPart === 'Paper1' ? 'I' : 'II';
+                }
+                
+                const targetRow = tempSaDataForNewReport.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
+                
+                if (targetRow && targetRow[saPeriod]?.[asKey]) {
+                    (targetRow[saPeriod] as any)[asKey] = {
+                        marks: mark.marksObtained,
+                        maxMarks: mark.maxMarks,
+                    };
+                }
             }
+            
         });
 
         setFaMarks(newFaMarksForState);
@@ -353,7 +361,7 @@ export default function GenerateCBSEStateReportPage() {
       
       tempSaDataForNewReport = tempSaDataForNewReport.map(row => ({
           ...row,
-          faTotal200M: calculateFaTotal200MForRow(row.subjectName, row.paper, newFaMarksForState)
+          faTotal200M: calculateFaTotal200MForRow(row.subjectName, row.paper, newFaMarksForState, currentAssessmentScheme)
       }));
       setSaData(tempSaDataForNewReport);
       setCoMarks(defaultCoMarksFront);
@@ -374,91 +382,28 @@ export default function GenerateCBSEStateReportPage() {
     setStudentData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleFaMarksChange = (subjectIdentifier: string, faPeriod: keyof SubjectFAData, toolKey: keyof FrontMarksEntry, value: string) => {
-    if (isFieldDisabledForRole(subjectIdentifier)) return; 
-    
-    const assessmentGroup = assessmentScheme?.assessments?.find(a => a.groupName.toLowerCase() === faPeriod);
-    const testConfig = assessmentGroup?.tests?.find(t => t.testName.toLowerCase().replace('tool ','tool') === toolKey);
-    const maxMark = testConfig?.maxMarks || (toolKey === 'tool4' ? 20 : 10);
-    
-    const numValue = parseInt(value, 10);
-    const validatedValue = isNaN(numValue) ? null : Math.min(Math.max(numValue, 0), maxMark);
-    
-    setFaMarks(prevFaMarks => {
-      const currentSubjectMarks = prevFaMarks[subjectIdentifier] || {
-        fa1: getDefaultFaMarksEntryFront(), fa2: getDefaultFaMarksEntryFront(),
-        fa3: getDefaultFaMarksEntryFront(), fa4: getDefaultFaMarksEntryFront(),
-      };
-      const updatedPeriodMarks = { 
-        ...(currentSubjectMarks[faPeriod] || getDefaultFaMarksEntryFront()), 
-        [toolKey]: validatedValue 
-      };
-      const newFaMarks = { ...prevFaMarks, [subjectIdentifier]: { ...currentSubjectMarks, [faPeriod]: updatedPeriodMarks }};
-      
-      setSaData(currentSaData =>
-        currentSaData.map(row => ({
-          ...row,
-          faTotal200M: calculateFaTotal200MForRow(row.subjectName, row.paper, newFaMarks)
-        }))
-      );
-      return newFaMarks;
-    });
+  const handleFaMarksChange = (subjectIdentifier: string, faPeriodKey: keyof SubjectFAData, toolKey: keyof FrontMarksEntry, value: string) => {
+      // This is now effectively read-only in this component
   };
 
   const handleCoMarksChange = (subjectIndex: number, saPeriodKey: 'sa1' | 'sa2' | 'sa3', type: 'Marks' | 'Max', value: string) => {
-    if (isFieldDisabledForRole("CoCurricular")) return;
+    // Read-only
   };
 
   const handleSaDataChange = (rowIndex: number, period: 'sa1' | 'sa2', fieldKey: keyof SAPaperData, value: string) => {
-    const subjectName = saData[rowIndex]?.subjectName;
-    if (isFieldDisabledForRole(subjectName)) return;
-
-    const numValue = parseInt(value, 10);
-    const validatedValue = isNaN(numValue) ? null : Math.max(numValue, 0);
-
-    setSaData(prev => prev.map((row, idx) => {
-        if (idx === rowIndex) {
-            const updatedRow = { ...row };
-            const paperData = updatedRow[period];
-            const skillData = paperData[fieldKey];
-
-            if (skillData) {
-                skillData.marks = validatedValue;
-            }
-            return updatedRow;
-        }
-        return row;
-    }));
+     // Read-only
   };
   
   const handleFaTotalChangeBack = (rowIndex: number, value: string) => {
-    const subjectName = saData[rowIndex]?.subjectName;
-    if (isFieldDisabledForRole(subjectName)) return; 
-     const numValue = parseInt(value, 10);
-     const validatedValue = isNaN(numValue) ? null : Math.min(Math.max(numValue, 0), 200);
-     setSaData(prev => prev.map((row, idx) => 
-        idx === rowIndex ? { ...row, faTotal200M: validatedValue } : row
-     ));
+     // Read-only
   };
 
   const handleAttendanceDataChange = (monthIndex: number, type: 'workingDays' | 'presentDays', value: string) => {
-    if (isFieldDisabledForRole()) return;
-    const numValue = parseInt(value, 10);
-    const validatedValue = isNaN(numValue) ? null : Math.max(numValue, 0);
-    setAttendanceData(prev => prev.map((month, idx) => 
-        idx === monthIndex ? { ...month, [type]: validatedValue } : month
-    ));
+    // Read-only
   };
   
   const isFieldDisabledForRole = (subjectName?: string): boolean => {
-    const currentUserRole = authUser?.role as UserRole;
-    if (currentUserRole === 'student') return true;
-    if (currentUserRole === 'admin' && !!loadedStudent) return false; 
-    if (currentUserRole === 'teacher') {
-      if (!subjectName) return true; 
-      if (subjectName === "Science" && (teacherEditableSubjects.includes("Physics") || teacherEditableSubjects.includes("Biology"))) return false;
-      return !teacherEditableSubjects.includes(subjectName);
-    }
+    // In this component, everything should be read-only for all roles.
     return true; 
   };
 
@@ -551,8 +496,8 @@ export default function GenerateCBSEStateReportPage() {
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={handlePrint} variant="outline" disabled={!loadedStudent}><Printer className="mr-2 h-4 w-4"/> Print Preview</Button>
-            <Button onClick={handleResetData} variant="destructive" className="ml-auto"><RotateCcw className="mr-2 h-4 w-4"/> Reset All</Button>
+            <Button onClick={handlePrint} variant="outline" disabled={!loadedStudent}><Printer className="mr-2 h-4 w-4"/> Print Report</Button>
+            <Button onClick={handleResetData} variant="destructive" className="ml-auto"><RotateCcw className="mr-2 h-4 w-4"/> Reset</Button>
           </div>
         </CardContent>
       </Card>
