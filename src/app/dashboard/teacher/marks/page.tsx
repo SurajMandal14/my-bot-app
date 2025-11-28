@@ -205,12 +205,17 @@ export default function TeacherMarksEntryPage() {
         marksResult.marks.forEach(mark => {
           const studentIdStr = mark.studentId.toString();
           if (!initialMarks[studentIdStr]) return;
+          if (mark.assessmentName) {
             const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
             const testName = restOfName.join('-');
 
             if (assessmentGroup === selectedAssessmentName && testName) {
-                (initialMarks[studentIdStr] as StudentMarksCustomState)[testName] = mark.marksObtained;
+                // Ensure the key exists before assigning
+                if (Object.prototype.hasOwnProperty.call(initialMarks[studentIdStr], testName)) {
+                    (initialMarks[studentIdStr] as StudentMarksCustomState)[testName] = mark.marksObtained;
+                }
             }
+          }
         });
       }
       setStudentMarks(initialMarks);
@@ -342,4 +347,3 @@ export default function TeacherMarksEntryPage() {
   );
 }
 
-    
