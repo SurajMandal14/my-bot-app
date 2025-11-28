@@ -397,34 +397,7 @@ export default function TeacherDashboardPage() {
                 </Button>
             </CardContent>
         </Card>
-
-
-         <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-                <div className="flex justify-between items-center">
-                    <BookOpen className="h-10 w-10 text-primary mb-2" />
-                    <span className="text-sm font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{assignedSubjects.length} Subject(s)</span>
-                </div>
-                <CardTitle>My Subjects</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <CardDescription>You are assigned to teach the following subjects. Click to enter marks.</CardDescription>
-                {isLoading ? <Loader2 className="my-4 h-6 w-6 animate-spin" /> : 
-                assignedSubjects.length > 0 ? (
-                    <div className="mt-4 space-y-2">
-                        {assignedSubjects.map(sub => (
-                            <Link href="/dashboard/teacher/marks" key={sub.value} className="flex items-center justify-between p-3 rounded-md bg-muted hover:bg-muted/80 transition-colors">
-                                <span>{sub.label}</span>
-                                <ChevronRight className="h-5 w-5 text-muted-foreground"/>
-                            </Link>
-                        ))}
-                    </div>
-                ) : (
-                    <p className="mt-4 text-center text-muted-foreground">No subjects assigned yet.</p>
-                )}
-            </CardContent>
-         </Card>
-         
+        
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <FileUp className="h-10 w-10 text-primary mb-2" />
