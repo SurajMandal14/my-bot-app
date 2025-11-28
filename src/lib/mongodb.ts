@@ -1,5 +1,7 @@
 // src/lib/mongodb.ts
 import { MongoClient, ServerApiVersion, Db } from 'mongodb';
+import bcrypt from 'bcryptjs';
+import type { User } from '@/types/user';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'campusflow'; // Default to 'campusflow' if not set
@@ -19,6 +21,32 @@ if (!MONGODB_URI) {
 let cachedClient: MongoClient | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let cachedDb: Db | null = null;
+
+
+async function ensureSuperAdminExists(db: Db): Promise<void> {
+  const superAdminEmail = 'Sadmin.scholr@2lyp.net';
+  const usersCollection = db.collection<User>('users');
+  const existingSuperAdmin = await usersCollection.findOne({ email: superAdminEmail });
+
+  if (!existingSuperAdmin) {
+    console.log(`Superadmin ${superAdminEmail} not found. Creating...`);
+    const hashedPassword = await bcrypt.hash('Super@2lyp', 10);
+    
+    const newSuperAdmin: Omit<User, '_id'> = {
+      name: 'Super Admin',
+      email: superAdminEmail,
+      password: hashedPassword,
+      role: 'superadmin',
+      status: 'active',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await usersCollection.insertOne(newSuperAdmin as User);
+    console.log(`Superadmin ${superAdminEmail} created successfully.`);
+  }
+}
+
 
 export async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
   if (cachedClient && cachedDb) {
@@ -45,6 +73,9 @@ export async function connectToDatabase(): Promise<{ client: MongoClient; db: Db
     await client.connect();
     const db = client.db(MONGODB_DB_NAME);
     console.log("Successfully connected to MongoDB Atlas!");
+    
+    // Ensure the superadmin exists after connecting
+    await ensureSuperAdminExists(db);
 
     cachedClient = client;
     cachedDb = db;
