@@ -11,6 +11,7 @@ const testComponentSchema = z.object({
 
 const assessmentGroupSchema = z.object({
   groupName: z.string().min(1, "Assessment group name (e.g., FA1) is required."),
+  type: z.enum(['formative', 'summative']).default('formative'),
   tests: z.array(testComponentSchema).min(1, "At least one test component is required per assessment group."),
 });
 
@@ -27,6 +28,7 @@ export interface AssessmentScheme {
   academicYear: string;
   assessments: {
     groupName: string;
+    type: 'formative' | 'summative';
     tests: {
       testName: string;
       maxMarks: number;
