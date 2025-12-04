@@ -61,6 +61,15 @@ const defaultStudentDataFront: FrontStudentData = {
 
 const defaultAttendanceDataBack: ReportCardAttendanceMonth[] = Array(11).fill(null).map(() => ({ workingDays: null, presentDays: null }));
 
+// Helpers to classify assessment groups by explicit group naming only
+const isFormativeGroup = (group: { groupName: string }) => {
+  return !group.groupName.toUpperCase().startsWith('SA');
+};
+
+const isSummativeGroup = (group: { groupName: string }) => {
+  return group.groupName.toUpperCase().startsWith('SA');
+};
+
 const calculateFaTotal200MForRow = (subjectNameForBack: string, paperNameForBack: string, currentFaMarks: Record<string, FrontSubjectFAData>, scheme: AssessmentScheme | null): number | null => {
   if (!scheme) return null;
   const faSubjectKey = (subjectNameForBack === "Science") ? "Science" : subjectNameForBack;
@@ -69,7 +78,11 @@ const calculateFaTotal200MForRow = (subjectNameForBack: string, paperNameForBack
   if (!subjectFaData) return null;
 
   let overallTotal = 0;
-  scheme.assessments.filter(a => a.groupName.startsWith("FA")).forEach((assessment, index) => {
+  const hasTypedScheme = Array.isArray(scheme.assessments) && scheme.assessments.some((g: any) => typeof g.type !== 'undefined');
+  const formativeGroups = hasTypedScheme
+    ? scheme.assessments.filter((g: any) => g.type === 'formative')
+    : scheme.assessments.filter(g => isFormativeGroup({ groupName: g.groupName }));
+  formativeGroups.forEach((assessment, index) => {
     const faPeriodKey = `fa${index + 1}` as keyof FrontSubjectFAData;
     const periodMarks = subjectFaData[faPeriodKey];
     if (periodMarks) {
@@ -130,7 +143,7 @@ export default function GenerateCBSEStateReportPage() {
         setFrontAcademicYear(defaultYear.year);
       }
     } else {
-      toast({ variant: 'warning', title: 'Could not load academic years' });
+      toast({ variant: 'default', title: 'Could not load academic years' });
     }
   }, [toast]);
 
@@ -159,16 +172,17 @@ export default function GenerateCBSEStateReportPage() {
     initializeReportState();
     
     try {
-      const studentIdRes = await getStudentDetailsForReportCard(admissionIdInput, authUser.schoolId, frontAcademicYear);
-      if(!studentIdRes.success || !studentIdRes.student) {
-        toast({ variant: "destructive", title: "Student Not Found", description: studentIdRes.message || `Could not find student with Admission ID: ${admissionIdInput}.` });
-        setIsLoadingStudentAndClassData(false);
-        return;
-      }
+    const studentIdRes = await getStudentDetailsForReportCard(admissionIdInput, String(authUser.schoolId), frontAcademicYear);
+    if(!studentIdRes.success || !studentIdRes.student) {
+      toast({ variant: "destructive", title: "Student Not Found", description: studentIdRes.message || `Could not find student with Admission ID: ${admissionIdInput}.` });
+      setIsLoadingStudentAndClassData(false);
+      return;
+    }
       
-      const reportRes = await getStudentReportCard(studentIdRes.student._id, authUser.schoolId, frontAcademicYear);
+      const reportRes = await getStudentReportCard(String(studentIdRes.student._id), String(authUser.schoolId), frontAcademicYear);
       
       if (!reportRes.success || !reportRes.reportCard) {
+        console.log(reportRes);
         toast({ variant: "destructive", title: "Report Generation Failed", description: reportRes.message || "Could not generate the report card data." });
         setIsLoadingStudentAndClassData(false);
         return;
@@ -186,9 +200,16 @@ export default function GenerateCBSEStateReportPage() {
 
       const newFaMarksForState: Record<string, FrontSubjectFAData> = {};
       const newSaDataForState: ReportCardSASubjectEntry[] = [];
+      const formativeGroups = currentAssessmentScheme.assessments.filter(isFormativeGroup);
       
       currentClass.subjects.forEach(subject => {
-        newFaMarksForState[subject.name] = { fa1: getDefaultFaMarksEntryFront(), fa2: getDefaultFaMarksEntryFront(), fa3: getDefaultFaMarksEntryFront(), fa4: getDefaultFaMarksEntryFront() };
+        // Build FA periods dynamically based on scheme
+        const faPeriodObj: any = {};
+        formativeGroups.forEach((_, idx) => {
+          const key = `fa${idx + 1}`;
+          faPeriodObj[key] = getDefaultFaMarksEntryFront();
+        });
+        newFaMarksForState[subject.name] = faPeriodObj as FrontSubjectFAData;
         let papers: string[] = ["I"];
         if(subject.name === "Science") papers = ["Physics", "Biology"];
         else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName && m.assessmentName.includes('Paper2'))) papers = ["I", "II"];
@@ -207,8 +228,10 @@ export default function GenerateCBSEStateReportPage() {
         const testConfig = assessmentConfig.tests.find(t => t.testName === testName);
         if(!testConfig) return;
 
-        if (assessmentGroup.startsWith("FA")) {
-          const faPeriodIndex = currentAssessmentScheme.assessments.filter(a => a.groupName.startsWith("FA")).findIndex(a => a.groupName === assessmentGroup);
+        if ((typeof (assessmentConfig as any).type !== 'undefined' && (assessmentConfig as any).type === 'formative') ||
+          (typeof (assessmentConfig as any).type === 'undefined' && isFormativeGroup({ groupName: assessmentConfig.groupName }))
+        ) {
+          const faPeriodIndex = formativeGroups.findIndex(a => a.groupName === assessmentGroup);
           if (faPeriodIndex === -1) return;
           const faPeriodKey = `fa${faPeriodIndex + 1}` as keyof FrontSubjectFAData;
           const testIndex = assessmentConfig.tests.findIndex(t => t.testName === testName);
@@ -217,7 +240,9 @@ export default function GenerateCBSEStateReportPage() {
           if (newFaMarksForState[mark.subjectName]?.[faPeriodKey]) {
             (newFaMarksForState[mark.subjectName][faPeriodKey] as any)[toolKey] = mark.marksObtained;
           }
-        } else if (assessmentGroup.startsWith("SA")) {
+        } else if ((typeof (assessmentConfig as any).type !== 'undefined' && (assessmentConfig as any).type === 'summative') ||
+             (typeof (assessmentConfig as any).type === 'undefined' && isSummativeGroup({ groupName: assessmentConfig.groupName }))
+        ) {
           const saPeriod = (assessmentGroup.toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
           const asKey = testConfig.testName.toLowerCase() as keyof SAPaperData;
           const dbPaperPart = "Paper1";
@@ -317,7 +342,7 @@ export default function GenerateCBSEStateReportPage() {
                   coMarks={coMarks} onCoMarksChange={() => {}} 
                   secondLanguage={frontSecondLanguage} onSecondLanguageChange={() => {}}
                   academicYear={frontAcademicYear} onAcademicYearChange={() => {}}
-                  currentUserRole={'admin'}
+                  currentUserRole={currentUserRole}
                   editableSubjects={[]}
                 />
             </div>
@@ -331,7 +356,7 @@ export default function GenerateCBSEStateReportPage() {
                   attendanceData={attendanceData} onAttendanceDataChange={() => {}}
                   finalOverallGradeInput={finalOverallGradeInput} onFinalOverallGradeInputChange={setFinalOverallGradeInput}
                   secondLanguageSubjectName={frontSecondLanguage} 
-                  currentUserRole={'admin'}
+                  currentUserRole={currentUserRole}
                   editableSubjects={[]} 
                 />
             </div>
