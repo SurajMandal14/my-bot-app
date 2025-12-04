@@ -237,7 +237,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
     const updateData: Partial<Omit<User, '_id' | 'createdAt'>> & { updatedAt: Date } = {
       name,
       email,
-      classId: (role === 'student' && classId && classId.trim() !== "" && ObjectId.isValid(classId)) ? classId.trim() : undefined,
+      classId: role === 'student' ? classId : undefined,
       updatedAt: new Date(),
       dateOfJoining: dateOfJoining || undefined,
       dateOfLeaving: dateOfLeaving || undefined,
@@ -496,10 +496,10 @@ export interface GetStudentDetailsForReportCardResult {
   message?: string;
 }
 
-export async function getStudentDetailsForReportCard(admissionIdQuery: string, schoolIdQuery: string, academicYear: string): Promise<GetStudentDetailsForReportCardResult> {
+export async function getStudentDetailsForReportCard(admissionIdOrStudentId: string, schoolIdQuery: string, academicYear: string): Promise<GetStudentDetailsForReportCardResult> {
   try {
-    if (!admissionIdQuery || admissionIdQuery.trim() === "") {
-      return { success: false, message: 'Admission ID cannot be empty.', error: 'Invalid Admission ID.' };
+    if (!admissionIdOrStudentId || admissionIdOrStudentId.trim() === "") {
+      return { success: false, message: 'Admission ID or Student ID cannot be empty.', error: 'Invalid ID.' };
     }
     if (!ObjectId.isValid(schoolIdQuery)) {
       return { success: false, message: 'Invalid School ID format.', error: 'Invalid School ID.' };
@@ -508,19 +508,40 @@ export async function getStudentDetailsForReportCard(admissionIdQuery: string, s
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<User>('users');
 
-    // Find student by admissionId and schoolId, but not academic year
-    const studentDoc = await usersCollection.findOne({ 
-        admissionId: admissionIdQuery, 
+    let studentDoc: User | null = null;
+    if (ObjectId.isValid(admissionIdOrStudentId)) {
+      // Treat as student _id
+      studentDoc = await usersCollection.findOne({ 
+        _id: new ObjectId(admissionIdOrStudentId) as any,
         schoolId: new ObjectId(schoolIdQuery) as any,
         role: 'student',
-    });
+        academicYear: academicYear,
+      });
+    } else {
+      // Treat as admissionId
+      studentDoc = await usersCollection.findOne({ 
+        admissionId: admissionIdOrStudentId, 
+        schoolId: new ObjectId(schoolIdQuery) as any,
+        role: 'student',
+        academicYear: academicYear,
+      });
+    }
 
     if (!studentDoc) {
-      return { success: false, message: `Student with Admission ID '${admissionIdQuery}' not found in this school.`, error: 'Student not found.' };
+      // Optional: Check if the student exists in another year for a more specific message
+      const studentInOtherYear = await usersCollection.findOne({
+          $or: [
+            { admissionId: admissionIdOrStudentId },
+            ObjectId.isValid(admissionIdOrStudentId) ? { _id: new ObjectId(admissionIdOrStudentId) as any } : { _id: { $exists: false } }
+          ],
+          schoolId: new ObjectId(schoolIdQuery) as any,
+          role: 'student',
+      });
+      if (studentInOtherYear) {
+          return { success: false, message: `Student found, but not for the academic year ${academicYear}.`, error: 'Student not in academic year.' };
+      }
+      return { success: false, message: `Student not found in this school for the specified academic year.`, error: 'Student not found.' };
     }
-    
-    // Check if the student's current classId and academicYear match the query, if needed for validation elsewhere
-    // For now, we return the found student details regardless of their currently assigned year.
     
     const student = studentDoc as User; // Type assertion
 
@@ -571,7 +592,7 @@ export async function bulkCreateSchoolUsers(
     
     // Fetch all classes for the school once to avoid repeated DB calls
     const existingClasses = await db.collection<SchoolClass>('school_classes')
-        .find({ schoolId: schoolObjectId })
+      .find({ schoolId: schoolId })
         .toArray();
     
     // Create a map for quick lookup: "ClassName-Section-AcademicYear" -> classId
