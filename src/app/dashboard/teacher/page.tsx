@@ -72,20 +72,26 @@ export default function TeacherDashboardPage() {
     }
   }, [toast]);
 
+  const toID = (id: string | { toString(): string } | undefined) => (id? id.toString() : "");
+
   const fetchTeacherData = useCallback(async () => {
       if (!authUser || !authUser.schoolId || !authUser._id) return;
       setIsLoading(true);
+
+      const teacherId = toID(authUser._id);
+      const schoolId = toID(authUser.schoolId);
+      const classId = authUser.classId ? toID(authUser.classId) : undefined;
       
       const academicYear = new Date().getFullYear().toString(); // Simplified for now
-      const subjectsResult = await getSubjectsForTeacher(authUser._id, authUser.schoolId, academicYear);
+      const subjectsResult = await getSubjectsForTeacher(teacherId, schoolId, academicYear);
       setAssignedSubjects(subjectsResult);
 
-      if (authUser.classId) {
-          const classResult = await getClassDetailsById(authUser.classId, authUser.schoolId);
+      if (classId) {
+          const classResult = await getClassDetailsById(classId, schoolId);
           if (classResult.success && classResult.classDetails) {
               setPrimaryClass(classResult.classDetails);
               
-              const studentsResult = await getStudentsByClass(authUser.schoolId, authUser.classId, classResult.classDetails.academicYear);
+              const studentsResult = await getStudentsByClass(schoolId, classId, classResult.classDetails.academicYear);
 
               if (studentsResult.success && studentsResult.users) {
                   const students = studentsResult.users;
@@ -94,21 +100,24 @@ export default function TeacherDashboardPage() {
                   
                   const studentsWithAttendance = students.map((student, index) => {
                       const attendanceRes = allAttendanceResults[index];
+                      // Ensure _id is defined and stringified to satisfy StudentWithAttendance (_id: string)
+                      const ensuredId = student._id ? student._id.toString() : "";
                       if (attendanceRes.success && attendanceRes.records && attendanceRes.records.length > 0) {
                           const totalWorking = attendanceRes.records.reduce((sum, r) => sum + r.totalWorkingDays, 0);
                           const totalPresent = attendanceRes.records.reduce((sum, r) => sum + r.daysPresent, 0);
                           return { 
-                              ...student, 
+                              ...student,
+                              _id: ensuredId,
                               overallAttendance: totalWorking > 0 ? Math.round((totalPresent / totalWorking) * 100) : 0,
                               attendanceRecords: attendanceRes.records,
                           };
                       }
-                      return { ...student, overallAttendance: 0, attendanceRecords: [] };
+                      return { ...student, _id: ensuredId, overallAttendance: 0, attendanceRecords: [] };
                   });
-                  setClassStudents(studentsWithAttendance);
+                  setClassStudents(studentsWithAttendance as StudentWithAttendance[]);
               }
           } else {
-              toast({variant: "warning", title: "Primary Class", description: "Could not load details for your primary assigned class."})
+              toast({variant: "default", title: "Primary Class", description: "Could not load details for your primary assigned class."})
           }
       }
       setIsLoading(false);
@@ -264,7 +273,7 @@ export default function TeacherDashboardPage() {
                     </TableHeader>
                     <TableBody>
                         {classStudents.map(student => (
-                            <TableRow key={student._id}>
+                            <TableRow key={student._id?.toString()}>
                                 <TableCell className="font-medium flex items-center">
                                   {student.name} {isBirthday(student.dob) && <span className="ml-2">🎂</span>}
                                 </TableCell>
@@ -356,7 +365,7 @@ export default function TeacherDashboardPage() {
                             <TableBody>
                               {marks.map(mark => (
                                 <TableRow key={mark._id?.toString()}>
-                                  <TableCell>{mark.assessmentName.split('-').slice(0).join('-')}</TableCell>
+                                  <TableCell>{(mark.assessmentName ?? '').split('-').slice(0).join('-') || '—'}</TableCell>
                                   <TableCell className="text-right">{mark.marksObtained} / {mark.maxMarks}</TableCell>
                                 </TableRow>
                               ))}
