@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UserMinus, UserCheck, UserCircle2, ChevronsUpDown, Contact, GraduationCap, Home, Heart, ShieldQuestion, CalendarClock, Upload, ArrowUpDown, Download, CalendarFold } from "lucide-react";
+import { Users, PlusCircle, Edit3, Trash2, Search, Loader2, UserPlus, BookUser, XCircle, SquarePen, DollarSign, Bus, Info, CalendarIcon, UserMinus, UserCheck, UserCircle2, ChevronsUpDown, Contact, GraduationCap, Home, Heart, ShieldQuestion, CalendarClock, Upload, ArrowUpDown, Download, CalendarFold, FileText } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, Controller } from "react-hook-form";
 import {
@@ -135,7 +134,7 @@ export default function AdminStudentManagementPage() {
     resolver: async (data, context, options) => {
         // Use update schema if we are editing, create schema otherwise
         const schema = editingStudent ? updateSchoolUserFormSchema : createSchoolUserFormSchema;
-        return zodResolver(schema)(data, context, options);
+        return (zodResolver(schema) as any)(data, context, options);
     },
     defaultValues: { 
         name: "", email: "", password: "", admissionId: "", classId: "", role: 'student',
@@ -653,6 +652,11 @@ export default function AdminStudentManagementPage() {
                   <TableCell><span className={`px-2 py-1 text-xs font-semibold rounded-full capitalize ${student.status === 'active' ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-gray-100 text-gray-800 border border-gray-300'}`}>{student.status || 'active'}</span></TableCell>
                   <TableCell>{student.dateOfJoining ? format(new Date(student.dateOfJoining), "PP") : 'N/A'}</TableCell>
                   <TableCell className="space-x-1">
+                    <Button variant="outline" size="icon" className="h-8 w-8" asChild>
+                      <Link href={`/dashboard/admin/reports/generate-cbse-state?studentId=${student._id?.toString()}`} target="_blank">
+                        <FileText className="h-4 w-4" />
+                      </Link>
+                    </Button>
                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleEditClick(student)} disabled={isStatusUpdateLoading}><Edit3 className="h-4 w-4" /></Button>
                     <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleActionClick(student)} disabled={isStatusUpdateLoading}><Trash2 className="h-4 w-4" /></Button>
                   </TableCell>
@@ -707,4 +711,4 @@ export default function AdminStudentManagementPage() {
   );
 }
 
-    
+
