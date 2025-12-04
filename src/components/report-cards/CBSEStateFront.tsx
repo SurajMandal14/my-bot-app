@@ -196,12 +196,14 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           padding: 5px; 
           color: #000;
           background-color: #fff;
+          overflow-x: auto; /* Enable horizontal scroll if too many columns */
         }
         .report-card-container table {
           border-collapse: collapse;
           width: 100%;
-          table-layout: fixed; /* Prevent overflow by distributing width */
+          table-layout: auto; /* Allow natural widths; avoid overly narrow columns */
           margin-bottom: 10px; 
+          min-width: 1100px; /* Ensure table doesn't compress too much */
         }
         .report-card-container th, .report-card-container td {
           border: 1px solid #000;
@@ -211,7 +213,26 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           word-break: break-word; /* Break long continuous words */
           overflow-wrap: anywhere; /* Allow breaking at any point if needed */
           white-space: normal; /* Allow wrapping */
+          max-width: 160px; /* Prevent extreme shrinking */
         }
+        /* Ensure key FA columns don't shrink too much */
+        /* S.No column */
+        #fa-table thead tr:first-child th:first-child,
+        #fa-table tbody td:first-child { min-width: 55px; }
+        /* Subject column */
+        #fa-table thead tr:first-child th:nth-child(2),
+        #fa-table tbody td:nth-child(2) { min-width: 180px; text-align: left; }
+        /* Overall TOTAL and GRADE (last two columns) */
+        #fa-table thead tr:first-child th:nth-last-child(2),
+        #fa-table tbody td:nth-last-child(2) { min-width: 90px; }
+        #fa-table thead tr:first-child th:last-child,
+        #fa-table tbody td:last-child { min-width: 80px; }
+        /* FA per-group Total and Grade columns */
+        #fa-table .fa-total-head, #fa-table .fa-total-cell { min-width: 50px; }
+        #fa-table .fa-grade-head, #fa-table .fa-grade-cell { min-width: 50px; }
+        /* Uniform widths for FA test columns via class */
+        #fa-table .fa-test-head { min-width: 115px; }
+        #fa-table .fa-test-cell { min-width: 105px; }
         .report-card-container .header-table td {
           border: none;
           text-align: left;
@@ -275,6 +296,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           word-break: break-word; 
           overflow-wrap: anywhere; 
           white-space: normal; 
+          font-size: 10px; /* Slightly smaller to fit more headers */
+          line-height: 1.2;
         }
          .report-card-container .header-table select {
             min-width: 90px;
@@ -365,14 +388,17 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
               <th rowSpan={2}>GRADE</th>
             </tr>
             <tr>
-                {formativeGroups.flatMap(assessment => 
-                  assessment.tests.map((test, index) => (
-                    <th key={`${assessment.groupName}-${test.testName}`}>{test.testName} ({test.maxMarks}M)</th>
-                  )).concat([
-                      <th key={`${assessment.groupName}-Total`}>Total</th>,
-                      <th key={`${assessment.groupName}-Grade`}>Grade</th>
-                  ])
-              )}
+                {formativeGroups.flatMap(assessment => {
+                  const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
+                  return assessment.tests
+                    .map((test) => (
+                      <th key={`${assessment.groupName}-${test.testName}`} className="fa-test-head">{test.testName} ({test.maxMarks}M)</th>
+                    ))
+                    .concat([
+                      <th key={`${assessment.groupName}-Total`} className="fa-total-head">Total ({groupMax}M)</th>,
+                      <th key={`${assessment.groupName}-Grade`} className="fa-grade-head">Grade</th>
+                    ]);
+                })}
             </tr>
           </thead>
           <tbody>
@@ -399,7 +425,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                         {assessment.tests.map((test, testIndex) => {
                             const toolKey = `tool${testIndex+1}` as keyof MarksEntry;
                             return (
-                                <td key={`${faPeriodKey}-${toolKey}`}>
+                            <td key={`${faPeriodKey}-${toolKey}`} className="fa-test-cell">
                                 <input
                                     type="number"
                                     value={periodData?.[toolKey] ?? ''}
@@ -411,8 +437,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                                 </td>
                             );
                         })}
-                        <td>{results[assessment.groupName]?.total ?? ''}</td>
-                        <td>{results[assessment.groupName]?.grade ?? ''}</td>
+                        <td className="fa-total-cell">{results[assessment.groupName]?.total ?? ''}</td>
+                        <td className="fa-grade-cell">{results[assessment.groupName]?.grade ?? ''}</td>
                         </React.Fragment>
                      );
                   })}

@@ -184,12 +184,14 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
           padding: 10px; 
           color: #000;
           background-color: #fff;
+          overflow-x: auto; /* Enable horizontal scroll for many columns */
         }
         .report-card-back-container table {
           border-collapse: collapse;
           width: 100%;
-          table-layout: fixed; /* Distribute width and enable wrapping */
+          table-layout: auto; /* Allow columns to size naturally */
           margin-bottom: 8px; 
+          min-width: 1100px; /* Avoid extreme compression */
         }
         .report-card-back-container th, .report-card-back-container td {
           border: 1px solid #000;
@@ -199,11 +201,13 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
           word-break: break-word; /* Break long tokens */
           overflow-wrap: anywhere; /* Allow break at any point */
           white-space: normal; /* Wrap content */
+          max-width: 140px; /* Prevent columns from getting too narrow */
         }
         .report-card-back-container th {
           background-color: #f0f0f0;
           font-size: 8px; 
           vertical-align: middle;
+          line-height: 1.2;
         }
         .report-card-back-container td {
             font-size: 9px; 
