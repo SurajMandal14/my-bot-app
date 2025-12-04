@@ -19,6 +19,7 @@ import { getAcademicYears } from "@/app/actions/academicYears";
 import type { AcademicYear } from "@/types/academicYear";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SchoolClass } from "@/types/classes";
 
 
@@ -90,6 +91,7 @@ export default function ConfigureMarksPage() {
   const [isSchemeModalOpen, setIsSchemeModalOpen] = useState(false);
   const [editingScheme, setEditingScheme] = useState<AssessmentScheme | null>(null);
   const [currentClassLabel, setCurrentClassLabel] = useState<string>("");
+  const [schemeTab, setSchemeTab] = useState<'formative' | 'summative'>('formative');
   
   // State for Grading Patterns
   const [isGradingPatternModalOpen, setIsGradingPatternModalOpen] = useState(false);
@@ -171,7 +173,7 @@ export default function ConfigureMarksPage() {
 
   const handleOpenSchemeDialog = async (groupedClass: GroupedClass) => {
     if (!authUser?.schoolId) return;
-    const result = await getAssessmentSchemeForClass(groupedClass.name, authUser.schoolId, selectedAcademicYear);
+    const result = await getAssessmentSchemeForClass(groupedClass.name, authUser.schoolId.toString(), selectedAcademicYear);
     if(result.success && result.scheme) {
       setEditingScheme(result.scheme);
       setCurrentClassLabel(groupedClass.name);
@@ -200,7 +202,8 @@ export default function ConfigureMarksPage() {
     resolver: zodResolver(gradingPatternSchema),
   });
   
-  const handleOpenGradingDialog = (classItem: SchoolClass) => {
+  const handleOpenGradingDialog = (groupedClass: GroupedClass) => {
+    const classItem = groupedClass.originalClass;
     setEditingClassForGrading(classItem);
     const initialValues = classItem.gradingPattern || { patternName: `${classItem.name} Pattern`, grades: defaultGrades };
     gradingPatternForm.reset(initialValues);
@@ -208,9 +211,12 @@ export default function ConfigureMarksPage() {
   };
   
   async function onGradingPatternSubmit(data: GradingPatternFormData) {
-    if (!authUser?.schoolId || !editingClassForGrading) return;
+    if (!authUser?.schoolId || !editingClassForGrading?._id) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Cannot save grading pattern. User or class information is missing.' });
+      return;
+    }
     setIsSubmittingGradingPattern(true);
-    const result = await updateGradingForClass(editingClassForGrading._id, authUser.schoolId, data);
+    const result = await updateGradingForClass(editingClassForGrading._id.toString(), authUser.schoolId.toString(), data);
       
     if (result.success) {
       toast({ title: "Grading Updated", description: result.message });
@@ -257,7 +263,7 @@ export default function ConfigureMarksPage() {
                           <Button variant="outline" size="sm" onClick={() => handleOpenSchemeDialog(item)}>
                               <GraduationCap className="mr-2 h-4 w-4"/> Edit Scheme
                           </Button>
-                           <Button variant="outline" size="sm" onClick={() => handleOpenGradingDialog(item.originalClass)}>
+                           <Button variant="outline" size="sm" onClick={() => handleOpenGradingDialog(item)}>
                               <SlidersHorizontal className="mr-2 h-4 w-4"/> Edit Grades
                           </Button>
                       </TableCell>
@@ -273,16 +279,44 @@ export default function ConfigureMarksPage() {
         <Form {...assessmentForm}>
           <form onSubmit={assessmentForm.handleSubmit(onAssessmentSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
               <div>
-                <div className="mt-2 space-y-4">{assessmentGroups.map((group, groupIndex) => (
+                {/* Tabs to separate Formative vs Summative */}
+                <Tabs value={schemeTab} onValueChange={(val) => setSchemeTab(val as 'formative' | 'summative')}>
+                  <TabsList className="mb-3">
+                    <TabsTrigger value="formative">Formative (FA)</TabsTrigger>
+                    <TabsTrigger value="summative">Summative (SA)</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <div className="mt-2 space-y-4">{assessmentGroups
+                    .filter((g, idx) => (assessmentForm.getValues(`assessments.${idx}.type`) ?? 'formative') === schemeTab)
+                    .map((group) => {
+                      const originalIndex = assessmentGroups.findIndex(ag => ag.id === group.id);
+                      return (
                       <Card key={group.id} className="p-4 bg-muted/50">
                         <div className="flex items-end gap-3 mb-3">
-                          <FormField control={assessmentForm.control} name={`assessments.${groupIndex}.groupName`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Assessment Name (e.g., FA1)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                          <Button type="button" variant="destructive" size="icon" onClick={() => removeAssessmentGroup(groupIndex)} disabled={assessmentGroups.length <= 1}><Trash2 className="h-4 w-4" /></Button>
+                          <FormField control={assessmentForm.control} name={`assessments.${originalIndex}.groupName`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Assessment Name (e.g., FA1)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                          <FormField control={assessmentForm.control} name={`assessments.${originalIndex}.type`} render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Type</FormLabel>
+                              <FormControl>
+                                <Select value={field.value ?? 'formative'} onValueChange={field.onChange}>
+                                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="Select type" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="formative">Formative</SelectItem>
+                                    <SelectItem value="summative">Summative</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}/>
+                          <Button type="button" variant="destructive" size="icon" onClick={() => removeAssessmentGroup(originalIndex)} disabled={assessmentGroups.length <= 1}><Trash2 className="h-4 w-4" /></Button>
                         </div>
-                        <AssessmentGroupTests control={assessmentForm.control} groupIndex={groupIndex} />
-                      </Card>))}
+                         <AssessmentGroupTests control={assessmentForm.control} groupIndex={originalIndex} />
+                       </Card>
+                      );
+                    })}
                 </div>
-                <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendAssessmentGroup({ groupName: "", tests: [{ testName: "", maxMarks: 10 }] })}>
+                <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => appendAssessmentGroup({ groupName: "", type: schemeTab, tests: [{ testName: "", maxMarks: 10 }] })}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Assessment Group
                 </Button>
               </div>
@@ -304,10 +338,10 @@ export default function ConfigureMarksPage() {
               <DialogDescription>Set the grade labels and percentage ranges for this specific class. This will apply to all sections.</DialogDescription>
             </DialogHeader>
             <Form {...gradingPatternForm}>
-                <form onSubmit={gradingPatternForm.handleSubmit(onGradingPatternSubmit)} className="space-y-4">
+                <form onSubmit={gradingPatternForm.handleSubmit(onGradingPatternSubmit)} className="space-y-4 max-h-[60vh] overflow-y-auto p-1 pr-4">
                      <FormField control={gradingPatternForm.control} name="patternName" render={({ field }) => (<FormItem><FormLabel>Pattern Name</FormLabel><FormControl><Input placeholder="e.g., Primary Scale" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                      <GradePatternForm control={gradingPatternForm.control}/>
-                     <DialogFooter>
+                     <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t">
                         <Button type="button" variant="outline" onClick={() => setIsGradingPatternModalOpen(false)}>Cancel</Button>
                         <Button type="submit" disabled={isSubmittingGradingPattern}>{isSubmittingGradingPattern ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : 'Save Grades'}</Button>
                      </DialogFooter>
