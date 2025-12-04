@@ -95,7 +95,7 @@ export default function StudentReportPage() {
         getStudentMarksForReportCard(studentId, authUser.schoolId.toString(), academicYearInput),
       ]);
       
-      if(classRes.success && classRes.classDetails) setStudentClass(classRes.classDetails);
+      if (classRes && 'classDetails' in classRes && classRes.success && classRes.classDetails) setStudentClass(classRes.classDetails as SchoolClass);
       if(attendanceRes.success && attendanceRes.records) setAttendance(attendanceRes.records);
       if(marksRes.success && marksRes.marks) setMarks(marksRes.marks);
 
