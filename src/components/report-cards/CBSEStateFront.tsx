@@ -114,6 +114,18 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   currentUserRole,
   editableSubjects = [],
 }) => {
+  // Helpers to classify assessment groups by group name only
+  const isFormativeGroup = (group: { groupName: string }) => {
+    return !group.groupName.toUpperCase().startsWith('SA');
+  };
+
+  const formativeGroups = React.useMemo(() => {
+    const groups = assessmentScheme?.assessments || [];
+    const hasTypedScheme = groups.some((g: any) => typeof g.type !== 'undefined');
+    return hasTypedScheme
+      ? groups.filter((g: any) => g.type === 'formative')
+      : groups.filter(g => isFormativeGroup({ groupName: g.groupName }));
+  }, [assessmentScheme]);
 
   const isTeacher = currentUserRole === 'teacher';
   const isStudent = currentUserRole === 'student';
@@ -133,28 +145,25 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 
   const calculateFaResults = React.useCallback((subjectIdentifier: string) => {
     const subjectFaData = faMarks[subjectIdentifier];
-    
     const defaultFaPeriodMarks: MarksEntry = { tool1: null, tool2: null, tool3: null, tool4: null };
-    const defaultSubjectFaDataForCalc: SubjectFAData = { 
-        fa1: {...defaultFaPeriodMarks}, fa2: {...defaultFaPeriodMarks}, 
-        fa3: {...defaultFaPeriodMarks}, fa4: {...defaultFaPeriodMarks}
-    };
+    const dynamicDefaultSubjectFaData: any = {};
+    formativeGroups.forEach((_, idx) => {
+      const key = `fa${idx + 1}`;
+      dynamicDefaultSubjectFaData[key] = { ...defaultFaPeriodMarks };
+    });
+    const currentSubjectData = subjectFaData || (dynamicDefaultSubjectFaData as SubjectFAData);
 
-    const currentSubjectData = subjectFaData || defaultSubjectFaDataForCalc;
-
-    const results: Record<string, { total: number; grade: string }> & { overallTotal: number; overallGrade: string } = {
-      overallTotal: 0,
-      overallGrade: 'N/A',
-    };
+    type Results = Record<string, { total: number; grade: string }> & { overallTotal: number; overallGrade: string };
+    const results = {} as Results;
     let currentOverallTotal = 0;
+    results.overallTotal = 0;
+    results.overallGrade = 'N/A';
 
     const subjectName = subjectIdentifier; 
     const isSecondLang = subjectName === secondLanguage;
     const currentFaPeriodGradeScale = isSecondLang ? faPeriodGradeScale2ndLang : faPeriodGradeScale;
 
-    (assessmentScheme?.assessments || [])
-      .filter(a => a.groupName.startsWith("FA"))
-      .forEach((assessment, index) => {
+    formativeGroups.forEach((assessment, index) => {
         const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
         const periodMarks = currentSubjectData[faPeriodKey] || defaultFaPeriodMarks;
         
@@ -303,7 +312,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             <tr>
               <td>Class: <input type="text" value={studentData.class || ""} onChange={e => onStudentDataChange('class', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
               <td>Section: <input type="text" value={studentData.section || ""} onChange={e => onStudentDataChange('section', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-              <td>Student ID No: <input type="text" value={studentData.studentIdNo || ""} onChange={e => onStudentDataChange('studentIdNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
+              {/* <td>Student ID No: <input type="text" value={studentData.studentIdNo || ""} onChange={e => onStudentDataChange('studentIdNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td> */}
               <td>Admn. No: <input type="text" value={studentData.admissionNo || ""} onChange={e => onStudentDataChange('admissionNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
             </tr>
             <tr>
@@ -329,16 +338,16 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             <tr>
               <th rowSpan={2}>Sl. No</th>
               <th rowSpan={2}>Subject</th>
-              {(assessmentScheme?.assessments || []).filter(a => a.groupName.startsWith("FA")).map(assessment => (
+              {formativeGroups.map(assessment => (
                   <th key={assessment.groupName} colSpan={6}>{assessment.groupName} (50M)</th>
               ))}
               <th rowSpan={2}>TOTAL (200M)</th>
               <th rowSpan={2}>GRADE</th>
             </tr>
             <tr>
-              {(assessmentScheme?.assessments || []).filter(a => a.groupName.startsWith("FA")).flatMap(assessment => 
+                {formativeGroups.flatMap(assessment => 
                   assessment.tests.map((test, index) => (
-                      <th key={`${assessment.groupName}-${test.testName}`}>{test.testName} {test.maxMarks !== 10 ? `(${test.maxMarks}M)` : ''}</th>
+                    <th key={`${assessment.groupName}-${test.testName}`}>{test.testName} ({test.maxMarks}M)</th>
                   )).concat([
                       <th key={`${assessment.groupName}-Total`}>Total</th>,
                       <th key={`${assessment.groupName}-Grade`}>Grade</th>
@@ -350,18 +359,19 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             {(academicSubjects || []).map((subject, SIndex) => { 
               const subjectIdentifier = subject.name; 
               const isCurrentSubjectDisabled = isFieldDisabledForRole(subjectIdentifier);
-              const subjectFaData = faMarks[subjectIdentifier] || { 
-                fa1: { tool1: null, tool2: null, tool3: null, tool4: null }, 
-                fa2: { tool1: null, tool2: null, tool3: null, tool4: null }, 
-                fa3: { tool1: null, tool2: null, tool3: null, tool4: null }, 
-                fa4: { tool1: null, tool2: null, tool3: null, tool4: null }
-              };
+              const defaultFaPeriodMarksRow: MarksEntry = { tool1: null, tool2: null, tool3: null, tool4: null };
+              const dynamicDefaultSubjectFaRow: any = {};
+              formativeGroups.forEach((_, idx) => {
+                const key = `fa${idx + 1}`;
+                dynamicDefaultSubjectFaRow[key] = { ...defaultFaPeriodMarksRow };
+              });
+              const subjectFaData = faMarks[subjectIdentifier] || (dynamicDefaultSubjectFaRow as SubjectFAData);
               const results = calculateFaResults(subjectIdentifier);
               return (
                 <tr key={subject.name}>
                   <td>{SIndex + 1}</td>
                   <td style={{textAlign: 'left', paddingLeft: '5px'}}>{subject.name}</td>
-                  {(assessmentScheme?.assessments || []).filter(a => a.groupName.startsWith("FA")).map((assessment, index) => {
+                  {formativeGroups.map((assessment, index) => {
                      const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
                      const periodData = subjectFaData[faPeriodKey];
                      return (

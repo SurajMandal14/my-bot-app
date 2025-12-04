@@ -156,9 +156,23 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
   
   const isPageReadOnlyForAdmin = isAdmin;
 
-  const sa1Tests = assessmentScheme?.assessments.find(a => a.groupName === "SA1")?.tests || [];
-  const sa2Tests = assessmentScheme?.assessments.find(a => a.groupName === "SA2")?.tests || [];
-  const saSkills = Array.from(new Set([...sa1Tests.map(t => t.testName), ...sa2Tests.map(t => t.testName)])).sort();
+  // Detect summative groups by group naming only (SA prefix)
+  const isSummativeGroup = (group: { groupName: string }) => {
+    return group.groupName.toUpperCase().startsWith('SA');
+  };
+  const summativeGroups = (() => {
+    const groups = assessmentScheme?.assessments || [];
+    const hasTypedScheme = groups.some((g: any) => typeof g.type !== 'undefined');
+    return hasTypedScheme
+      ? groups.filter((g: any) => g.type === 'summative')
+      : groups.filter(g => isSummativeGroup({ groupName: g.groupName }));
+  })();
+  const sa1Group = summativeGroups[0];
+  const sa2Group = summativeGroups[1];
+  const sa1Tests = sa1Group?.tests || [];
+  const sa2Tests = sa2Group?.tests || [];
+  const sa1Label = sa1Group?.groupName || 'Summative Assessment-1';
+  const sa2Label = sa2Group?.groupName || 'Summative Assessment-2';
 
 
   return (
@@ -264,8 +278,8 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                 <tr>
                     <th rowSpan={3}>Subject</th>
                     <th rowSpan={3} className="paper-cell">Paper</th>
-                    <th colSpan={sa1Tests.length + 2}>{assessmentScheme?.assessments.find(a=>a.groupName === 'SA1')?.groupName || 'Summative Assessment-1'}</th>
-                    <th colSpan={sa2Tests.length + 2}>{assessmentScheme?.assessments.find(a=>a.groupName === 'SA2')?.groupName || 'Summative Assessment-2'}</th>
+                    <th colSpan={sa1Tests.length + 2}>{sa1Label}</th>
+                    <th colSpan={sa2Tests.length + 2}>{sa2Label}</th>
                     <th colSpan={7}>Final Result (Based on FA+SA1 and Internal+SA2)</th>
                 </tr>
                 <tr>
