@@ -60,9 +60,10 @@ export async function getStudentReportCard(
     }
     
     // Construct the live ReportCardData object on the fly
+    // Sanitize data for client components: only plain JSON values
     const liveReportCard: ReportCardData = {
-      studentId: student._id,
-      schoolId: new ObjectId(schoolId),
+      studentId: student._id?.toString?.() || String(student._id),
+      schoolId: schoolId,
       academicYear: academicYear,
       reportCardTemplateKey: schoolDoc?.reportCardTemplate || 'cbse_state',
       studentInfo: {
@@ -72,7 +73,7 @@ export async function getStudentReportCard(
         motherName: student.motherName || '',
         class: classRes.classDetails?.name || '', 
         section: student.section || '',
-        studentIdNo: student._id || '', 
+        studentIdNo: student._id?.toString?.() || String(student._id) || '', 
         rollNo: student.rollNo || '',
         medium: 'English',
         dob: student.dob || '',
@@ -83,10 +84,22 @@ export async function getStudentReportCard(
       formativeAssessments: [], // This will be populated client-side
       summativeAssessments: [], // This will be populated client-side
       coCurricularAssessments: [],
-      attendance: attendanceRes.success ? attendanceRes.records || [] : [],
+      attendance: attendanceRes.success
+        ? (attendanceRes.records || []).map((r: any) => ({
+            month: r.month || r.monthName || '',
+            workingDays: r.workingDays ?? r.totalWorkingDays ?? 0,
+            presentDays: r.presentDays ?? r.presentCount ?? 0,
+          }))
+        : [],
       finalOverallGrade: null, // To be calculated client-side
-      // We can add the raw marks here to be processed by the client
-      _rawMarksData: marksRes.success ? marksRes.marks : [],
+      // Include raw marks but ensure all fields are serializable
+      _rawMarksData: (marksRes.success && marksRes.marks)
+        ? marksRes.marks.map((m: any) => ({
+            ...m,
+            createdAt: m?.createdAt ? new Date(m.createdAt).toISOString() : undefined,
+            updatedAt: m?.updatedAt ? new Date(m.updatedAt).toISOString() : undefined,
+          }))
+        : [],
       _rawSchemeData: schemeRes.scheme,
       _rawClassData: classRes.classDetails,
     };
