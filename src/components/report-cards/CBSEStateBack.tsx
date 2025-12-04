@@ -188,6 +188,7 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
         .report-card-back-container table {
           border-collapse: collapse;
           width: 100%;
+          table-layout: fixed; /* Distribute width and enable wrapping */
           margin-bottom: 8px; 
         }
         .report-card-back-container th, .report-card-back-container td {
@@ -195,6 +196,9 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
           text-align: center;
           padding: 1px 2px;
           height: 18px; 
+          word-break: break-word; /* Break long tokens */
+          overflow-wrap: anywhere; /* Allow break at any point */
+          white-space: normal; /* Wrap content */
         }
         .report-card-back-container th {
           background-color: #f0f0f0;
@@ -278,8 +282,20 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                 <tr>
                     <th rowSpan={3}>Subject</th>
                     <th rowSpan={3} className="paper-cell">Paper</th>
-                    <th colSpan={sa1Tests.length + 2}>{sa1Label}</th>
-                    <th colSpan={sa2Tests.length + 2}>{sa2Label}</th>
+                    {(() => {
+                      const sa1Max = sa1Tests.reduce((sum, t) => sum + (t.maxMarks || 0), 0);
+                      const colSpanSa1 = sa1Tests.length + 2; // tests + Total + Grade
+                      return (
+                        <th colSpan={colSpanSa1}>{`${sa1Label} (${sa1Max}M)`}</th>
+                      );
+                    })()}
+                    {(() => {
+                      const sa2Max = sa2Tests.reduce((sum, t) => sum + (t.maxMarks || 0), 0);
+                      const colSpanSa2 = sa2Tests.length + 2; // tests + Total + Grade
+                      return (
+                        <th colSpan={colSpanSa2}>{`${sa2Label} (${sa2Max}M)`}</th>
+                      );
+                    })()}
                     <th colSpan={7}>Final Result (Based on FA+SA1 and Internal+SA2)</th>
                 </tr>
                 <tr>
@@ -298,8 +314,8 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                     <th rowSpan={2}>GRADE</th>
                 </tr>
                 <tr>
-                    {sa1Tests.map(t => <th key={`sa1-head-${t.testName}`}>{t.testName}</th>)}
-                    {sa2Tests.map(t => <th key={`sa2-head-${t.testName}`}>{t.testName}</th>)}
+                    {sa1Tests.map(t => <th key={`sa1-head-${t.testName}`}>{t.testName} ({t.maxMarks}M)</th>)}
+                    {sa2Tests.map(t => <th key={`sa2-head-${t.testName}`}>{t.testName} ({t.maxMarks}M)</th>)}
                 </tr>
             </thead>
             <tbody>

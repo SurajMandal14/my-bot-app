@@ -200,6 +200,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         .report-card-container table {
           border-collapse: collapse;
           width: 100%;
+          table-layout: fixed; /* Prevent overflow by distributing width */
           margin-bottom: 10px; 
         }
         .report-card-container th, .report-card-container td {
@@ -207,6 +208,9 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           padding: 3px; 
           text-align: center;
           vertical-align: middle; 
+          word-break: break-word; /* Break long continuous words */
+          overflow-wrap: anywhere; /* Allow breaking at any point if needed */
+          white-space: normal; /* Allow wrapping */
         }
         .report-card-container .header-table td {
           border: none;
@@ -266,6 +270,11 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         }
         .report-card-container #fa-table input[type="number"]{ 
             width: 40px; 
+        }
+        .report-card-container th { 
+          word-break: break-word; 
+          overflow-wrap: anywhere; 
+          white-space: normal; 
         }
          .report-card-container .header-table select {
             min-width: 90px;
@@ -338,10 +347,21 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             <tr>
               <th rowSpan={2}>Sl. No</th>
               <th rowSpan={2}>Subject</th>
-              {formativeGroups.map(assessment => (
-                  <th key={assessment.groupName} colSpan={6}>{assessment.groupName} (50M)</th>
-              ))}
-              <th rowSpan={2}>TOTAL (200M)</th>
+              {formativeGroups.map(assessment => {
+                  const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
+                  const colSpan = (assessment.tests?.length || 0) + 2; // tests + Total + Grade
+                  return (
+                    <th key={assessment.groupName} colSpan={colSpan}>
+                      {assessment.groupName} ({groupMax}M)
+                    </th>
+                  );
+              })}
+              <th rowSpan={2}>
+                {(() => {
+                  const overallFaMax = formativeGroups.reduce((sum, ag) => sum + (ag.tests || []).reduce((s, t) => s + (t.maxMarks || 0), 0), 0);
+                  return `TOTAL (${overallFaMax}M)`;
+                })()}
+              </th>
               <th rowSpan={2}>GRADE</th>
             </tr>
             <tr>
