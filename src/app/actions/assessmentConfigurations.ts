@@ -28,14 +28,16 @@ export interface AssessmentSchemesResult {
 
 // Default structure for a new assessment scheme.
 const defaultSchemeStructure: Omit<AssessmentScheme, '_id' | 'schoolId' | 'className' | 'academicYear'> = {
-    assessments: [
-        { groupName: 'FA1', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
-        { groupName: 'FA2', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
-        { groupName: 'FA3', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
-        { groupName: 'FA4', tests: [{testName: 'Tool 1', maxMarks: 10}, {testName: 'Tool 2', maxMarks: 10}, {testName: 'Tool 3', maxMarks: 10}, {testName: 'Tool 4', maxMarks: 20}] },
-        { groupName: 'SA1', tests: [{testName: 'AS1', maxMarks: 20}, {testName: 'AS2', maxMarks: 20}, {testName: 'AS3', maxMarks: 20}, {testName: 'AS4', maxMarks: 20}, {testName: 'AS5', maxMarks: 20}, {testName: 'AS6', maxMarks: 20}] },
-        { groupName: 'SA2', tests: [{testName: 'AS1', maxMarks: 20}, {testName: 'AS2', maxMarks: 20}, {testName: 'AS3', maxMarks: 20}, {testName: 'AS4', maxMarks: 20}, {testName: 'AS5', maxMarks: 20}, {testName: 'AS6', maxMarks: 20}] },
-    ],
+  assessments: [
+    { groupName: 'FA1', type: 'formative', tests: [{ testName: 'Tool 1', maxMarks: 10 }, { testName: 'Tool 2', maxMarks: 10 }, { testName: 'Tool 3', maxMarks: 10 }, { testName: 'Tool 4', maxMarks: 20 }] },
+    { groupName: 'FA2', type: 'formative', tests: [{ testName: 'Tool 1', maxMarks: 10 }, { testName: 'Tool 2', maxMarks: 10 }, { testName: 'Tool 3', maxMarks: 10 }, { testName: 'Tool 4', maxMarks: 20 }] },
+    { groupName: 'FA3', type: 'formative', tests: [{ testName: 'Tool 1', maxMarks: 10 }, { testName: 'Tool 2', maxMarks: 10 }, { testName: 'Tool 3', maxMarks: 10 }, { testName: 'Tool 4', maxMarks: 20 }] },
+    { groupName: 'FA4', type: 'formative', tests: [{ testName: 'Tool 1', maxMarks: 10 }, { testName: 'Tool 2', maxMarks: 10 }, { testName: 'Tool 3', maxMarks: 10 }, { testName: 'Tool 4', maxMarks: 20 }] },
+    { groupName: 'SA1', type: 'summative', tests: [{ testName: 'AS1', maxMarks: 20 }, { testName: 'AS2', maxMarks: 20 }, { testName: 'AS3', maxMarks: 20 }, { testName: 'AS4', maxMarks: 20 }, { testName: 'AS5', maxMarks: 20 }, { testName: 'AS6', maxMarks: 20 }] },
+    { groupName: 'SA2', type: 'summative', tests: [{ testName: 'AS1', maxMarks: 20 }, { testName: 'AS2', maxMarks: 20 }, { testName: 'AS3', maxMarks: 20 }, { testName: 'AS4', maxMarks: 20 }, { testName: 'AS5', maxMarks: 20 }, { testName: 'AS6', maxMarks: 20 }] },
+  ],
+  createdAt: '',
+  updatedAt: ''
 };
 
 // --- Assessment Scheme Actions ---
@@ -106,14 +108,21 @@ export async function updateAssessmentScheme(
         if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(schemeId)) {
             return { success: false, message: 'Invalid School or Scheme ID format.' };
         }
-        
+    // Fetch existing scheme to detect renames
+    const { db } = await connectToDatabase();
+    const existingSchemeDoc = await db.collection('assessment_schemes').findOne({ _id: new ObjectId(schemeId), schoolId: new ObjectId(schoolId) });
+    if (!existingSchemeDoc) {
+      return { success: false, message: 'Assessment scheme not found or access denied.' };
+    }
+
+    const oldAssessments: { groupName: string; tests: { testName: string }[] }[] = existingSchemeDoc.assessments || [];
+
         const validatedFields = assessmentSchemeSchema.safeParse(formData);
         
         if (!validatedFields.success) {
             return { success: false, message: 'Validation failed.', error: validatedFields.error.flatten().fieldErrors.toString() };
         }
-
-        const { db } = await connectToDatabase();
+    // Proceed to update the scheme
         const updateData = {
             ...validatedFields.data,
             updatedAt: new Date(),
@@ -127,6 +136,49 @@ export async function updateAssessmentScheme(
         if (result.matchedCount === 0) {
             return { success: false, message: 'Assessment scheme not found or access denied.' };
         }
+
+    // Rename existing marks' assessmentName to preserve scores under new names
+    try {
+      const newAssessments = updateData.assessments;
+      const className: string = existingSchemeDoc.className;
+      const academicYear: string = existingSchemeDoc.academicYear;
+      const marksCollection = db.collection('marks');
+
+      const safeReplace = async (findStr: string, replaceStr: string) => {
+        if (!findStr || findStr === replaceStr) return;
+        await marksCollection.updateMany(
+          { schoolId: new ObjectId(schoolId), className: className, academicYear: academicYear, assessmentName: { $regex: `^${findStr}-` } },
+          [
+            { $set: { assessmentName: { $replaceOne: { input: "$assessmentName", find: `${findStr}-`, replacement: `${replaceStr}-` } } } }
+          ]
+        );
+      };
+
+      // Group renames by index (assumes order preserved)
+      for (let gi = 0; gi < Math.min(oldAssessments.length, newAssessments.length); gi++) {
+        const oldGroup = oldAssessments[gi];
+        const newGroup = newAssessments[gi];
+        if (oldGroup?.groupName && newGroup?.groupName && oldGroup.groupName !== newGroup.groupName) {
+          await safeReplace(oldGroup.groupName, newGroup.groupName);
+        }
+        // Test renames within the group by index
+        const maxTests = Math.min(oldGroup.tests.length, newGroup.tests.length);
+        for (let ti = 0; ti < maxTests; ti++) {
+          const oldTest = oldGroup.tests[ti];
+          const newTest = newGroup.tests[ti];
+          if (oldTest?.testName && newTest?.testName && oldTest.testName !== newTest.testName) {
+            await marksCollection.updateMany(
+              { schoolId: new ObjectId(schoolId), className: className, academicYear: academicYear, assessmentName: { $regex: `^${newGroup.groupName}-` } },
+              [
+                { $set: { assessmentName: { $replaceOne: { input: "$assessmentName", find: `-${oldTest.testName}`, replacement: `-${newTest.testName}` } } } }
+              ]
+            );
+          }
+        }
+      }
+    } catch (renameErr) {
+      console.warn('Marks rename during scheme update encountered an issue:', renameErr);
+    }
 
         revalidatePath('/dashboard/master-admin/configure-marks');
         return { success: true, message: 'Assessment scheme updated successfully.' };
