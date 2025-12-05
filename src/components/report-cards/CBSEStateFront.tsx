@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -115,16 +114,12 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   editableSubjects = [],
 }) => {
   // Helpers to classify assessment groups by group name only
-  const isFormativeGroup = (group: { groupName: string }) => {
-    return !group.groupName.toUpperCase().startsWith('SA');
+  const isFormativeGroup = (group: { category: string }) => {
+    return group.category === 'FA';
   };
 
   const formativeGroups = React.useMemo(() => {
-    const groups = assessmentScheme?.assessments || [];
-    const hasTypedScheme = groups.some((g: any) => typeof g.type !== 'undefined');
-    return hasTypedScheme
-      ? groups.filter((g: any) => g.type === 'formative')
-      : groups.filter(g => isFormativeGroup({ groupName: g.groupName }));
+    return (assessmentScheme?.assessments || []).filter(a => isFormativeGroup(a)).sort((a,b) => a.position - b.position);
   }, [assessmentScheme]);
 
   const isTeacher = currentUserRole === 'teacher';
@@ -147,8 +142,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
     const subjectFaData = faMarks[subjectIdentifier];
     const defaultFaPeriodMarks: MarksEntry = { tool1: null, tool2: null, tool3: null, tool4: null };
     const dynamicDefaultSubjectFaData: any = {};
-    formativeGroups.forEach((_, idx) => {
-      const key = `fa${idx + 1}`;
+    formativeGroups.forEach((group) => {
+      const key = group.key;
       dynamicDefaultSubjectFaData[key] = { ...defaultFaPeriodMarks };
     });
     const currentSubjectData = subjectFaData || (dynamicDefaultSubjectFaData as SubjectFAData);
@@ -164,17 +159,17 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
     const currentFaPeriodGradeScale = isSecondLang ? faPeriodGradeScale2ndLang : faPeriodGradeScale;
 
     formativeGroups.forEach((assessment, index) => {
-        const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
+        const faPeriodKey = assessment.key as keyof SubjectFAData;
         const periodMarks = currentSubjectData[faPeriodKey] || defaultFaPeriodMarks;
         
         let periodTotal = 0;
         assessment.tests.forEach((test, testIndex) => {
-          const toolKey = `tool${testIndex + 1}` as keyof MarksEntry;
+          const toolKey = test.key as keyof MarksEntry;
           periodTotal += periodMarks[toolKey] || 0;
         });
 
         currentOverallTotal += periodTotal;
-        results[assessment.groupName] = { // Use dynamic group name for results key
+        results[assessment.key] = { // Use dynamic group key for results key
           total: periodTotal,
           grade: getGrade(periodTotal, currentFaPeriodGradeScale),
         };
@@ -183,7 +178,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
     results.overallTotal = currentOverallTotal;
     results.overallGrade = getGrade(currentOverallTotal, overallSubjectGradeScale); 
     return results;
-  }, [faMarks, secondLanguage, assessmentScheme]);
+  }, [faMarks, secondLanguage, formativeGroups]);
 
 
   return (
@@ -196,7 +191,11 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           padding: 5px; 
           color: #000;
           background-color: #fff;
-          overflow-x: auto; /* Enable horizontal scroll if too many columns */
+        }
+        @media screen {
+            .report-card-container {
+                overflow-x: auto; /* Enable horizontal scroll if too many columns */
+            }
         }
         .report-card-container table {
           border-collapse: collapse;
@@ -204,6 +203,13 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           table-layout: auto; /* Allow natural widths; avoid overly narrow columns */
           margin-bottom: 10px; 
           min-width: 1100px; /* Ensure table doesn't compress too much */
+        }
+        @media print {
+            .report-card-container table {
+                min-width: auto;
+                table-layout: fixed; /* Allow browser to manage layout for printing */
+                width: 100%;
+            }
         }
         .report-card-container th, .report-card-container td {
           border: 1px solid #000;
@@ -374,8 +380,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                   const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
                   const colSpan = (assessment.tests?.length || 0) + 2; // tests + Total + Grade
                   return (
-                    <th key={assessment.groupName} colSpan={colSpan}>
-                      {assessment.groupName} ({groupMax}M)
+                    <th key={assessment.key} colSpan={colSpan}>
+                      {assessment.label} ({groupMax}M)
                     </th>
                   );
               })}
@@ -392,11 +398,11 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                   const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
                   return assessment.tests
                     .map((test) => (
-                      <th key={`${assessment.groupName}-${test.testName}`} className="fa-test-head">{test.testName} ({test.maxMarks}M)</th>
+                      <th key={`${assessment.key}-${test.key}`} className="fa-test-head" title={test.fullName}>{test.label} ({test.maxMarks}M)</th>
                     ))
                     .concat([
-                      <th key={`${assessment.groupName}-Total`} className="fa-total-head">Total ({groupMax}M)</th>,
-                      <th key={`${assessment.groupName}-Grade`} className="fa-grade-head">Grade</th>
+                      <th key={`${assessment.key}-Total`} className="fa-total-head">Total ({groupMax}M)</th>,
+                      <th key={`${assessment.key}-Grade`} className="fa-grade-head">Grade</th>
                     ]);
                 })}
             </tr>
@@ -407,8 +413,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
               const isCurrentSubjectDisabled = isFieldDisabledForRole(subjectIdentifier);
               const defaultFaPeriodMarksRow: MarksEntry = { tool1: null, tool2: null, tool3: null, tool4: null };
               const dynamicDefaultSubjectFaRow: any = {};
-              formativeGroups.forEach((_, idx) => {
-                const key = `fa${idx + 1}`;
+              formativeGroups.forEach((group) => {
+                const key = group.key;
                 dynamicDefaultSubjectFaRow[key] = { ...defaultFaPeriodMarksRow };
               });
               const subjectFaData = faMarks[subjectIdentifier] || (dynamicDefaultSubjectFaRow as SubjectFAData);
@@ -418,12 +424,12 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                   <td>{SIndex + 1}</td>
                   <td style={{textAlign: 'left', paddingLeft: '5px'}}>{subject.name}</td>
                   {formativeGroups.map((assessment, index) => {
-                     const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
+                     const faPeriodKey = assessment.key as keyof SubjectFAData;
                      const periodData = subjectFaData[faPeriodKey];
                      return (
                         <React.Fragment key={faPeriodKey}>
                         {assessment.tests.map((test, testIndex) => {
-                            const toolKey = `tool${testIndex+1}` as keyof MarksEntry;
+                            const toolKey = test.key as keyof MarksEntry;
                             return (
                             <td key={`${faPeriodKey}-${toolKey}`} className="fa-test-cell">
                                 <input
@@ -437,8 +443,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                                 </td>
                             );
                         })}
-                        <td className="fa-total-cell">{results[assessment.groupName]?.total ?? ''}</td>
-                        <td className="fa-grade-cell">{results[assessment.groupName]?.grade ?? ''}</td>
+                        <td className="fa-total-cell">{results[assessment.key]?.total ?? ''}</td>
+                        <td className="fa-grade-cell">{results[assessment.key]?.grade ?? ''}</td>
                         </React.Fragment>
                      );
                   })}

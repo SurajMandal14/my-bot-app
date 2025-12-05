@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -156,23 +155,17 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
   
   const isPageReadOnlyForAdmin = isAdmin;
 
-  // Detect summative groups by group naming only (SA prefix)
-  const isSummativeGroup = (group: { groupName: string }) => {
-    return group.groupName.toUpperCase().startsWith('SA');
+  // Detect summative groups by category only
+  const isSummativeGroup = (group: { category: string }) => {
+    return group.category === 'SA';
   };
-  const summativeGroups = (() => {
-    const groups = assessmentScheme?.assessments || [];
-    const hasTypedScheme = groups.some((g: any) => typeof g.type !== 'undefined');
-    return hasTypedScheme
-      ? groups.filter((g: any) => g.type === 'summative')
-      : groups.filter(g => isSummativeGroup({ groupName: g.groupName }));
-  })();
+  const summativeGroups = (assessmentScheme?.assessments || []).filter(g => isSummativeGroup(g)).sort((a,b) => a.position - b.position);
   const sa1Group = summativeGroups[0];
   const sa2Group = summativeGroups[1];
   const sa1Tests = sa1Group?.tests || [];
   const sa2Tests = sa2Group?.tests || [];
-  const sa1Label = sa1Group?.groupName || 'Summative Assessment-1';
-  const sa2Label = sa2Group?.groupName || 'Summative Assessment-2';
+  const sa1Label = sa1Group?.label || 'Summative Assessment-1';
+  const sa2Label = sa2Group?.label || 'Summative Assessment-2';
 
 
   return (
@@ -184,7 +177,11 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
           padding: 10px; 
           color: #000;
           background-color: #fff;
-          overflow-x: auto; /* Enable horizontal scroll for many columns */
+        }
+        @media screen {
+            .report-card-back-container {
+                overflow-x: auto; /* Enable horizontal scroll for many columns */
+            }
         }
         .report-card-back-container table {
           border-collapse: collapse;
@@ -192,6 +189,13 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
           table-layout: auto; /* Allow columns to size naturally */
           margin-bottom: 8px; 
           min-width: 1100px; /* Avoid extreme compression */
+        }
+        @media print {
+            .report-card-back-container table {
+                min-width: auto;
+                table-layout: fixed; /* Let browser handle print layout */
+                width: 100%;
+            }
         }
         .report-card-back-container th, .report-card-back-container td {
           border: 1px solid #000;
@@ -318,8 +322,8 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                     <th rowSpan={2}>GRADE</th>
                 </tr>
                 <tr>
-                    {sa1Tests.map(t => <th key={`sa1-head-${t.testName}`}>{t.testName} ({t.maxMarks}M)</th>)}
-                    {sa2Tests.map(t => <th key={`sa2-head-${t.testName}`}>{t.testName} ({t.maxMarks}M)</th>)}
+                    {sa1Tests.map((t, testIndex) => <th key={`sa1-head-${t.key}-${testIndex}`} title={t.fullName}>{t.label}</th>)}
+                    {sa2Tests.map((t, testIndex) => <th key={`sa2-head-${t.key}-${testIndex}`} title={t.fullName}>{t.label}</th>)}
                 </tr>
             </thead>
             <tbody>
@@ -339,10 +343,10 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                             <td className="paper-cell">{rowData.paper}</td>
                             
                             {/* SA1 Marks */}
-                            {sa1Tests.map(test => {
-                              const skillKey = test.testName.toLowerCase() as keyof SAPaperData;
+                            {sa1Tests.map((test, testIndex) => {
+                              const skillKey = test.key as keyof SAPaperData;
                               return (
-                                <td key={`sa1-${skillKey}`}>
+                                <td key={`sa1-${skillKey}-${testIndex}`}>
                                     <input type="number" 
                                         value={rowData.sa1?.[skillKey]?.marks ?? ''} 
                                         onChange={e => onSaDataChange(rowIndex, 'sa1', skillKey, e.target.value)}
@@ -354,10 +358,10 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                             <td className="calculated">{derived.sa1Grade}</td>
                             
                             {/* SA2 Marks */}
-                             {sa2Tests.map(test => {
-                              const skillKey = test.testName.toLowerCase() as keyof SAPaperData;
+                             {sa2Tests.map((test, testIndex) => {
+                              const skillKey = test.key as keyof SAPaperData;
                               return (
-                                <td key={`sa2-${skillKey}`}>
+                                <td key={`sa2-${skillKey}-${testIndex}`}>
                                     <input type="number" 
                                         value={rowData.sa2?.[skillKey]?.marks ?? ''} 
                                         onChange={e => onSaDataChange(rowIndex, 'sa2', skillKey, e.target.value)}
