@@ -3,7 +3,7 @@
 import React from 'react';
 import type { SchoolClassSubject } from '@/types/classes';
 import type { UserRole } from '@/types/user';
-import type { AssessmentScheme } from '@/types/assessment';
+import type { AssessmentScheme, AssessmentTest } from '@/types/assessment';
 
 // Define interfaces for props and state
 export interface StudentData {
@@ -104,8 +104,6 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   assessmentScheme,
   faMarks, 
   onFaMarksChange, 
-  // coMarks, // Prop kept
-  // onCoMarksChange, // Prop kept
   secondLanguage,
   onSecondLanguageChange,
   academicYear,
@@ -113,13 +111,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   currentUserRole,
   editableSubjects = [],
 }) => {
-  // Helpers to classify assessment groups by group name only
-  const isFormativeGroup = (group: { category: string }) => {
-    return group.category === 'FA';
-  };
-
   const formativeGroups = React.useMemo(() => {
-    return (assessmentScheme?.assessments || []).filter(a => isFormativeGroup(a)).sort((a,b) => a.position - b.position);
+    return (assessmentScheme?.assessments || []).filter(a => a.category === 'FA').sort((a,b) => a.position - b.position);
   }, [assessmentScheme]);
 
   const isTeacher = currentUserRole === 'teacher';
@@ -128,13 +121,12 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 
   const isFieldDisabledForRole = (subjectName?: string): boolean => {
     if (isStudent) return true;
-    // Admins can see but not edit if a student is loaded.
     if (isAdmin && !!studentData.studentIdNo) return true; 
     if (isTeacher) {
-      if (!subjectName) return true; // Disable general fields for teachers
+      if (!subjectName) return true;
       return !editableSubjects.includes(subjectName);
     }
-    return false; // Superadmin can edit
+    return false;
   };
 
 
@@ -158,18 +150,18 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
     const isSecondLang = subjectName === secondLanguage;
     const currentFaPeriodGradeScale = isSecondLang ? faPeriodGradeScale2ndLang : faPeriodGradeScale;
 
-    formativeGroups.forEach((assessment, index) => {
+    formativeGroups.forEach((assessment) => {
         const faPeriodKey = assessment.key as keyof SubjectFAData;
         const periodMarks = currentSubjectData[faPeriodKey] || defaultFaPeriodMarks;
         
         let periodTotal = 0;
-        assessment.tests.forEach((test, testIndex) => {
+        assessment.tests.forEach((test: AssessmentTest) => {
           const toolKey = test.key as keyof MarksEntry;
           periodTotal += periodMarks[toolKey] || 0;
         });
 
         currentOverallTotal += periodTotal;
-        results[assessment.key] = { // Use dynamic group key for results key
+        results[assessment.key] = {
           total: periodTotal,
           grade: getGrade(periodTotal, currentFaPeriodGradeScale),
         };
@@ -184,7 +176,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   return (
     <>
       <style jsx global>{`
-        .report-card-container body, .report-card-container { 
+        .report-card-container { 
           font-family: Arial, sans-serif;
           font-size: 11px; 
           margin: 0; 
@@ -194,21 +186,28 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         }
         @media screen {
             .report-card-container {
-                overflow-x: auto; /* Enable horizontal scroll if too many columns */
+                overflow-x: auto;
             }
         }
         .report-card-container table {
           border-collapse: collapse;
           width: 100%;
-          table-layout: auto; /* Allow natural widths; avoid overly narrow columns */
+          table-layout: auto;
           margin-bottom: 10px; 
-          min-width: 1100px; /* Ensure table doesn't compress too much */
+          min-width: 1100px;
         }
         @media print {
+            .report-card-container {
+              overflow: visible;
+            }
             .report-card-container table {
                 min-width: auto;
-                table-layout: fixed; /* Allow browser to manage layout for printing */
+                table-layout: auto;
                 width: 100%;
+            }
+            .report-card-container th, .report-card-container td {
+              padding: 1px 2px;
+              font-size: 8px;
             }
         }
         .report-card-container th, .report-card-container td {
@@ -216,29 +215,12 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           padding: 3px; 
           text-align: center;
           vertical-align: middle; 
-          word-break: break-word; /* Break long continuous words */
-          overflow-wrap: anywhere; /* Allow breaking at any point if needed */
-          white-space: normal; /* Allow wrapping */
-          max-width: 160px; /* Prevent extreme shrinking */
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          white-space: normal;
         }
-        /* Ensure key FA columns don't shrink too much */
-        /* S.No column */
-        #fa-table thead tr:first-child th:first-child,
-        #fa-table tbody td:first-child { min-width: 55px; }
-        /* Subject column */
         #fa-table thead tr:first-child th:nth-child(2),
-        #fa-table tbody td:nth-child(2) { min-width: 180px; text-align: left; }
-        /* Overall TOTAL and GRADE (last two columns) */
-        #fa-table thead tr:first-child th:nth-last-child(2),
-        #fa-table tbody td:nth-last-child(2) { min-width: 90px; }
-        #fa-table thead tr:first-child th:last-child,
-        #fa-table tbody td:last-child { min-width: 80px; }
-        /* FA per-group Total and Grade columns */
-        #fa-table .fa-total-head, #fa-table .fa-total-cell { min-width: 50px; }
-        #fa-table .fa-grade-head, #fa-table .fa-grade-cell { min-width: 50px; }
-        /* Uniform widths for FA test columns via class */
-        #fa-table .fa-test-head { min-width: 115px; }
-        #fa-table .fa-test-cell { min-width: 105px; }
+        #fa-table tbody td:nth-child(2) { text-align: left; }
         .report-card-container .header-table td {
           border: none;
           text-align: left;
@@ -302,7 +284,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           word-break: break-word; 
           overflow-wrap: anywhere; 
           white-space: normal; 
-          font-size: 10px; /* Slightly smaller to fit more headers */
+          font-size: 10px;
           line-height: 1.2;
         }
          .report-card-container .header-table select {
@@ -350,7 +332,6 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             <tr>
               <td>Class: <input type="text" value={studentData.class || ""} onChange={e => onStudentDataChange('class', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
               <td>Section: <input type="text" value={studentData.section || ""} onChange={e => onStudentDataChange('section', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-              {/* <td>Student ID No: <input type="text" value={studentData.studentIdNo || ""} onChange={e => onStudentDataChange('studentIdNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td> */}
               <td>Admn. No: <input type="text" value={studentData.admissionNo || ""} onChange={e => onStudentDataChange('admissionNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
             </tr>
             <tr>
@@ -423,12 +404,12 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                 <tr key={subject.name}>
                   <td>{SIndex + 1}</td>
                   <td style={{textAlign: 'left', paddingLeft: '5px'}}>{subject.name}</td>
-                  {formativeGroups.map((assessment, index) => {
+                  {formativeGroups.map((assessment) => {
                      const faPeriodKey = assessment.key as keyof SubjectFAData;
                      const periodData = subjectFaData[faPeriodKey];
                      return (
                         <React.Fragment key={faPeriodKey}>
-                        {assessment.tests.map((test, testIndex) => {
+                        {assessment.tests.map((test) => {
                             const toolKey = test.key as keyof MarksEntry;
                             return (
                             <td key={`${faPeriodKey}-${toolKey}`} className="fa-test-cell">

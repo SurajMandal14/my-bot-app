@@ -3,7 +3,7 @@
 import React from 'react';
 import type { UserRole } from '@/types/user';
 import type { ReportCardSASubjectEntry, ReportCardAttendanceMonth, SAPaperData } from '@/types/report';
-import type { AssessmentScheme } from '@/types/assessment';
+import type { AssessmentScheme, AssessmentTest } from '@/types/assessment';
 
 export type { ReportCardSASubjectEntry, ReportCardAttendanceMonth, SAPaperData };
 
@@ -155,11 +155,7 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
   
   const isPageReadOnlyForAdmin = isAdmin;
 
-  // Detect summative groups by category only
-  const isSummativeGroup = (group: { category: string }) => {
-    return group.category === 'SA';
-  };
-  const summativeGroups = (assessmentScheme?.assessments || []).filter(g => isSummativeGroup(g)).sort((a,b) => a.position - b.position);
+  const summativeGroups = (assessmentScheme?.assessments || []).filter(g => g.category === 'SA').sort((a,b) => a.position - b.position);
   const sa1Group = summativeGroups[0];
   const sa2Group = summativeGroups[1];
   const sa1Tests = sa1Group?.tests || [];
@@ -171,7 +167,7 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
   return (
     <>
       <style jsx global>{`
-        .report-card-back-container body, .report-card-back-container {
+        .report-card-back-container {
           font-family: Arial, sans-serif;
           font-size: 9px;
           padding: 10px; 
@@ -180,21 +176,28 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
         }
         @media screen {
             .report-card-back-container {
-                overflow-x: auto; /* Enable horizontal scroll for many columns */
+                overflow-x: auto;
             }
         }
         .report-card-back-container table {
           border-collapse: collapse;
           width: 100%;
-          table-layout: auto; /* Allow columns to size naturally */
+          table-layout: auto;
           margin-bottom: 8px; 
-          min-width: 1100px; /* Avoid extreme compression */
+          min-width: 1100px;
         }
         @media print {
+            .report-card-back-container {
+              overflow: visible;
+            }
             .report-card-back-container table {
                 min-width: auto;
-                table-layout: fixed; /* Let browser handle print layout */
+                table-layout: auto;
                 width: 100%;
+            }
+             .report-card-back-container th, .report-card-back-container td {
+              padding: 1px;
+              font-size: 7px;
             }
         }
         .report-card-back-container th, .report-card-back-container td {
@@ -202,10 +205,9 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
           text-align: center;
           padding: 1px 2px;
           height: 18px; 
-          word-break: break-word; /* Break long tokens */
-          overflow-wrap: anywhere; /* Allow break at any point */
-          white-space: normal; /* Wrap content */
-          max-width: 140px; /* Prevent columns from getting too narrow */
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          white-space: normal;
         }
         .report-card-back-container th {
           background-color: #f0f0f0;
