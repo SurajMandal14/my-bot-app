@@ -213,28 +213,74 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           text-align: center;
           vertical-align: middle;
           word-break: break-word; /* Break long continuous words */
-          overflow-wrap: anywhere; /* Allow breaking at any point if needed */
+          overflow-wrap: break-word; /* Break at word boundaries only */
           white-space: normal; /* Allow wrapping */
           min-width: 0; /* Allow cells to shrink when needed */
         }
         /* Ensure key FA columns don't shrink too much (but allow shrink on very narrow viewports) */
         /* S.No column */
         #fa-table thead tr:first-child th:first-child,
-        #fa-table tbody td:first-child { min-width: 55px; }
+        #fa-table tbody td:first-child { 
+          min-width: 50px; 
+          width: 4%;
+          white-space: nowrap;
+        }
         /* Subject column */
         #fa-table thead tr:first-child th:nth-child(2),
-        #fa-table tbody td:nth-child(2) { min-width: 180px; text-align: left; }
+        #fa-table tbody td:nth-child(2) { 
+          min-width: 120px; 
+          width: 14%;
+          text-align: left;
+          white-space: normal;
+          word-break: break-word;
+        }
         /* Overall TOTAL and GRADE (last two columns) */
         #fa-table thead tr:first-child th:nth-last-child(2),
-        #fa-table tbody td:nth-last-child(2) { min-width: 90px; }
+        #fa-table tbody td:nth-last-child(2) { 
+          min-width: 70px;
+          width: 6%;
+          white-space: nowrap;
+        }
         #fa-table thead tr:first-child th:last-child,
-        #fa-table tbody td:last-child { min-width: 80px; }
+        #fa-table tbody td:last-child { 
+          min-width: 60px;
+          width: 6%;
+          white-space: nowrap;
+        }
         /* FA per-group Total and Grade columns */
-        #fa-table .fa-total-head, #fa-table .fa-total-cell { min-width: 50px; }
-        #fa-table .fa-grade-head, #fa-table .fa-grade-cell { min-width: 50px; }
+        #fa-table .fa-total-head, #fa-table .fa-total-cell { 
+          min-width: 45px;
+          width: 5%;
+          white-space: nowrap;
+        }
+        #fa-table .fa-grade-head, #fa-table .fa-grade-cell { 
+          min-width: 45px;
+          width: 5%;
+          white-space: nowrap;
+        }
         /* Uniform widths for FA test columns via class */
-        #fa-table .fa-test-head { min-width: 115px; }
-        #fa-table .fa-test-cell { min-width: 105px; }
+        #fa-table .fa-test-head { 
+          min-width: 65px;
+          width: 7%;
+          padding: 2px 3px;
+          font-size: 9px;
+          line-height: 1.3;
+          white-space: normal;
+        }
+        #fa-table .fa-test-cell { 
+          min-width: 65px;
+          width: 7%;
+          padding: 2px 3px;
+        }
+        /* Header row specific styling for better readability */
+        #fa-table thead th {
+          font-size: 9px;
+          line-height: 1.3;
+          white-space: normal;
+          word-break: break-word;
+          vertical-align: middle;
+          padding: 3px 2px;
+        }
         .report-card-container .header-table td {
           border: none;
           text-align: left;
@@ -294,14 +340,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         .report-card-container #fa-table input[type="number"]{
           width: 40px;
         }
-        .report-card-container th {
-          word-break: break-word;
-          overflow-wrap: anywhere;
-          white-space: normal;
-          font-size: 10px; /* Slightly smaller to fit more headers */
-          line-height: 1.2;
-        }
-         .report-card-container .header-table select {
+        .report-card-container .header-table select {
             min-width: 90px;
             padding: 2px;
         }
@@ -321,10 +360,18 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         }
       `}</style>
       <style jsx global>{`
-        /* Print-specific rules for A4 Landscape */
+        /* Print-specific rules with responsive scaling */
         @media print {
-          @page { size: A4 landscape; margin: 10mm; }
-          html, body { height: auto; }
+          @page { 
+            size: A4 landscape; 
+            margin: 10mm;
+          }
+          
+          html, body { 
+            height: auto;
+            width: 100%;
+          }
+          
           .report-card-container {
             width: 100%;
             overflow: visible !important; /* ensure nothing is clipped in print */
@@ -332,24 +379,117 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             color: #000;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-            font-size: 10px; /* Slightly reduce for print to fit width */
+            font-size: 9px; /* Slightly reduce for print to fit width */
           }
-          /* Force table to fit the printable width and wrap cells as needed */
+          
+          /* Dynamic scaling based on content width */
+          /* For A4 landscape (210mm - margins ~20mm = ~190mm effective width) */
           .report-card-container table, #fa-table {
             table-layout: fixed !important;
             width: 100% !important;
             border-collapse: collapse;
             max-width: 100% !important;
+            transform-origin: top left;
           }
-          .report-card-container th, .report-card-container td {
-            padding: 4px 6px !important;
-            font-size: 10px !important;
-            line-height: 1 !important;
+          
+          /* Ensure all content uses percentage-based widths for proportional scaling */
+          #fa-table thead tr:first-child th:first-child,
+          #fa-table tbody td:first-child { 
+            width: 4% !important;
+            white-space: nowrap !important;
+            font-size: 8px !important;
+            padding: 2px 1px !important;
+          }
+          
+          #fa-table thead tr:first-child th:nth-child(2),
+          #fa-table tbody td:nth-child(2) { 
+            width: 12% !important;
+            text-align: left !important;
             white-space: normal !important;
             word-break: break-word !important;
-            overflow-wrap: anywhere !important;
-            max-width: 1px; /* allow wrapping within fixed table layout */
+            font-size: 8px !important;
+            padding: 2px 2px !important;
           }
+          
+          #fa-table .fa-test-head {
+            width: 7% !important;
+            font-size: 7px !important;
+            padding: 1px !important;
+            line-height: 1.2 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+          }
+          
+          #fa-table .fa-test-cell {
+            width: 7% !important;
+            font-size: 8px !important;
+            padding: 1px !important;
+          }
+          
+          #fa-table .fa-total-head,
+          #fa-table .fa-total-cell {
+            width: 5% !important;
+            font-size: 8px !important;
+            padding: 1px !important;
+            white-space: nowrap !important;
+          }
+          
+          #fa-table .fa-grade-head,
+          #fa-table .fa-grade-cell {
+            width: 5% !important;
+            font-size: 8px !important;
+            padding: 1px !important;
+            white-space: nowrap !important;
+          }
+          
+          #fa-table thead tr:first-child th:nth-last-child(2),
+          #fa-table tbody td:nth-last-child(2) {
+            width: 6% !important;
+            font-size: 8px !important;
+            padding: 2px 1px !important;
+            white-space: nowrap !important;
+          }
+          
+          #fa-table thead tr:first-child th:last-child,
+          #fa-table tbody td:last-child {
+            width: 6% !important;
+            font-size: 8px !important;
+            padding: 2px 1px !important;
+            white-space: nowrap !important;
+          }
+          
+          .report-card-container th, .report-card-container td {
+            padding: 2px 1px !important;
+            font-size: 8px !important;
+            line-height: 1.2 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            border: 0.5px solid #000 !important;
+            vertical-align: middle !important;
+          }
+          
+          /* Header row styling */
+          #fa-table thead th {
+            font-size: 7px !important;
+            line-height: 1.1 !important;
+            padding: 1px !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+          }
+          
+          /* Title and subtitle sizing */
+          .report-card-container .title {
+            font-size: 12px !important;
+            margin-bottom: 2px !important;
+          }
+          
+          .report-card-container .subtitle {
+            font-size: 10px !important;
+            margin-bottom: 5px !important;
+          }
+          
           /* Remove input outlines and simplify form controls for print */
           .report-card-container input, .report-card-container select {
             border: none !important;
@@ -357,9 +497,59 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             padding: 0 !important;
             margin: 0 !important;
             width: auto !important;
+            font-size: 7px !important;
+            color: #000 !important;
           }
+          
           /* Avoid page breaks inside rows for cleaner output */
-          #fa-table tr { page-break-inside: avoid; }
+          #fa-table tr { 
+            page-break-inside: avoid !important;
+          }
+          
+          /* Support for different paper sizes - scale content as needed */
+          @supports (size: A4 landscape) {
+            @page {
+              size: A4 landscape;
+              margin: 8mm;
+            }
+            
+            .report-card-container {
+              /* Scale to fit page width when content is wider than available space */
+              max-width: 100%;
+              overflow: visible;
+            }
+          }
+          
+          /* Fallback for Legal size (8.5" x 14") */
+          @media print and (min-width: 210mm) {
+            .report-card-container {
+              font-size: 9px;
+            }
+            
+            .report-card-container th, 
+            .report-card-container td {
+              font-size: 8px;
+              padding: 2px !important;
+            }
+          }
+          
+          /* Header table styling */
+          .report-card-container .header-table {
+            width: 100% !important;
+            font-size: 9px !important;
+          }
+          
+          .report-card-container .header-table td {
+            border: none !important;
+            padding: 1px 2px !important;
+            font-size: 9px !important;
+          }
+          
+          .report-card-container .small-note {
+            font-size: 7px !important;
+            margin-top: 5px !important;
+            line-height: 1.3 !important;
+          }
         }
       `}</style>
       <div className="report-card-container">
