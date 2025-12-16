@@ -1,9 +1,10 @@
+
 "use client";
 
 import React from 'react';
 import type { SchoolClassSubject } from '@/types/classes';
 import type { UserRole } from '@/types/user';
-import type { AssessmentScheme, AssessmentTest } from '@/types/assessment';
+import type { AssessmentScheme } from '@/types/assessment';
 
 // Define interfaces for props and state
 export interface StudentData {
@@ -104,6 +105,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   assessmentScheme,
   faMarks, 
   onFaMarksChange, 
+  // coMarks, // Prop kept
+  // onCoMarksChange, // Prop kept
   secondLanguage,
   onSecondLanguageChange,
   academicYear,
@@ -111,8 +114,17 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   currentUserRole,
   editableSubjects = [],
 }) => {
+  // Helpers to classify assessment groups by group name only
+  const isFormativeGroup = (group: { groupName: string }) => {
+    return !group.groupName.toUpperCase().startsWith('SA');
+  };
+
   const formativeGroups = React.useMemo(() => {
-    return (assessmentScheme?.assessments || []).filter(a => a.category === 'FA').sort((a,b) => a.position - b.position);
+    const groups = assessmentScheme?.assessments || [];
+    const hasTypedScheme = groups.some((g: any) => typeof g.type !== 'undefined');
+    return hasTypedScheme
+      ? groups.filter((g: any) => g.type === 'formative')
+      : groups.filter(g => isFormativeGroup({ groupName: g.groupName }));
   }, [assessmentScheme]);
 
   const isTeacher = currentUserRole === 'teacher';
@@ -121,12 +133,13 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 
   const isFieldDisabledForRole = (subjectName?: string): boolean => {
     if (isStudent) return true;
+    // Admins can see but not edit if a student is loaded.
     if (isAdmin && !!studentData.studentIdNo) return true; 
     if (isTeacher) {
-      if (!subjectName) return true;
+      if (!subjectName) return true; // Disable general fields for teachers
       return !editableSubjects.includes(subjectName);
     }
-    return false;
+    return false; // Superadmin can edit
   };
 
 
@@ -134,8 +147,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
     const subjectFaData = faMarks[subjectIdentifier];
     const defaultFaPeriodMarks: MarksEntry = { tool1: null, tool2: null, tool3: null, tool4: null };
     const dynamicDefaultSubjectFaData: any = {};
-    formativeGroups.forEach((group) => {
-      const key = group.key;
+    formativeGroups.forEach((_, idx) => {
+      const key = `fa${idx + 1}`;
       dynamicDefaultSubjectFaData[key] = { ...defaultFaPeriodMarks };
     });
     const currentSubjectData = subjectFaData || (dynamicDefaultSubjectFaData as SubjectFAData);
@@ -150,18 +163,18 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
     const isSecondLang = subjectName === secondLanguage;
     const currentFaPeriodGradeScale = isSecondLang ? faPeriodGradeScale2ndLang : faPeriodGradeScale;
 
-    formativeGroups.forEach((assessment) => {
-        const faPeriodKey = assessment.key as keyof SubjectFAData;
+    formativeGroups.forEach((assessment, index) => {
+        const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
         const periodMarks = currentSubjectData[faPeriodKey] || defaultFaPeriodMarks;
         
         let periodTotal = 0;
-        assessment.tests.forEach((test: AssessmentTest) => {
-          const toolKey = test.key as keyof MarksEntry;
+        assessment.tests.forEach((test, testIndex) => {
+          const toolKey = `tool${testIndex + 1}` as keyof MarksEntry;
           periodTotal += periodMarks[toolKey] || 0;
         });
 
         currentOverallTotal += periodTotal;
-        results[assessment.key] = {
+        results[assessment.groupName] = { // Use dynamic group name for results key
           total: periodTotal,
           grade: getGrade(periodTotal, currentFaPeriodGradeScale),
         };
@@ -170,61 +183,62 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
     results.overallTotal = currentOverallTotal;
     results.overallGrade = getGrade(currentOverallTotal, overallSubjectGradeScale); 
     return results;
-  }, [faMarks, secondLanguage, formativeGroups]);
+  }, [faMarks, secondLanguage, assessmentScheme]);
 
 
   return (
     <>
       <style jsx global>{`
-        .report-card-container { 
+        /* Base container */
+        .report-card-container body, .report-card-container {
           font-family: Arial, sans-serif;
-          font-size: 11px; 
-          margin: 0; 
-          padding: 5px; 
+          font-size: 11px;
+          margin: 0;
+          padding: 5px;
           color: #000;
           background-color: #fff;
+          overflow-x: hidden; /* Prevent horizontal scrollbar - table will wrap/shrink */
         }
-        @media screen {
-            .report-card-container {
-                overflow-x: auto;
-            }
-        }
+        /* Table layout tuned to fit page width without scroll */
         .report-card-container table {
           border-collapse: collapse;
           width: 100%;
-          table-layout: auto;
-          margin-bottom: 10px; 
-          min-width: 1100px;
-        }
-        @media print {
-            .report-card-container {
-              overflow: visible;
-            }
-            .report-card-container table {
-                min-width: auto;
-                table-layout: auto;
-                width: 100%;
-            }
-            .report-card-container th, .report-card-container td {
-              padding: 1px 2px;
-              font-size: 8px;
-            }
+          table-layout: fixed; /* Distribute columns evenly and enable wrapping */
+          margin-bottom: 10px;
+          max-width: 100%;
         }
         .report-card-container th, .report-card-container td {
           border: 1px solid #000;
-          padding: 3px; 
+          padding: 4px 6px; /* Optimized padding to reduce width without hiding content */
           text-align: center;
-          vertical-align: middle; 
-          word-break: break-word;
-          overflow-wrap: anywhere;
-          white-space: normal;
+          vertical-align: middle;
+          word-break: break-word; /* Break long continuous words */
+          overflow-wrap: anywhere; /* Allow breaking at any point if needed */
+          white-space: normal; /* Allow wrapping */
+          min-width: 0; /* Allow cells to shrink when needed */
         }
+        /* Ensure key FA columns don't shrink too much (but allow shrink on very narrow viewports) */
+        /* S.No column */
+        #fa-table thead tr:first-child th:first-child,
+        #fa-table tbody td:first-child { min-width: 55px; }
+        /* Subject column */
         #fa-table thead tr:first-child th:nth-child(2),
-        #fa-table tbody td:nth-child(2) { text-align: left; }
+        #fa-table tbody td:nth-child(2) { min-width: 180px; text-align: left; }
+        /* Overall TOTAL and GRADE (last two columns) */
+        #fa-table thead tr:first-child th:nth-last-child(2),
+        #fa-table tbody td:nth-last-child(2) { min-width: 90px; }
+        #fa-table thead tr:first-child th:last-child,
+        #fa-table tbody td:last-child { min-width: 80px; }
+        /* FA per-group Total and Grade columns */
+        #fa-table .fa-total-head, #fa-table .fa-total-cell { min-width: 50px; }
+        #fa-table .fa-grade-head, #fa-table .fa-grade-cell { min-width: 50px; }
+        /* Uniform widths for FA test columns via class */
+        #fa-table .fa-test-head { min-width: 115px; }
+        #fa-table .fa-test-cell { min-width: 105px; }
         .report-card-container .header-table td {
           border: none;
           text-align: left;
-          padding: 1px 3px; 
+          padding: 2px 4px;
         }
         .report-card-container .title {
           text-align: center;
@@ -243,16 +257,16 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           margin-top: 8px; 
           text-align: left;
         }
-        .report-card-container input[type="text"], 
-        .report-card-container input[type="number"], 
+        .report-card-container input[type="text"],
+        .report-card-container input[type="number"],
         .report-card-container select {
-          padding: 2px; 
+          padding: 2px;
           border: 1px solid #ccc;
-          border-radius: 2px; 
-          font-size: 11px; 
-          box-sizing: border-box; 
-          background-color: #fff; 
-          color: #000; 
+          border-radius: 2px;
+          font-size: 11px;
+          box-sizing: border-box;
+          background-color: #fff;
+          color: #000;
         }
         .report-card-container input:disabled, .report-card-container select:disabled {
           background-color: #f0f0f0 !important; 
@@ -270,21 +284,21 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           -webkit-appearance: none;
           margin: 0;
         }
-        .report-card-container .header-table input[type="text"] { 
-            width: 95%; 
-            max-width: 180px; 
+        .report-card-container .header-table input[type="text"] {
+          width: 95%;
+          max-width: 180px;
         }
-         .report-card-container .header-table td:first-child input[type="text"] { 
-            max-width: 300px; 
+         .report-card-container .header-table td:first-child input[type="text"] {
+          max-width: 300px;
         }
-        .report-card-container #fa-table input[type="number"]{ 
-            width: 40px; 
+        .report-card-container #fa-table input[type="number"]{
+          width: 40px;
         }
-        .report-card-container th { 
-          word-break: break-word; 
-          overflow-wrap: anywhere; 
-          white-space: normal; 
-          font-size: 10px;
+        .report-card-container th {
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          white-space: normal;
+          font-size: 10px; /* Slightly smaller to fit more headers */
           line-height: 1.2;
         }
          .report-card-container .header-table select {
@@ -304,6 +318,48 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             border: none; 
             background-color: transparent !important;
             color: #000 !important; 
+        }
+      `}</style>
+      <style jsx global>{`
+        /* Print-specific rules for A4 Landscape */
+        @media print {
+          @page { size: A4 landscape; margin: 10mm; }
+          html, body { height: auto; }
+          .report-card-container {
+            width: 100%;
+            overflow: visible !important; /* ensure nothing is clipped in print */
+            background: #fff;
+            color: #000;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            font-size: 10px; /* Slightly reduce for print to fit width */
+          }
+          /* Force table to fit the printable width and wrap cells as needed */
+          .report-card-container table, #fa-table {
+            table-layout: fixed !important;
+            width: 100% !important;
+            border-collapse: collapse;
+            max-width: 100% !important;
+          }
+          .report-card-container th, .report-card-container td {
+            padding: 4px 6px !important;
+            font-size: 10px !important;
+            line-height: 1 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            max-width: 1px; /* allow wrapping within fixed table layout */
+          }
+          /* Remove input outlines and simplify form controls for print */
+          .report-card-container input, .report-card-container select {
+            border: none !important;
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: auto !important;
+          }
+          /* Avoid page breaks inside rows for cleaner output */
+          #fa-table tr { page-break-inside: avoid; }
         }
       `}</style>
       <div className="report-card-container">
@@ -332,6 +388,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             <tr>
               <td>Class: <input type="text" value={studentData.class || ""} onChange={e => onStudentDataChange('class', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
               <td>Section: <input type="text" value={studentData.section || ""} onChange={e => onStudentDataChange('section', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
+              {/* <td>Student ID No: <input type="text" value={studentData.studentIdNo || ""} onChange={e => onStudentDataChange('studentIdNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td> */}
               <td>Admn. No: <input type="text" value={studentData.admissionNo || ""} onChange={e => onStudentDataChange('admissionNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
             </tr>
             <tr>
@@ -361,8 +418,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                   const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
                   const colSpan = (assessment.tests?.length || 0) + 2; // tests + Total + Grade
                   return (
-                    <th key={assessment.key} colSpan={colSpan}>
-                      {assessment.label} ({groupMax}M)
+                    <th key={assessment.groupName} colSpan={colSpan}>
+                      {assessment.groupName} ({groupMax}M)
                     </th>
                   );
               })}
@@ -379,11 +436,11 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                   const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
                   return assessment.tests
                     .map((test) => (
-                      <th key={`${assessment.key}-${test.key}`} className="fa-test-head" title={test.fullName}>{test.label} ({test.maxMarks}M)</th>
+                      <th key={`${assessment.groupName}-${test.testName}`} className="fa-test-head">{test.testName} ({test.maxMarks}M)</th>
                     ))
                     .concat([
-                      <th key={`${assessment.key}-Total`} className="fa-total-head">Total ({groupMax}M)</th>,
-                      <th key={`${assessment.key}-Grade`} className="fa-grade-head">Grade</th>
+                      <th key={`${assessment.groupName}-Total`} className="fa-total-head">Total ({groupMax}M)</th>,
+                      <th key={`${assessment.groupName}-Grade`} className="fa-grade-head">Grade</th>
                     ]);
                 })}
             </tr>
@@ -394,8 +451,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
               const isCurrentSubjectDisabled = isFieldDisabledForRole(subjectIdentifier);
               const defaultFaPeriodMarksRow: MarksEntry = { tool1: null, tool2: null, tool3: null, tool4: null };
               const dynamicDefaultSubjectFaRow: any = {};
-              formativeGroups.forEach((group) => {
-                const key = group.key;
+              formativeGroups.forEach((_, idx) => {
+                const key = `fa${idx + 1}`;
                 dynamicDefaultSubjectFaRow[key] = { ...defaultFaPeriodMarksRow };
               });
               const subjectFaData = faMarks[subjectIdentifier] || (dynamicDefaultSubjectFaRow as SubjectFAData);
@@ -404,13 +461,13 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                 <tr key={subject.name}>
                   <td>{SIndex + 1}</td>
                   <td style={{textAlign: 'left', paddingLeft: '5px'}}>{subject.name}</td>
-                  {formativeGroups.map((assessment) => {
-                     const faPeriodKey = assessment.key as keyof SubjectFAData;
+                  {formativeGroups.map((assessment, index) => {
+                     const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
                      const periodData = subjectFaData[faPeriodKey];
                      return (
                         <React.Fragment key={faPeriodKey}>
-                        {assessment.tests.map((test) => {
-                            const toolKey = test.key as keyof MarksEntry;
+                        {assessment.tests.map((test, testIndex) => {
+                            const toolKey = `tool${testIndex+1}` as keyof MarksEntry;
                             return (
                             <td key={`${faPeriodKey}-${toolKey}`} className="fa-test-cell">
                                 <input
@@ -424,8 +481,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                                 </td>
                             );
                         })}
-                        <td className="fa-total-cell">{results[assessment.key]?.total ?? ''}</td>
-                        <td className="fa-grade-cell">{results[assessment.key]?.grade ?? ''}</td>
+                        <td className="fa-total-cell">{results[assessment.groupName]?.total ?? ''}</td>
+                        <td className="fa-grade-cell">{results[assessment.groupName]?.grade ?? ''}</td>
                         </React.Fragment>
                      );
                   })}

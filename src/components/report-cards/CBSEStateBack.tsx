@@ -1,9 +1,10 @@
+
 "use client";
 
 import React from 'react';
 import type { UserRole } from '@/types/user';
 import type { ReportCardSASubjectEntry, ReportCardAttendanceMonth, SAPaperData } from '@/types/report';
-import type { AssessmentScheme, AssessmentTest } from '@/types/assessment';
+import type { AssessmentScheme } from '@/types/assessment';
 
 export type { ReportCardSASubjectEntry, ReportCardAttendanceMonth, SAPaperData };
 
@@ -155,72 +156,65 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
   
   const isPageReadOnlyForAdmin = isAdmin;
 
-  const summativeGroups = (assessmentScheme?.assessments || []).filter(g => g.category === 'SA').sort((a,b) => a.position - b.position);
+  // Detect summative groups by group naming only (SA prefix)
+  const isSummativeGroup = (group: { groupName: string }) => {
+    return group.groupName.toUpperCase().startsWith('SA');
+  };
+  const summativeGroups = (() => {
+    const groups = assessmentScheme?.assessments || [];
+    const hasTypedScheme = groups.some((g: any) => typeof g.type !== 'undefined');
+    return hasTypedScheme
+      ? groups.filter((g: any) => g.type === 'summative')
+      : groups.filter(g => isSummativeGroup({ groupName: g.groupName }));
+  })();
   const sa1Group = summativeGroups[0];
   const sa2Group = summativeGroups[1];
   const sa1Tests = sa1Group?.tests || [];
   const sa2Tests = sa2Group?.tests || [];
-  const sa1Label = sa1Group?.label || 'Summative Assessment-1';
-  const sa2Label = sa2Group?.label || 'Summative Assessment-2';
+  const sa1Label = sa1Group?.groupName || 'Summative Assessment-1';
+  const sa2Label = sa2Group?.groupName || 'Summative Assessment-2';
 
 
   return (
     <>
       <style jsx global>{`
-        .report-card-back-container {
+        .report-card-back-container body, .report-card-back-container {
           font-family: Arial, sans-serif;
           font-size: 9px;
-          padding: 10px; 
+          padding: 8px;
           color: #000;
           background-color: #fff;
-        }
-        @media screen {
-            .report-card-back-container {
-                overflow-x: auto;
-            }
+          overflow-x: hidden; /* Prevent horizontal scroll; allow wrapping */
         }
         .report-card-back-container table {
           border-collapse: collapse;
           width: 100%;
-          table-layout: auto;
-          margin-bottom: 8px; 
-          min-width: 1100px;
-        }
-        @media print {
-            .report-card-back-container {
-              overflow: visible;
-            }
-            .report-card-back-container table {
-                min-width: auto;
-                table-layout: auto;
-                width: 100%;
-            }
-             .report-card-back-container th, .report-card-back-container td {
-              padding: 1px;
-              font-size: 7px;
-            }
+          table-layout: fixed; /* Force columns to share available width and wrap */
+          margin-bottom: 8px;
+          max-width: 100%;
         }
         .report-card-back-container th, .report-card-back-container td {
           border: 1px solid #000;
           text-align: center;
-          padding: 1px 2px;
-          height: 18px; 
-          word-break: break-word;
-          overflow-wrap: anywhere;
-          white-space: normal;
+          padding: 3px 6px;
+          height: auto;
+          word-break: break-word; /* Break long tokens */
+          overflow-wrap: anywhere; /* Allow break at any point */
+          white-space: normal; /* Wrap content */
+          min-width: 0; /* Allow columns to shrink to fit */
         }
         .report-card-back-container th {
           background-color: #f0f0f0;
-          font-size: 8px; 
+          font-size: 8px;
           vertical-align: middle;
           line-height: 1.2;
         }
         .report-card-back-container td {
-            font-size: 9px; 
+            font-size: 9px;
             vertical-align: middle;
         }
         .report-card-back-container .small {
-          font-size: 7px; 
+          font-size: 7px;
         }
         .report-card-back-container .bold {
           font-weight: bold;
@@ -229,13 +223,13 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
           white-space: nowrap;
         }
         .report-card-back-container input[type="number"], .report-card-back-container input[type="text"] {
-          width: 28px; 
+          width: 28px;
           text-align: center;
           border: 1px solid #ccc;
-          font-size: 9px; 
+          font-size: 9px;
           padding: 1px;
           box-sizing: border-box;
-          -moz-appearance: textfield; 
+          -moz-appearance: textfield;
         }
         .report-card-back-container input:disabled {
             background-color: #f0f0f0 !important;
@@ -254,11 +248,11 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
           margin: 0;
         }
         .report-card-back-container .calculated {
-          background-color: #e9e9e9; 
+          background-color: #e9e9e9;
           font-weight: bold;
         }
         .report-card-back-container h2 {
-            font-size: 14px; 
+            font-size: 14px;
             margin: 5px 0;
         }
         .report-card-back-container .subject-cell {
@@ -270,10 +264,10 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
          .report-card-back-container .paper-cell {
             font-style: italic;
             vertical-align: middle;
-            font-size: 8px; 
+            font-size: 8px;
         }
         .report-card-back-container .attendance-table input[type="number"] {
-            width: 35px; 
+            width: 35px;
         }
          .report-card-back-container .final-grade-input {
             width: 50px !important;
@@ -281,8 +275,45 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
             border: 1px solid black !important;
          }
          .report-card-back-container .fatotal-input {
-            width: 40px !important; 
+            width: 40px !important;
          }
+      `}</style>
+      <style jsx global>{`
+        /* Print-specific rules for A4 Landscape */
+        @media print {
+          @page { size: A4 landscape; margin: 10mm; }
+          html, body { height: auto; }
+          .report-card-back-container {
+            width: 100%;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            font-size: 9px; /* small reduction for print if needed */
+          }
+          .report-card-back-container table, #mainTable {
+            table-layout: fixed !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse;
+          }
+          .report-card-back-container th, .report-card-back-container td {
+            padding: 3px 6px !important;
+            font-size: 9px !important;
+            line-height: 1 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+          }
+          .report-card-back-container input, .report-card-back-container select {
+            border: none !important;
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: auto !important;
+          }
+          /* Avoid breaking rows across pages */
+          #mainTable tr { page-break-inside: avoid; }
+        }
       `}</style>
       <div className="report-card-back-container">
         <h2 style={{ textAlign: 'center' }}>SUMMATIVE ASSESSMENT</h2>
@@ -324,8 +355,8 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                     <th rowSpan={2}>GRADE</th>
                 </tr>
                 <tr>
-                    {sa1Tests.map((t, testIndex) => <th key={`sa1-head-${t.key}-${testIndex}`} title={t.fullName}>{t.label}</th>)}
-                    {sa2Tests.map((t, testIndex) => <th key={`sa2-head-${t.key}-${testIndex}`} title={t.fullName}>{t.label}</th>)}
+                    {sa1Tests.map(t => <th key={`sa1-head-${t.testName}`}>{t.testName} ({t.maxMarks}M)</th>)}
+                    {sa2Tests.map(t => <th key={`sa2-head-${t.testName}`}>{t.testName} ({t.maxMarks}M)</th>)}
                 </tr>
             </thead>
             <tbody>
@@ -345,10 +376,10 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                             <td className="paper-cell">{rowData.paper}</td>
                             
                             {/* SA1 Marks */}
-                            {sa1Tests.map((test, testIndex) => {
-                              const skillKey = test.key as keyof SAPaperData;
+                            {sa1Tests.map(test => {
+                              const skillKey = test.testName.toLowerCase() as keyof SAPaperData;
                               return (
-                                <td key={`sa1-${skillKey}-${testIndex}`}>
+                                <td key={`sa1-${skillKey}`}>
                                     <input type="number" 
                                         value={rowData.sa1?.[skillKey]?.marks ?? ''} 
                                         onChange={e => onSaDataChange(rowIndex, 'sa1', skillKey, e.target.value)}
@@ -360,10 +391,10 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                             <td className="calculated">{derived.sa1Grade}</td>
                             
                             {/* SA2 Marks */}
-                             {sa2Tests.map((test, testIndex) => {
-                              const skillKey = test.key as keyof SAPaperData;
+                             {sa2Tests.map(test => {
+                              const skillKey = test.testName.toLowerCase() as keyof SAPaperData;
                               return (
-                                <td key={`sa2-${skillKey}-${testIndex}`}>
+                                <td key={`sa2-${skillKey}`}>
                                     <input type="number" 
                                         value={rowData.sa2?.[skillKey]?.marks ?? ''} 
                                         onChange={e => onSaDataChange(rowIndex, 'sa2', skillKey, e.target.value)}

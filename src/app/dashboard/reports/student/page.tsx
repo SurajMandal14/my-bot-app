@@ -202,7 +202,7 @@ export default function StudentReportPage() {
                   <div key={subject}>
                     <h3 className="font-semibold mb-2">{subject}</h3>
                     <Table><TableHeader><TableRow><TableHead>Assessment</TableHead><TableHead className="text-right">Marks</TableHead></TableRow></TableHeader>
-                      <TableBody>{marks.map(mark => <TableRow key={mark._id?.toString()}><TableCell>{mark.assessmentName.split('-').slice(0).join('-')}</TableCell><TableCell className="text-right">{mark.marksObtained} / {mark.maxMarks}</TableCell></TableRow>)}</TableBody>
+                      <TableBody>{marks.map(mark => <TableRow key={mark._id?.toString()}><TableCell>{mark.assessmentName ? mark.assessmentName.split('-').slice(0).join('-') : 'N/A'}</TableCell><TableCell className="text-right">{mark.marksObtained} / {mark.maxMarks}</TableCell></TableRow>)}</TableBody>
                     </Table>
                   </div>
                 ))
