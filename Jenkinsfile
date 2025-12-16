@@ -48,7 +48,7 @@ pipeline {
     post {
         always {
             echo 'Deployment finished. Cleaning up dangling images...'
-            // Kept -f but removed -a to speed up future builds
+            // Kept -f but removed -a to speed up future builds.
             sh 'sudo podman image prune -f'
         }
     }
