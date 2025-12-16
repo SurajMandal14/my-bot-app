@@ -213,53 +213,28 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           text-align: center;
           vertical-align: middle;
           word-break: break-word; /* Break long continuous words */
-          overflow-wrap: break-word; /* Better wrapping control */
+          overflow-wrap: anywhere; /* Allow breaking at any point if needed */
           white-space: normal; /* Allow wrapping */
           min-width: 0; /* Allow cells to shrink when needed */
         }
-        
-        /* Header-specific styling for better alignment */
-        .report-card-container th {
-          word-break: break-word;
-          overflow-wrap: break-word;
-          white-space: normal;
-          font-size: 10px; /* Slightly smaller to fit more headers */
-          line-height: 1.3;
-          padding: 3px 4px; /* Tighter padding for headers */
-          vertical-align: middle;
-        }
-        
-        /* Assessment group headers - prevent awkward breaks */
-        #fa-table thead tr:first-child th {
-          padding: 4px 3px; /* Compact padding for group headers */
-          line-height: 1.2;
-        }
-        
-        /* Test name headers - keep assessment and max marks together */
-        #fa-table .fa-test-head {
-          min-width: 70px; /* Reduced to allow tighter wrapping */
-          padding: 3px 2px;
-          font-size: 9px; /* Slightly smaller for test headers */
-          line-height: 1.25;
-          white-space: pre-wrap; /* Preserve intentional breaks only */
-        }
-        
-        /* Ensure key FA columns don't shrink too much */
+        /* Ensure key FA columns don't shrink too much (but allow shrink on very narrow viewports) */
         /* S.No column */
         #fa-table thead tr:first-child th:first-child,
-        #fa-table tbody td:first-child { min-width: 45px; }
+        #fa-table tbody td:first-child { min-width: 55px; }
         /* Subject column */
         #fa-table thead tr:first-child th:nth-child(2),
-        #fa-table tbody td:nth-child(2) { min-width: 140px; text-align: left; }
+        #fa-table tbody td:nth-child(2) { min-width: 180px; text-align: left; }
         /* Overall TOTAL and GRADE (last two columns) */
         #fa-table thead tr:first-child th:nth-last-child(2),
-        #fa-table tbody td:nth-last-child(2) { min-width: 70px; }
+        #fa-table tbody td:nth-last-child(2) { min-width: 90px; }
         #fa-table thead tr:first-child th:last-child,
-        #fa-table tbody td:last-child { min-width: 60px; }
+        #fa-table tbody td:last-child { min-width: 80px; }
         /* FA per-group Total and Grade columns */
-        #fa-table .fa-total-head, #fa-table .fa-total-cell { min-width: 45px; font-size: 9px; }
-        #fa-table .fa-grade-head, #fa-table .fa-grade-cell { min-width: 45px; font-size: 9px; }
-        
+        #fa-table .fa-total-head, #fa-table .fa-total-cell { min-width: 50px; }
+        #fa-table .fa-grade-head, #fa-table .fa-grade-cell { min-width: 50px; }
+        /* Uniform widths for FA test columns via class */
+        #fa-table .fa-test-head { min-width: 115px; }
+        #fa-table .fa-test-cell { min-width: 105px; }
         .report-card-container .header-table td {
           border: none;
           text-align: left;
@@ -319,6 +294,13 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         .report-card-container #fa-table input[type="number"]{
           width: 40px;
         }
+        .report-card-container th {
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          white-space: normal;
+          font-size: 10px; /* Slightly smaller to fit more headers */
+          line-height: 1.2;
+        }
          .report-card-container .header-table select {
             min-width: 90px;
             padding: 2px;
@@ -339,33 +321,19 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         }
       `}</style>
       <style jsx global>{`
-        /* Print-specific rules - Responsive to page size and orientation */
+        /* Print-specific rules for A4 Landscape */
         @media print {
-          @page { 
-            size: auto; /* Adapt to selected page size in print dialog */
-            margin: 8mm; /* Reduced margin to maximize content area */
-          }
-          
-          html, body { 
-            height: auto;
-            width: 100%;
-            margin: 0;
-            padding: 0;
-          }
-          
+          @page { size: A4 landscape; margin: 10mm; }
+          html, body { height: auto; }
           .report-card-container {
             width: 100%;
-            max-width: 100%;
-            overflow: visible !important;
+            overflow: visible !important; /* ensure nothing is clipped in print */
             background: #fff;
             color: #000;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-            font-size: 9px; /* Further reduced for better fit */
-            margin: 0;
-            padding: 4px;
+            font-size: 10px; /* Slightly reduce for print to fit width */
           }
-          
           /* Force table to fit the printable width and wrap cells as needed */
           .report-card-container table, #fa-table {
             table-layout: fixed !important;
@@ -373,43 +341,15 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             border-collapse: collapse;
             max-width: 100% !important;
           }
-          
           .report-card-container th, .report-card-container td {
-            padding: 2px 3px !important; /* Minimal padding for print */
-            font-size: 8px !important; /* Smaller for print to fit more content */
-            line-height: 1.1 !important;
-            white-space: normal !important;
-            word-break: break-word !important;
-            overflow-wrap: break-word !important;
-            border: 0.5px solid #000 !important; /* Thinner borders */
-          }
-          
-          /* Specifically target header cells for better alignment */
-          .report-card-container thead th {
-            padding: 2px 2px !important;
-            font-size: 8px !important;
-            line-height: 1.1 !important;
-            vertical-align: middle !important;
-            text-align: center !important;
-          }
-          
-          /* Test name headers - compact layout */
-          #fa-table .fa-test-head {
-            padding: 2px 1px !important;
-            font-size: 7px !important;
+            padding: 4px 6px !important;
+            font-size: 10px !important;
             line-height: 1 !important;
             white-space: normal !important;
-            min-width: auto !important; /* Let print scaling control width */
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            max-width: 1px; /* allow wrapping within fixed table layout */
           }
-          
-          /* Reduce min-widths for print to allow full scaling */
-          #fa-table thead tr:first-child th:first-child,
-          #fa-table tbody td:first-child { min-width: auto !important; }
-          #fa-table thead tr:first-child th:nth-child(2),
-          #fa-table tbody td:nth-child(2) { min-width: auto !important; }
-          #fa-table .fa-total-head, #fa-table .fa-total-cell { min-width: auto !important; }
-          #fa-table .fa-grade-head, #fa-table .fa-grade-cell { min-width: auto !important; }
-          
           /* Remove input outlines and simplify form controls for print */
           .report-card-container input, .report-card-container select {
             border: none !important;
@@ -417,37 +357,9 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             padding: 0 !important;
             margin: 0 !important;
             width: auto !important;
-            font-size: 8px !important;
           }
-          
           /* Avoid page breaks inside rows for cleaner output */
           #fa-table tr { page-break-inside: avoid; }
-          
-          /* Print footer information */
-          .report-card-container .small-note {
-            font-size: 7px !important;
-          }
-          
-          .report-card-container .title {
-            font-size: 12px !important;
-          }
-          
-          .report-card-container .subtitle {
-            font-size: 10px !important;
-          }
-        }
-        
-        /* Landscape-specific adjustments */
-        @media print and (orientation: landscape) {
-          @page { size: A4 landscape; }
-          .report-card-container { font-size: 9px; }
-        }
-        
-        /* Portrait-specific adjustments */
-        @media print and (orientation: portrait) {
-          @page { size: A4 portrait; }
-          .report-card-container { font-size: 8px; }
-          #fa-table .fa-test-head { font-size: 6px !important; }
         }
       `}</style>
       <div className="report-card-container">
@@ -506,12 +418,12 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                   const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
                   const colSpan = (assessment.tests?.length || 0) + 2; // tests + Total + Grade
                   return (
-                    <th key={assessment.groupName} colSpan={colSpan} style={{ whiteSpace: 'nowrap' }}>
+                    <th key={assessment.groupName} colSpan={colSpan}>
                       {assessment.groupName} ({groupMax}M)
                     </th>
                   );
               })}
-              <th rowSpan={2} style={{ whiteSpace: 'nowrap' }}>
+              <th rowSpan={2}>
                 {(() => {
                   const overallFaMax = formativeGroups.reduce((sum, ag) => sum + (ag.tests || []).reduce((s, t) => s + (t.maxMarks || 0), 0), 0);
                   return `TOTAL (${overallFaMax}M)`;
@@ -524,16 +436,10 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                   const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
                   return assessment.tests
                     .map((test) => (
-                      <th key={`${assessment.groupName}-${test.testName}`} className="fa-test-head">
-                        <span style={{ whiteSpace: 'nowrap', display: 'block' }}>{test.testName}</span>
-                        <span style={{ whiteSpace: 'nowrap', display: 'block' }}>({test.maxMarks}M)</span>
-                      </th>
+                      <th key={`${assessment.groupName}-${test.testName}`} className="fa-test-head">{test.testName} ({test.maxMarks}M)</th>
                     ))
                     .concat([
-                      <th key={`${assessment.groupName}-Total`} className="fa-total-head">
-                        <span style={{ whiteSpace: 'nowrap', display: 'block' }}>Total</span>
-                        <span style={{ whiteSpace: 'nowrap', display: 'block' }}>({groupMax}M)</span>
-                      </th>,
+                      <th key={`${assessment.groupName}-Total`} className="fa-total-head">Total ({groupMax}M)</th>,
                       <th key={`${assessment.groupName}-Grade`} className="fa-grade-head">Grade</th>
                     ]);
                 })}
