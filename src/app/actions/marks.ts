@@ -37,6 +37,8 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
     }
 
     const operations = studentMarks.map(sm => {
+      // Add assessmentName for easier report mapping
+      const assessmentName = `${sm.assessmentKey}-${sm.testKey}`;
       const fieldsOnInsert = {
         studentId: new ObjectId(sm.studentId),
         studentName: sm.studentName,
@@ -46,6 +48,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         subjectName: subjectName,
         assessmentKey: sm.assessmentKey,
         testKey: sm.testKey,
+        assessmentName, // NEW FIELD
         academicYear: academicYear,
         schoolId: new ObjectId(schoolId),
         createdAt: new Date(),
@@ -56,6 +59,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         maxMarks: sm.maxMarks,
         markedByTeacherId: new ObjectId(markedByTeacherId),
         updatedAt: new Date(),
+        assessmentName, // Ensure always present on update
       };
 
       return {
