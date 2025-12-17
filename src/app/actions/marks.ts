@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { z } from 'zod';
@@ -19,6 +20,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
 
     const {
       classId, className, subjectId, subjectName,
+      assessmentKey, testKey,
       academicYear, markedByTeacherId, schoolId, studentMarks
     } = validatedPayloadStructure.data;
 
@@ -80,7 +82,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         return { success: true, message: "No marks data provided to submit.", count: 0};
     }
 
-    const result = await marksCollection.bulkWrite(operations);
+    const result = await marksCollection.bulkWrite(operations as any);
     let processedCount = result.upsertedCount + result.modifiedCount;
 
     revalidatePath('/dashboard/teacher/marks');
