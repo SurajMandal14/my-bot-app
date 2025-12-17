@@ -340,10 +340,8 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                     <th colSpan={7}>Final Result (Based on FA+SA1 and Internal+SA2)</th>
                 </tr>
                 <tr>
-                    <th colSpan={sa1Tests.length}>Assessment Skills</th>
                     <th rowSpan={2}>Total Marks</th>
                     <th rowSpan={2}>Grade</th>
-                    <th colSpan={sa2Tests.length}>Assessment Skills</th>
                     <th rowSpan={2}>Total Marks</th>
                     <th rowSpan={2}>Grade</th>
                     <th rowSpan={2} className="small">FA (Total)</th>
