@@ -19,8 +19,8 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
     }
 
     const {
-      classId, className, subjectId, subjectName,
-      assessmentKey, testKey,
+      classId, className, subjectName,
+      assessmentKey,
       academicYear, markedByTeacherId, schoolId, studentMarks
     } = validatedPayloadStructure.data;
 
@@ -63,7 +63,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
           filter: {
             studentId: fieldsOnInsert.studentId,
             classId: fieldsOnInsert.classId,
-            subjectId: fieldsOnInsert.subjectId, 
+            subjectName: fieldsOnInsert.subjectName, 
             assessmentKey: fieldsOnInsert.assessmentKey,
             testKey: fieldsOnInsert.testKey,
             academicYear: fieldsOnInsert.academicYear,

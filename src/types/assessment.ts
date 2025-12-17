@@ -44,7 +44,7 @@ export interface AssessmentScheme {
 
 const gradeRowSchema = z.object({
   label: z.string().min(1, "Grade label is required (e.g., A1)."),
-  minPercentage: z.coerce.number().min(0, "Min % cannot be negative.").max(100, "Min % cannot exceed 100."),
+  minPercentage: z.coerce.number().min(0, "Min % cannot be negative.").max(100, "Max % cannot exceed 100."),
   maxPercentage: z.coerce.number().min(0, "Max % cannot be negative.").max(100, "Max % cannot exceed 100."),
 }).refine(data => data.minPercentage <= data.maxPercentage, {
   message: "Minimum percentage cannot be greater than maximum percentage.",
@@ -69,5 +69,3 @@ export const defaultGrades: GradingPatternFormData['grades'] = [
   { label: 'D1', minPercentage: 35, maxPercentage: 40 },
   { label: 'D2', minPercentage: 0, maxPercentage: 34 },
 ];
-
-    

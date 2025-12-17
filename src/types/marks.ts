@@ -7,7 +7,7 @@ export interface MarkEntry {
   _id?: ObjectId | string;
   studentId: ObjectId | string;
   studentName: string;
-  classId: string;
+  classId: ObjectId | string;
   className: string;
   subjectId: string; // This is the subject's name
   subjectName: string;
@@ -43,6 +43,7 @@ export const marksSubmissionPayloadSchema = z.object({
   className: z.string().min(1, "Class name is required."),
   subjectId: z.string().min(1, "Subject ID/Name is required."), // This will be subject name
   subjectName: z.string().min(1, "Subject name is required."),
+  assessmentKey: z.string().min(1, "Assessment key is required."),
   academicYear: z.string().min(4, "Academic year is required (e.g., 2023-2024)."),
   markedByTeacherId: z.string().min(1),
   schoolId: z.string().min(1),

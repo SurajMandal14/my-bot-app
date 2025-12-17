@@ -144,36 +144,35 @@ export async function updateAssessmentScheme(
       const academicYear: string = existingSchemeDoc.academicYear;
       const marksCollection = db.collection('marks');
 
-      const safeReplace = async (findStr: string, replaceStr: string) => {
-        if (!findStr || findStr === replaceStr) return;
-        await marksCollection.updateMany(
-          { schoolId: new ObjectId(schoolId), className: className, academicYear: academicYear, assessmentName: { $regex: `^${findStr}-` } },
-          [
-            { $set: { assessmentName: { $replaceOne: { input: "$assessmentName", find: `${findStr}-`, replacement: `${replaceStr}-` } } } }
-          ]
-        );
-      };
-
-      // Group renames by index (assumes order preserved)
-      for (let gi = 0; gi < Math.min(oldAssessments.length, newAssessments.length); gi++) {
+      for (let gi = 0; gi < oldAssessments.length; gi++) {
         const oldGroup = oldAssessments[gi];
         const newGroup = newAssessments[gi];
-        if (oldGroup?.groupName && newGroup?.groupName && oldGroup.groupName !== newGroup.groupName) {
-          await safeReplace(oldGroup.groupName, newGroup.groupName);
+        if (!oldGroup || !newGroup) continue;
+
+        const oldGroupName = oldGroup.groupName;
+        const newGroupName = newGroup.groupName;
+
+        if (oldGroupName !== newGroupName) {
+           await marksCollection.updateMany(
+            { schoolId: new ObjectId(schoolId), className: className, academicYear: academicYear, assessmentKey: oldGroupName },
+            { $set: { assessmentKey: newGroupName } }
+          );
         }
-        // Test renames within the group by index
-        const maxTests = Math.min(oldGroup.tests.length, newGroup.tests.length);
-        for (let ti = 0; ti < maxTests; ti++) {
-          const oldTest = oldGroup.tests[ti];
-          const newTest = newGroup.tests[ti];
-          if (oldTest?.testName && newTest?.testName && oldTest.testName !== newTest.testName) {
-            await marksCollection.updateMany(
-              { schoolId: new ObjectId(schoolId), className: className, academicYear: academicYear, assessmentName: { $regex: `^${newGroup.groupName}-` } },
-              [
-                { $set: { assessmentName: { $replaceOne: { input: "$assessmentName", find: `-${oldTest.testName}`, replacement: `-${newTest.testName}` } } } }
-              ]
-            );
-          }
+        
+        for (let ti = 0; ti < oldGroup.tests.length; ti++) {
+            const oldTest = oldGroup.tests[ti];
+            const newTest = newGroup.tests[ti];
+            if (!oldTest || !newTest) continue;
+
+            const oldTestName = oldTest.testName;
+            const newTestName = newTest.testName;
+
+            if (oldTestName !== newTestName) {
+                await marksCollection.updateMany(
+                  { schoolId: new ObjectId(schoolId), className: className, academicYear: academicYear, assessmentKey: newGroupName, testKey: oldTestName },
+                  { $set: { testKey: newTestName } }
+                );
+            }
         }
       }
     } catch (renameErr) {

@@ -63,7 +63,7 @@ export default function TeacherMarksEntryPage() {
   const [isLoadingStudentsAndMarks, setIsLoadingStudentsAndMarks] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const currentAssessmentConfig = assessmentScheme?.assessments.find(a => a.key === selectedAssessmentKey);
+  const currentAssessmentConfig = assessmentScheme?.assessments.find(a => a.groupName === selectedAssessmentKey);
   
   const isMarksEntryLocked = selectedAssessmentKey && selectedAcademicYear && schoolDetails?.marksEntryLocks?.[selectedAcademicYear]?.[selectedAssessmentKey as keyof AssessmentLocks] === true;
 
@@ -196,7 +196,7 @@ export default function TeacherMarksEntryPage() {
       studentsResult.users.forEach(student => {
         const studentIdStr = student._id!.toString();
           initialMarks[studentIdStr] = currentAssessmentConfig.tests.reduce((acc, test) => {
-              acc[test.key] = null;
+              acc[test.testName] = null;
               return acc;
           }, {} as Record<string, null>);
       });
@@ -254,18 +254,18 @@ export default function TeacherMarksEntryPage() {
       if (!marksState) continue;
 
         for (const test of currentAssessmentConfig.tests) {
-            const marksObtained = (marksState as StudentMarksCustomState)?.[test.key];
+            const marksObtained = (marksState as StudentMarksCustomState)?.[test.testName];
             if(marksObtained === null || marksObtained === undefined) continue;
 
             if (marksObtained > test.maxMarks) {
-                toast({ variant: "destructive", title: "Marks Exceed Max", description: `Marks for ${student.name} (${test.label}: ${marksObtained}) exceed max marks (${test.maxMarks}).`});
+                toast({ variant: "destructive", title: "Marks Exceed Max", description: `Marks for ${student.name} (${test.testName}: ${marksObtained}) exceed max marks (${test.maxMarks}).`});
                 setIsSubmitting(false); return;
             }
             marksToSubmit.push({ 
               studentId: studentIdStr, 
               studentName: student.name || "N/A", 
               assessmentKey: selectedAssessmentKey,
-              testKey: test.key,
+              testKey: test.testName,
               marksObtained, 
               maxMarks: test.maxMarks
             });
@@ -279,6 +279,7 @@ export default function TeacherMarksEntryPage() {
       className: classInfo.className, 
       subjectId: selectedSubjectName,
       subjectName: selectedSubjectName, 
+      assessmentKey: selectedAssessmentKey,
       academicYear: selectedAcademicYear,
       markedByTeacherId: authUser._id.toString(), 
       schoolId: authUser.schoolId.toString(),
@@ -305,17 +306,17 @@ export default function TeacherMarksEntryPage() {
            <div><Label htmlFor="academic-year-select">Academic Year</Label><Select onValueChange={setSelectedAcademicYear} value={selectedAcademicYear} disabled={isLoading || academicYears.length === 0}><SelectTrigger id="academic-year-select"><SelectValue placeholder="Select year"/></SelectTrigger><SelectContent>{academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}</SelectContent></Select></div>
            <div><Label htmlFor="class-select">Class</Label><Select onValueChange={setSelectedClassId} value={selectedClassId} disabled={isLoading || availableClasses.length === 0}><SelectTrigger id="class-select"><SelectValue placeholder={isLoading ? "Loading..." : "Select class"} /></SelectTrigger><SelectContent>{availableClasses.map(cls => <SelectItem key={cls.value} value={cls.value}>{cls.label}</SelectItem>)}</SelectContent></Select></div>
            <div><Label htmlFor="subject-select">Subject</Label><Select onValueChange={setSelectedSubjectName} value={selectedSubjectName} disabled={!selectedClassId || availableSubjects.length === 0}><SelectTrigger id="subject-select"><SelectValue placeholder="Select subject" /></SelectTrigger><SelectContent>{availableSubjects.map(subject => <SelectItem key={subject} value={subject}>{subject}</SelectItem>)}</SelectContent></Select></div>
-           <div><Label htmlFor="assessment-select">Assessment</Label><Select onValueChange={setSelectedAssessmentKey} value={selectedAssessmentKey} disabled={!selectedClassId || !assessmentScheme}><SelectTrigger id="assessment-select"><SelectValue placeholder="Select assessment" /></SelectTrigger><SelectContent>{(assessmentScheme?.assessments || []).map(a => <SelectItem key={a.key} value={a.key}>{a.label}</SelectItem>)}</SelectContent></Select></div>
+           <div><Label htmlFor="assessment-select">Assessment</Label><Select onValueChange={setSelectedAssessmentKey} value={selectedAssessmentKey} disabled={!selectedClassId || !assessmentScheme}><SelectTrigger id="assessment-select"><SelectValue placeholder="Select assessment" /></SelectTrigger><SelectContent>{(assessmentScheme?.assessments || []).map(a => <SelectItem key={a.groupName} value={a.groupName}>{a.groupName}</SelectItem>)}</SelectContent></Select></div>
         </CardContent>
       </Card>
       
       {selectedAssessmentKey && isMarksEntryLocked && (
-        <Alert variant="destructive"><Lock className="h-4 w-4" /><AlertTitle>Marks Entry Locked</AlertTitle><AlertDescription>The administrator has locked marks entry for <strong>{assessmentScheme?.assessments.find(a=>a.key === selectedAssessmentKey)?.label}</strong> for this academic year.</AlertDescription></Alert>
+        <Alert variant="destructive"><Lock className="h-4 w-4" /><AlertTitle>Marks Entry Locked</AlertTitle><AlertDescription>The administrator has locked marks entry for <strong>{assessmentScheme?.assessments.find(a=>a.groupName === selectedAssessmentKey)?.groupName}</strong> for this academic year.</AlertDescription></Alert>
       )}
 
       {(studentsForMarks.length > 0 || isLoadingStudentsAndMarks) && !isMarksEntryLocked && (
         <Card>
-          <CardHeader><CardTitle>Enter Marks for: {availableClasses.find(c=>c.value === selectedClassId)?.label} - {selectedSubjectName} - {assessmentScheme?.assessments.find(a=>a.key === selectedAssessmentKey)?.label}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Enter Marks for: {availableClasses.find(c=>c.value === selectedClassId)?.label} - {selectedSubjectName} - {assessmentScheme?.assessments.find(a=>a.groupName === selectedAssessmentKey)?.groupName}</CardTitle></CardHeader>
           <CardContent>
             {isLoadingStudentsAndMarks ? <div className="flex items-center justify-center py-6"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading...</p></div>
             : <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}><ScrollArea className="h-[60vh]"><div className="overflow-x-auto"><Table>
@@ -323,7 +324,7 @@ export default function TeacherMarksEntryPage() {
                       <TableHead className="w-12 sticky left-0 bg-card z-20"><Checkbox checked={selectAllCheckboxState} onCheckedChange={handleSelectAllChange} /></TableHead>
                       <TableHead className="sticky left-12 bg-card z-30 min-w-[150px]">Student Name</TableHead>
                       <TableHead>Admission ID</TableHead>
-                      {currentAssessmentConfig?.tests.map(test => <TableHead key={test.key} className="w-28 text-center">{test.label} ({test.maxMarks}M)</TableHead>)}
+                      {currentAssessmentConfig?.tests.map(test => <TableHead key={test.testName} className="w-28 text-center">{test.testName} ({test.maxMarks}M)</TableHead>)}
                   </TableRow></TableHeader>
                   <TableBody>{studentsForMarks.map(student => {
                       const studentIdStr = student._id!.toString();
@@ -332,7 +333,7 @@ export default function TeacherMarksEntryPage() {
                           <TableCell className="sticky left-0 bg-card z-10"><Checkbox checked={!!selectedStudentIds[studentIdStr]} onCheckedChange={c => setSelectedStudentIds(p => ({...p, [studentIdStr]: !!c}))} /></TableCell>
                           <TableCell className="sticky left-12 bg-card z-20 font-medium">{student.name}</TableCell>
                           <TableCell>{student.admissionId || 'N/A'}</TableCell>
-                          {currentAssessmentConfig?.tests.map(test => <TableCell key={test.key}><Input type="number" value={(currentMarks as StudentMarksCustomState)?.[test.key] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.key, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
+                          {currentAssessmentConfig?.tests.map(test => <TableCell key={test.testName}><Input type="number" value={(currentMarks as StudentMarksCustomState)?.[test.testName] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.testName, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
                       </TableRow>);
                   })}</TableBody>
               </Table></div></ScrollArea><div className="mt-6 flex justify-end"><Button type="submit" disabled={isSubmitting || isLoadingStudentsAndMarks}><Save className="mr-2 h-4 w-4" /> Submit Marks</Button></div></form>}
