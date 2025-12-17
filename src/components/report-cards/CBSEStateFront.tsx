@@ -195,7 +195,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         /* Base container */
         .report-card-container body, .report-card-container {
           font-family: Arial, sans-serif;
-          font-size: 11px;
+          font-size: 12px;
           margin: 0;
           padding: 5px;
           color: #000;
@@ -256,7 +256,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           margin-bottom: 8px; 
         }
         .report-card-container .small-note {
-          font-size: 9px; 
+          font-size: 12px; 
           margin-top: 8px; 
           text-align: left;
         }
@@ -266,7 +266,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           padding: 2px;
           border: 1px solid #ccc;
           border-radius: 2px;
-          font-size: 11px;
+          font-size: 12px;
           box-sizing: border-box;
           background-color: #fff;
           color: #000;
@@ -301,7 +301,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           word-break: break-word;
           overflow-wrap: anywhere;
           white-space: normal;
-          font-size: 10px; /* Slightly smaller to fit more headers */
+          font-size: 12px; /* Unified header font size */
           line-height: 1.2;
         }
          .report-card-container .header-table select {
@@ -334,7 +334,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             color: #000;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-            font-size: 10px; /* Slightly reduce for print to fit width */
+            font-size: 12px; /* Keep font size consistent at 12px for print */
           }
           /* Force table to fit the printable width and wrap cells as needed */
           .report-card-container table, #fa-table {
@@ -345,7 +345,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           }
           .report-card-container th, .report-card-container td {
             padding: 4px 6px !important;
-            font-size: 10px !important;
+            font-size: 12px !important;
             line-height: 1 !important;
             white-space: normal !important;
             word-break: break-word !important;

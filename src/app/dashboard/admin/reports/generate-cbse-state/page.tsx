@@ -290,12 +290,8 @@ export default function GenerateCBSEStateReportPage() {
       toast({ title: 'Nothing to print', description: 'Load a student report first.' });
       return;
     }
-    let printWindow: Window | null = null;
-    try {
-      printWindow = window.open('', '_blank');
-    } catch (err) {
-      printWindow = null;
-    }
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
     if (!printWindow) {
       toast({ title: 'Popup blocked', description: 'Please allow popups to print.' });
       return;
@@ -303,9 +299,9 @@ export default function GenerateCBSEStateReportPage() {
 
     const headStyle = `
       <style>
-        html, body { margin: 8mm; padding: 0; background: #fff; color: #000; font-family: Arial, sans-serif; }
+        html, body { margin: 8mm; padding: 0; background: #fff; color: #000; font-family: Arial, sans-serif; font-size: 12px; }
         table { border-collapse: collapse; width: 100%; table-layout: fixed; word-break: break-word; }
-        th, td { border: 1px solid #000; padding: 6px; vertical-align: middle; font-size: 10px; background: #fff; }
+        th, td { border: 1px solid #000; padding: 6px; vertical-align: middle; font-size: 12px; background: #fff; }
         .header-table td { border: none; padding: 2px 4px; }
         img.report-logo { height: 48px; width: auto; object-fit: contain; margin-right: 8px; }
         @media print {
@@ -338,10 +334,22 @@ export default function GenerateCBSEStateReportPage() {
     });
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Print Report</title>${headStyle}</head><body>${container.innerHTML}</body></html>`;
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
+    try {
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+    } catch (err) {
+      console.error('Failed to write to print window:', err);
+      try {
+        // Fallback: navigate the opened window to a data URL
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        printWindow.location.href = url;
+      } catch (err2) {
+        console.error('Fallback failed:', err2);
+      }
+    }
     // print after a short delay to allow images to load
     setTimeout(() => { try { printWindow.print(); } catch (e) { console.error(e); } }, 400);
   };
