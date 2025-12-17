@@ -281,7 +281,6 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
       <style jsx global>{`
         /* Print-specific rules for A4 Landscape */
         @media print {
-          @page { size: A4 landscape; margin: 10mm; }
           html, body { height: auto; }
           .report-card-back-container {
             width: 100%;

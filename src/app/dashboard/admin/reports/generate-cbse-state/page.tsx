@@ -116,7 +116,7 @@ export default function GenerateCBSEStateReportPage() {
   const [finalOverallGradeInput, setFinalOverallGradeInput] = useState<string | null>(null);
   const [assessmentScheme, setAssessmentScheme] = useState<AssessmentScheme | null>(null);
   const [loadedClassSubjects, setLoadedClassSubjects] = useState<SchoolClassSubject[]>([]);
-  const [schoolData, setSchoolData] = useState<School | null>(null);
+  const [schoolLogoUrl, setSchoolLogoUrl] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -199,14 +199,6 @@ export default function GenerateCBSEStateReportPage() {
       setStudentData(reportCard.studentInfo);
       setFrontSecondLanguage(currentClass.secondLanguageSubjectName === "Telugu" ? "Telugu" : "Hindi");
 
-      // Fetch school data
-      if (authUser.schoolId) {
-        const schoolRes = await getSchoolById(String(authUser.schoolId));
-        if (schoolRes.success && schoolRes.school) {
-          setSchoolData(schoolRes.school);
-        }
-      }
-
       const newFaMarksForState: Record<string, FrontSubjectFAData> = {};
       const newSaDataForState: ReportCardSASubjectEntry[] = [];
       const formativeGroups = currentAssessmentScheme.assessments.filter(isFormativeGroup);
@@ -269,6 +261,18 @@ export default function GenerateCBSEStateReportPage() {
       });
       setSaData(newSaDataForState);
 
+      // Fetch school details (logo) for header branding
+      try {
+        const schoolRes = await getSchoolById(String(authUser.schoolId));
+        if (schoolRes.success && schoolRes.school) {
+          setSchoolLogoUrl(schoolRes.school.schoolLogoUrl || null);
+        } else {
+          setSchoolLogoUrl(null);
+        }
+      } catch (err) {
+        setSchoolLogoUrl(null);
+      }
+
     } catch (error) {
       toast({ variant: "destructive", title: "Error Loading Data", description: "An unexpected error occurred."});
       console.error("Error loading student/class data:", error);
@@ -280,7 +284,63 @@ export default function GenerateCBSEStateReportPage() {
 
   const isFieldDisabledForRole = (): boolean => true; // Always read-only for admin
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    const printableNodes = document.querySelectorAll('.printable-report-card');
+    if (!printableNodes || printableNodes.length === 0) {
+      toast({ title: 'Nothing to print', description: 'Load a student report first.' });
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    if (!printWindow) {
+      toast({ title: 'Popup blocked', description: 'Please allow popups to print.' });
+      return;
+    }
+
+    const headStyle = `
+      <style>
+        html, body { margin: 8mm; padding: 0; background: #fff; color: #000; font-family: Arial, sans-serif; }
+        table { border-collapse: collapse; width: 100%; table-layout: fixed; word-break: break-word; }
+        th, td { border: 1px solid #000; padding: 6px; vertical-align: middle; font-size: 10px; background: #fff; }
+        .header-table td { border: none; padding: 2px 4px; }
+        img.report-logo { height: 48px; width: auto; object-fit: contain; margin-right: 8px; }
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          /* Ensure no UI or scrollbars included */
+          * { -webkit-print-color-adjust: exact; }
+          html, body { overflow: visible; }
+        }
+      </style>
+    `;
+
+    // Build body content by cloning and converting inputs to text
+    const container = document.createElement('div');
+    printableNodes.forEach((node, idx) => {
+      const clone = node.cloneNode(true) as HTMLElement;
+      // Replace inputs/selects/textareas with their displayed values
+      clone.querySelectorAll('input, select, textarea').forEach((el) => {
+        const value = (el as HTMLInputElement).value ?? '';
+        const text = document.createTextNode(value.toString());
+        if (el.parentNode) el.parentNode.replaceChild(text, el);
+      });
+      // remove UI-only elements
+      clone.querySelectorAll('.no-print').forEach(n => n.remove());
+      // ensure images have explicit sizes
+      clone.querySelectorAll('img').forEach(img => img.classList.add('report-logo'));
+      const wrapper = document.createElement('div');
+      wrapper.style.pageBreakAfter = idx < printableNodes.length - 1 ? 'always' : 'auto';
+      wrapper.appendChild(clone);
+      container.appendChild(wrapper);
+    });
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Print Report</title>${headStyle}</head><body>${container.innerHTML}</body></html>`;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    // print after a short delay to allow images to load
+    setTimeout(() => { try { printWindow.print(); } catch (e) { console.error(e); } }, 400);
+  };
   
   const handleResetData = () => {
     setAdmissionIdInput("");
@@ -293,7 +353,6 @@ export default function GenerateCBSEStateReportPage() {
   return (
     <div className="space-y-6">
       <style jsx global>{`
-        @page { size: landscape; margin: 0.5cm; }
         @media print {
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .printable-report-card { display: block !important; width: 100%; height: auto; box-shadow: none !important; border: none !important; page-break-after: always; }
@@ -352,9 +411,8 @@ export default function GenerateCBSEStateReportPage() {
                   secondLanguage={frontSecondLanguage} onSecondLanguageChange={() => {}}
                   academicYear={frontAcademicYear} onAcademicYearChange={() => {}}
                   currentUserRole={currentUserRole}
+                  schoolLogoUrl={schoolLogoUrl}
                   editableSubjects={[]}
-                  schoolName={schoolData?.schoolName || "School Name"}
-                  schoolLogo={schoolData?.logo || ""}
                 />
             </div>
           
