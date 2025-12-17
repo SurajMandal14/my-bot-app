@@ -195,7 +195,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         /* Base container */
         .report-card-container body, .report-card-container {
           font-family: Arial, sans-serif;
-          font-size: 12px;
+          font-size: 11px;
           margin: 0;
           padding: 5px;
           color: #000;
@@ -364,8 +364,31 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           #fa-table tr { page-break-inside: avoid; }
         }
       `}</style>
+     <div
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  }}
+>
+{schoolLogoUrl && (
+    <img
+      src={schoolLogoUrl}
+      alt="School Logo"
+      style={{ height: 48, width: 48, objectFit: 'contain' }}
+    />
+  )}
+  <input
+    type="text"
+    value={studentData.udiseCodeSchoolName || ""}
+    readOnly
+    style={{ textAlign: 'center' }}
+  />
+  <br></br><br></br>
+</div>
       <div className="report-card-container">
-        <div className="title">STUDENT ACADEMIC PERFORMANCE REPORT - 
+        <div className="title" align="center" style={{fontWeight: 'bold'}}>STUDENT ACADEMIC PERFORMANCE REPORT - 
             <input 
               type="text" 
               className="academic-year-input"
@@ -375,17 +398,12 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
               disabled={isFieldDisabledForRole()}
             />
         </div>
-        <div className="subtitle">CBSE STATE</div>
-
         <table className="header-table"><tbody>
             <tr>
               <td colSpan={4}>
-                <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
-                  {schoolLogoUrl ? (<img src={schoolLogoUrl} alt="School Logo" style={{height:48, width:48, objectFit: 'contain'}}/>) : null}
-                  <div style={{flex: 1}}>
+                <div style={{flex: 1}}>
                     U-DISE Code & School Name : <input type="text" value={studentData.udiseCodeSchoolName || ""} onChange={e => onStudentDataChange('udiseCodeSchoolName', e.target.value)} disabled={isFieldDisabledForRole()} />
                   </div>
-                </div>
               </td>
             </tr>
             <tr>
