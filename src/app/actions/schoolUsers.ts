@@ -389,9 +389,15 @@ export async function getStudentsByClass(schoolId: string, classId: string, acad
     const { db } = await connectToDatabase();
     const usersCollection = db.collection('users');
 
+    // Match classId whether it's stored as a string or an ObjectId in the users collection
+    const classIdFilters: any[] = [{ classId: classId }];
+    if (ObjectId.isValid(classId)) {
+      classIdFilters.push({ classId: new ObjectId(classId) });
+    }
+
     const studentsFromDb = await usersCollection.find({
       schoolId: new ObjectId(schoolId) as any,
-      classId: new ObjectId(classId), 
+      $or: classIdFilters,
       role: 'student',
       academicYear: academicYear, // Filter by academic year
     }).project({ password: 0 }).sort({ name: 1 }).toArray();
@@ -459,9 +465,13 @@ export async function getStudentCountByClass(schoolId: string, classId: string):
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<User>('users');
 
+    // Count students matching classId stored as string or ObjectId
+    const countFilters: any[] = [{ classId: classId }];
+    if (ObjectId.isValid(classId)) countFilters.push({ classId: new ObjectId(classId) });
+
     const count = await usersCollection.countDocuments({
       schoolId: new ObjectId(schoolId) as any,
-      classId: new ObjectId(classId), 
+      $or: countFilters,
       role: 'student'
     });
 
