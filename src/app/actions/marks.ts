@@ -12,7 +12,21 @@ import type { SchoolClass, SchoolClassSubject } from '@/types/classes';
 
 export async function submitMarks(payload: MarksSubmissionPayload): Promise<SubmitMarksResult> {
   try {
-    const validatedPayloadStructure = marksSubmissionPayloadSchema.safeParse(payload);
+    // Normalize incoming payload to ensure each student mark has `assessmentName`.
+    // Accept two shapes from clients: { assessmentName } or { assessmentKey, testKey }.
+    const payloadForValidation = JSON.parse(JSON.stringify(payload));
+    if (Array.isArray(payloadForValidation.studentMarks)) {
+      payloadForValidation.studentMarks = payloadForValidation.studentMarks.map((sm: any) => {
+        const copy = { ...sm };
+        if (!copy.assessmentName && copy.assessmentKey && copy.testKey) {
+          copy.assessmentName = `${copy.assessmentKey}-${copy.testKey}`;
+          // Keep original keys for backward compatibility but ensure schema required field exists
+        }
+        return copy;
+      });
+    }
+
+    const validatedPayloadStructure = marksSubmissionPayloadSchema.safeParse(payloadForValidation);
     if (!validatedPayloadStructure.success) {
       const errors = validatedPayloadStructure.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');
       return { success: false, message: 'Validation failed for payload structure.', error: errors };
@@ -20,7 +34,6 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
 
     const {
       classId, className, subjectName,
-      assessmentKey,
       academicYear, markedByTeacherId, schoolId, studentMarks
     } = validatedPayloadStructure.data;
 

@@ -220,10 +220,12 @@ export default function GenerateCBSEStateReportPage() {
       });
 
       allFetchedMarks.forEach(mark => {
-        if (!mark.assessmentName) return;
-        const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
+        // Support older mark documents that may not have `assessmentName`
+        const assessmentName = mark.assessmentName || (mark.assessmentKey && mark.testKey ? `${mark.assessmentKey}-${mark.testKey}` : undefined);
+        if (!assessmentName) return;
+        const [assessmentGroup, ...restOfName] = assessmentName.split('-');
         const testName = restOfName.join('-');
-        
+
         const assessmentConfig = currentAssessmentScheme.assessments.find(a => a.groupName === assessmentGroup);
         if (!assessmentConfig) return;
         const testConfig = assessmentConfig.tests.find(t => t.testName === testName);
