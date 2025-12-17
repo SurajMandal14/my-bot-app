@@ -1,0 +1,1116 @@
+[{
+  "_id": {
+    "$oid": "69426ba6535c6ccf03c7906a"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-HW",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "68d0f856fedd30ff1c337b26"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:36:54.354Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69311d19f20a5d1c75d34f8b"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "BATHULA.VARSHITHA",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:37:29.496Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426ba6535c6ccf03c7906b"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-R",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "68d0f856fedd30ff1c337b26"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:36:54.354Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69311d19f20a5d1c75d34f8b"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "BATHULA.VARSHITHA",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:37:29.496Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426ba6535c6ccf03c7906c"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-PCB",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "68d0f856fedd30ff1c337b26"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:36:54.354Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69311d19f20a5d1c75d34f8b"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "BATHULA.VARSHITHA",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:37:29.496Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426ba6535c6ccf03c7906d"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-S",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "68d0f856fedd30ff1c337b26"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:36:54.354Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69311d19f20a5d1c75d34f8b"
+  },
+  "marksObtained": 35,
+  "maxMarks": 35,
+  "studentName": "BATHULA.VARSHITHA",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:37:29.496Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c7923b"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-I",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "692991db23d9eef04c6d0677"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 10,
+  "maxMarks": 10,
+  "studentName": "sss",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c7923c"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-II",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "692991db23d9eef04c6d0677"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 10,
+  "maxMarks": 10,
+  "studentName": "sss",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c7923d"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-III",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "692991db23d9eef04c6d0677"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 10,
+  "maxMarks": 10,
+  "studentName": "sss",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c7923e"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-IV",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "692991db23d9eef04c6d0677"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 20,
+  "maxMarks": 20,
+  "studentName": "sss",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c7923f"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-I",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "6929402a96e118df3849464f"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 9,
+  "maxMarks": 10,
+  "studentName": "student one",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c79240"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-II",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "6929402a96e118df3849464f"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 9,
+  "maxMarks": 10,
+  "studentName": "student one",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c79241"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-III",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "6929402a96e118df3849464f"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 9,
+  "maxMarks": 10,
+  "studentName": "student one",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c79242"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-IV",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "6929402a96e118df3849464f"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 19,
+  "maxMarks": 20,
+  "studentName": "student one",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c79243"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-I",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "69298fdf23d9eef04c6d0676"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 8,
+  "maxMarks": 10,
+  "studentName": "student two",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c79244"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-II",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "69298fdf23d9eef04c6d0676"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 8,
+  "maxMarks": 10,
+  "studentName": "student two",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c79245"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-III",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "69298fdf23d9eef04c6d0676"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 8,
+  "maxMarks": 10,
+  "studentName": "student two",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426d2f535c6ccf03c79246"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FA1-IV",
+  "classId": {
+    "$oid": "69293f5396e118df3849464d"
+  },
+  "schoolId": {
+    "$oid": "69293df096e118df38494648"
+  },
+  "studentId": {
+    "$oid": "69298fdf23d9eef04c6d0676"
+  },
+  "subjectId": "English",
+  "className": "1",
+  "createdAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "693242f48ebdd6977daeee2e"
+  },
+  "marksObtained": 18,
+  "maxMarks": 20,
+  "studentName": "student two",
+  "subjectName": "English",
+  "updatedAt": {
+    "$date": "2025-12-17T08:43:27.385Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426eb8535c6ccf03c79456"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-HW",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:50:00.845Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69311d19f20a5d1c75d34f8b"
+  },
+  "marksObtained": 3,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:50:00.845Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426eb8535c6ccf03c79457"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-R",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:50:00.845Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69311d19f20a5d1c75d34f8b"
+  },
+  "marksObtained": 4,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:50:00.845Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426eb8535c6ccf03c79458"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-PCB",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:50:00.845Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69311d19f20a5d1c75d34f8b"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:50:00.845Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426eb8535c6ccf03c79459"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-S",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:50:00.845Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69311d19f20a5d1c75d34f8b"
+  },
+  "marksObtained": 25,
+  "maxMarks": 35,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:50:00.845Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426f87535c6ccf03c795b5"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-HW",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Physics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:53:27.163Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Physics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:53:27.163Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426f87535c6ccf03c795b6"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-R",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Physics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:53:27.164Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Physics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:53:27.164Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426f87535c6ccf03c795b7"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-PCB",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Physics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:53:27.164Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Physics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:53:27.164Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69426f87535c6ccf03c795b8"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-S",
+  "classId": {
+    "$oid": "68d0f824fedd30ff1c337a87"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Physics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T08:53:27.164Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 35,
+  "maxMarks": 35,
+  "studentName": "Test Student",
+  "subjectName": "Physics",
+  "updatedAt": {
+    "$date": "2025-12-17T08:53:27.164Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "694271fe535c6ccf03c798dd"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-HW",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:03:58.872Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T09:03:58.872Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "694271fe535c6ccf03c798de"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-R",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:03:58.872Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 4,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T09:03:58.872Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "694271fe535c6ccf03c798df"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-PCB",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:03:58.872Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T09:03:58.872Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "694271fe535c6ccf03c798e0"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-S",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69426e7fdbc601fcc9048c21"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:03:58.872Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 30,
+  "maxMarks": 35,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T09:03:58.872Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6942727e535c6ccf03c799c4"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-HW",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69427241dbc601fcc9048c24"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:06:06.678Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T09:06:06.678Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6942727e535c6ccf03c799c5"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-R",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69427241dbc601fcc9048c24"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:06:06.678Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T09:06:06.678Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6942727e535c6ccf03c799c6"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-PCB",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69427241dbc601fcc9048c24"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:06:06.678Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 3,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T09:06:06.678Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6942727e535c6ccf03c799c7"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-S",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69427241dbc601fcc9048c24"
+  },
+  "subjectId": "Mathematics",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:06:06.678Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 30,
+  "maxMarks": 35,
+  "studentName": "Test Student",
+  "subjectName": "Mathematics",
+  "updatedAt": {
+    "$date": "2025-12-17T09:06:06.678Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6942734b535c6ccf03c79af2"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-HW",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69427241dbc601fcc9048c24"
+  },
+  "subjectId": "Mat",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:09:31.545Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 4,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mat",
+  "updatedAt": {
+    "$date": "2025-12-17T09:09:31.545Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6942734b535c6ccf03c79af3"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-R",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69427241dbc601fcc9048c24"
+  },
+  "subjectId": "Mat",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:09:31.545Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 5,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mat",
+  "updatedAt": {
+    "$date": "2025-12-17T09:09:31.545Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6942734b535c6ccf03c79af4"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-PCB",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69427241dbc601fcc9048c24"
+  },
+  "subjectId": "Mat",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:09:31.545Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 3,
+  "maxMarks": 5,
+  "studentName": "Test Student",
+  "subjectName": "Mat",
+  "updatedAt": {
+    "$date": "2025-12-17T09:09:31.545Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6942734b535c6ccf03c79af5"
+  },
+  "academicYear": "2025-2026",
+  "assessmentName": "FORMATIVE ASSESSMENT-1-S",
+  "classId": {
+    "$oid": "69427148dbc601fcc9048c23"
+  },
+  "schoolId": {
+    "$oid": "689ff998bc32eb4b34ca1a39"
+  },
+  "studentId": {
+    "$oid": "69427241dbc601fcc9048c24"
+  },
+  "subjectId": "Mat",
+  "className": "10",
+  "createdAt": {
+    "$date": "2025-12-17T09:09:31.545Z"
+  },
+  "markedByTeacherId": {
+    "$oid": "69426f1edbc601fcc9048c22"
+  },
+  "marksObtained": 23,
+  "maxMarks": 35,
+  "studentName": "Test Student",
+  "subjectName": "Mat",
+  "updatedAt": {
+    "$date": "2025-12-17T09:09:31.545Z"
+  }
+}]
