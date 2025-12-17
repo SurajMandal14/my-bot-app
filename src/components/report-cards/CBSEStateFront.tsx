@@ -66,6 +66,8 @@ interface CBSEStateFrontProps {
 
   currentUserRole: UserRole;
   editableSubjects?: string[];
+  schoolName?: string;
+  schoolLogo?: string;
 }
 
 // Grade scales
@@ -113,6 +115,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   onAcademicYearChange,
   currentUserRole,
   editableSubjects = [],
+  schoolName = "School Name",
+  schoolLogo = "",
 }) => {
   // Helpers to classify assessment groups by group name only
   const isFormativeGroup = (group: { groupName: string }) => {
@@ -189,74 +193,112 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   return (
     <>
       <style jsx global>{`
-        /* Base container */
-        .report-card-container body, .report-card-container {
+        /* Base container - screen view */
+        .report-card-container {
           font-family: Arial, sans-serif;
           font-size: 11px;
           margin: 0;
-          padding: 5px;
+          padding: 15px;
           color: #000;
           background-color: #fff;
-          overflow-x: hidden; /* Prevent horizontal scrollbar - table will wrap/shrink */
         }
+        
+        /* School header section */
+        .school-header {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 15px;
+          text-align: center;
+          border-bottom: 2px solid #000;
+          padding-bottom: 10px;
+        }
+        
+        .school-logo {
+          width: 60px;
+          height: 60px;
+          margin-right: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        
+        .school-logo img {
+          max-width: 100%;
+          max-height: 100%;
+          object-fit: contain;
+        }
+        
+        .school-name {
+          font-size: 18px;
+          font-weight: bold;
+          color: #000;
+        }
+        
         /* Table layout tuned to fit page width without scroll */
         .report-card-container table {
           border-collapse: collapse;
           width: 100%;
-          table-layout: fixed; /* Distribute columns evenly and enable wrapping */
+          table-layout: fixed;
           margin-bottom: 10px;
-          max-width: 100%;
         }
+        
         .report-card-container th, .report-card-container td {
           border: 1px solid #000;
-          padding: 4px 6px; /* Optimized padding to reduce width without hiding content */
+          padding: 3px 4px;
           text-align: center;
           vertical-align: middle;
-          word-break: break-word; /* Break long continuous words */
-          overflow-wrap: anywhere; /* Allow breaking at any point if needed */
-          white-space: normal; /* Allow wrapping */
-          min-width: 0; /* Allow cells to shrink when needed */
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          white-space: normal;
+          min-width: 0;
         }
-        /* Ensure key FA columns don't shrink too much (but allow shrink on very narrow viewports) */
-        /* S.No column */
+        
         #fa-table thead tr:first-child th:first-child,
-        #fa-table tbody td:first-child { min-width: 55px; }
-        /* Subject column */
+        #fa-table tbody td:first-child { width: 5%; }
+        
         #fa-table thead tr:first-child th:nth-child(2),
-        #fa-table tbody td:nth-child(2) { min-width: 180px; text-align: left; }
-        /* Overall TOTAL and GRADE (last two columns) */
+        #fa-table tbody td:nth-child(2) { width: 12%; text-align: left; }
+        
+        #fa-table .fa-test-head, #fa-table .fa-test-cell { width: 8%; }
+        
+        #fa-table .fa-total-head, #fa-table .fa-total-cell { width: 6%; }
+        
+        #fa-table .fa-grade-head, #fa-table .fa-grade-cell { width: 6%; }
+        
         #fa-table thead tr:first-child th:nth-last-child(2),
-        #fa-table tbody td:nth-last-child(2) { min-width: 90px; }
+        #fa-table tbody td:nth-last-child(2) { width: 6%; }
+        
         #fa-table thead tr:first-child th:last-child,
-        #fa-table tbody td:last-child { min-width: 80px; }
-        /* FA per-group Total and Grade columns */
-        #fa-table .fa-total-head, #fa-table .fa-total-cell { min-width: 50px; }
-        #fa-table .fa-grade-head, #fa-table .fa-grade-cell { min-width: 50px; }
-        /* Uniform widths for FA test columns via class */
-        #fa-table .fa-test-head { min-width: 115px; }
-        #fa-table .fa-test-cell { min-width: 105px; }
+        #fa-table tbody td:last-child { width: 6%; }
+        
         .report-card-container .header-table td {
           border: none;
           text-align: left;
           padding: 2px 4px;
         }
+        
         .report-card-container .title {
           text-align: center;
           font-weight: bold;
-          font-size: 14px; 
-          margin-bottom: 3px; 
+          font-size: 14px;
+          margin-bottom: 3px;
         }
+        
         .report-card-container .subtitle {
           text-align: center;
           font-weight: bold;
-          font-size: 12px; 
-          margin-bottom: 8px; 
+          font-size: 12px;
+          margin-bottom: 8px;
         }
+        
         .report-card-container .small-note {
-          font-size: 9px; 
-          margin-top: 8px; 
+          font-size: 9px;
+          margin-top: 8px;
           text-align: left;
         }
+        
         .report-card-container input[type="text"],
         .report-card-container input[type="number"],
         .report-card-container select {
@@ -268,101 +310,189 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           background-color: #fff;
           color: #000;
         }
+        
         .report-card-container input:disabled, .report-card-container select:disabled {
-          background-color: #f0f0f0 !important; 
+          background-color: #f0f0f0 !important;
           color: #555 !important;
           cursor: not-allowed;
           border: 1px solid #ddd !important;
         }
+        
         .report-card-container input[type="number"] {
-          width: 45px; 
+          width: 40px;
           text-align: center;
-          -moz-appearance: textfield; 
+          -moz-appearance: textfield;
         }
+        
         .report-card-container input::-webkit-outer-spin-button,
         .report-card-container input::-webkit-inner-spin-button {
           -webkit-appearance: none;
           margin: 0;
         }
+        
         .report-card-container .header-table input[type="text"] {
           width: 95%;
-          max-width: 180px;
+          max-width: 200px;
         }
-         .report-card-container .header-table td:first-child input[type="text"] {
-          max-width: 300px;
+        
+        .report-card-container .header-table td:first-child input[type="text"] {
+          max-width: 350px;
         }
-        .report-card-container #fa-table input[type="number"]{
-          width: 40px;
-        }
+        
         .report-card-container th {
           word-break: break-word;
           overflow-wrap: anywhere;
           white-space: normal;
-          font-size: 10px; /* Slightly smaller to fit more headers */
+          font-size: 9px;
           line-height: 1.2;
         }
-         .report-card-container .header-table select {
-            min-width: 90px;
-            padding: 2px;
+        
+        .report-card-container .header-table select {
+          min-width: 90px;
+          padding: 2px;
         }
+        
         .report-card-container .academic-year-input {
-            font-weight: bold;
-            font-size: 14px; 
-            border: 1px solid #ccc; 
-            text-align: center;
-            width: 100px; 
-            display: inline-block; 
-            vertical-align: baseline;
+          font-weight: bold;
+          font-size: 14px;
+          border: 1px solid #ccc;
+          text-align: center;
+          width: 100px;
+          display: inline-block;
+          vertical-align: baseline;
         }
+        
         .report-card-container .academic-year-input:disabled {
-            border: none; 
-            background-color: transparent !important;
-            color: #000 !important; 
+          border: none;
+          background-color: transparent !important;
+          color: #000 !important;
         }
       `}</style>
       <style jsx global>{`
-        /* Print-specific rules for A4 Landscape */
+        /* Print-specific rules - adapts to selected page size */
         @media print {
-          @page { size: A4 landscape; margin: 10mm; }
-          html, body { height: auto; }
+          * {
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
+          html, body {
+            width: 100%;
+            height: auto;
+            margin: 0;
+            padding: 0;
+          }
+          
           .report-card-container {
             width: 100%;
-            overflow: visible !important; /* ensure nothing is clipped in print */
+            padding: 10mm;
+            margin: 0;
+            overflow: visible;
             background: #fff;
             color: #000;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-            font-size: 10px; /* Slightly reduce for print to fit width */
+            font-size: 9px;
+            page-break-after: always;
           }
-          /* Force table to fit the printable width and wrap cells as needed */
-          .report-card-container table, #fa-table {
-            table-layout: fixed !important;
-            width: 100% !important;
+          
+          .school-header {
+            border-bottom: 2px solid #000;
+            padding-bottom: 8mm;
+            margin-bottom: 10mm;
+            page-break-inside: avoid;
+          }
+          
+          .school-logo {
+            width: 50px;
+            height: 50px;
+          }
+          
+          .school-name {
+            font-size: 16px;
+          }
+          
+          .report-card-container table {
+            width: 100%;
+            table-layout: fixed;
             border-collapse: collapse;
-            max-width: 100% !important;
+            margin-bottom: 5mm;
+            page-break-inside: auto;
           }
+          
+          .report-card-container tbody tr {
+            page-break-inside: avoid;
+          }
+          
           .report-card-container th, .report-card-container td {
-            padding: 4px 6px !important;
-            font-size: 10px !important;
-            line-height: 1 !important;
-            white-space: normal !important;
-            word-break: break-word !important;
-            overflow-wrap: anywhere !important;
-            max-width: 1px; /* allow wrapping within fixed table layout */
+            border: 1px solid #000;
+            padding: 2mm 1mm;
+            font-size: 8px;
+            line-height: 1;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            vertical-align: middle;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
-          /* Remove input outlines and simplify form controls for print */
-          .report-card-container input, .report-card-container select {
+          
+          .report-card-container input,
+          .report-card-container select {
             border: none !important;
             background: transparent !important;
             padding: 0 !important;
             margin: 0 !important;
-            width: auto !important;
+            font-size: 8px;
+            color: #000;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
-          /* Avoid page breaks inside rows for cleaner output */
-          #fa-table tr { page-break-inside: avoid; }
+          
+          .report-card-container .header-table {
+            page-break-inside: avoid;
+            margin-bottom: 5mm;
+          }
+          
+          .report-card-container .header-table td {
+            border: none;
+            padding: 1mm 2mm;
+            font-size: 9px;
+          }
+          
+          .report-card-container .title {
+            font-size: 12px;
+            margin-bottom: 2mm;
+            page-break-inside: avoid;
+          }
+          
+          .report-card-container .subtitle {
+            font-size: 10px;
+            margin-bottom: 4mm;
+            page-break-inside: avoid;
+          }
+          
+          .report-card-container .small-note {
+            font-size: 8px;
+            margin-top: 5mm;
+            page-break-inside: avoid;
+          }
+          
+          #fa-table thead {
+            page-break-inside: avoid;
+          }
         }
       `}</style>
       <div className="report-card-container">
+        <div className="school-header">
+          {schoolLogo && (
+            <div className="school-logo">
+              <img src={schoolLogo} alt="School Logo" />
+            </div>
+          )}
+          <div className="school-name">{schoolName}</div>
+        </div>
+        
         <div className="title">STUDENT ACADEMIC PERFORMANCE REPORT - 
             <input 
               type="text" 

@@ -116,6 +116,7 @@ export default function GenerateCBSEStateReportPage() {
   const [finalOverallGradeInput, setFinalOverallGradeInput] = useState<string | null>(null);
   const [assessmentScheme, setAssessmentScheme] = useState<AssessmentScheme | null>(null);
   const [loadedClassSubjects, setLoadedClassSubjects] = useState<SchoolClassSubject[]>([]);
+  const [schoolData, setSchoolData] = useState<School | null>(null);
 
 
   useEffect(() => {
@@ -197,6 +198,14 @@ export default function GenerateCBSEStateReportPage() {
       setLoadedClassSubjects(currentClass.subjects);
       setStudentData(reportCard.studentInfo);
       setFrontSecondLanguage(currentClass.secondLanguageSubjectName === "Telugu" ? "Telugu" : "Hindi");
+
+      // Fetch school data
+      if (authUser.schoolId) {
+        const schoolRes = await getSchoolById(String(authUser.schoolId));
+        if (schoolRes.success && schoolRes.school) {
+          setSchoolData(schoolRes.school);
+        }
+      }
 
       const newFaMarksForState: Record<string, FrontSubjectFAData> = {};
       const newSaDataForState: ReportCardSASubjectEntry[] = [];
@@ -344,6 +353,8 @@ export default function GenerateCBSEStateReportPage() {
                   academicYear={frontAcademicYear} onAcademicYearChange={() => {}}
                   currentUserRole={currentUserRole}
                   editableSubjects={[]}
+                  schoolName={schoolData?.schoolName || "School Name"}
+                  schoolLogo={schoolData?.logo || ""}
                 />
             </div>
           
