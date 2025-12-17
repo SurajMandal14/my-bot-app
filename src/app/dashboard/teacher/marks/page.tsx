@@ -206,14 +206,13 @@ export default function TeacherMarksEntryPage() {
           const studentIdStr = mark.studentId.toString();
           if (!initialMarks[studentIdStr]) return;
           if (mark.assessmentName) {
-            const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
-            const testName = restOfName.join('-');
-
-            if (assessmentGroup === selectedAssessmentName && testName) {
-                // Ensure the key exists before assigning
-                if (Object.prototype.hasOwnProperty.call(initialMarks[studentIdStr], testName)) {
-                    (initialMarks[studentIdStr] as StudentMarksCustomState)[testName] = mark.marksObtained;
-                }
+            const assessmentFull = (mark.assessmentName || '').trim();
+            const prefix = `${selectedAssessmentName}-`;
+            if (assessmentFull.startsWith(prefix)) {
+              const testName = assessmentFull.slice(prefix.length);
+              if (testName && Object.prototype.hasOwnProperty.call(initialMarks[studentIdStr], testName)) {
+                (initialMarks[studentIdStr] as StudentMarksCustomState)[testName] = mark.marksObtained;
+              }
             }
           }
         });
@@ -332,7 +331,7 @@ export default function TeacherMarksEntryPage() {
                           <TableCell className="sticky left-0 bg-card z-10"><Checkbox checked={!!selectedStudentIds[studentIdStr]} onCheckedChange={c => setSelectedStudentIds(p => ({...p, [studentIdStr]: !!c}))} /></TableCell>
                           <TableCell className="sticky left-12 bg-card z-20 font-medium">{student.name}</TableCell>
                           <TableCell>{student.admissionId || 'N/A'}</TableCell>
-                          {currentAssessmentConfig?.tests.map(test => <TableCell key={test.testName}><Input type="number" value={(currentMarks as StudentMarksCustomState)?.[test.testName] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.testName, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
+                          {currentAssessmentConfig?.tests.map(test => <TableCell key={test.testName}><Input name={`${studentIdStr}_${(test.testName || '').trim()}`} type="number" value={(currentMarks as StudentMarksCustomState)?.[test.testName] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.testName, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
                       </TableRow>);
                   })}</TableBody>
               </Table></div></ScrollArea><div className="mt-6 flex justify-end"><Button type="submit" disabled={isSubmitting || isLoadingStudentsAndMarks}><Save className="mr-2 h-4 w-4" /> Submit Marks</Button></div></form>}
