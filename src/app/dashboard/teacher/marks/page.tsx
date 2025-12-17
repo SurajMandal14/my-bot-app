@@ -206,13 +206,14 @@ export default function TeacherMarksEntryPage() {
           const studentIdStr = mark.studentId.toString();
           if (!initialMarks[studentIdStr]) return;
           if (mark.assessmentName) {
-            const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
-            const testName = restOfName.join('-');
-
-            if (assessmentGroup === selectedAssessmentName && testName) {
-                // Ensure the key exists before assigning
-                if (Object.prototype.hasOwnProperty.call(initialMarks[studentIdStr], testName)) {
-                    (initialMarks[studentIdStr] as StudentMarksCustomState)[testName] = mark.marksObtained;
+            const prefix = `${selectedAssessmentName}-`;
+            if (mark.assessmentName.startsWith(prefix)) {
+                const testName = mark.assessmentName.substring(prefix.length);
+                if (testName) {
+                    // Ensure the key exists before assigning
+                    if (Object.prototype.hasOwnProperty.call(initialMarks[studentIdStr], testName)) {
+                        (initialMarks[studentIdStr] as StudentMarksCustomState)[testName] = mark.marksObtained;
+                    }
                 }
             }
           }
