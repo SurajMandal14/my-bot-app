@@ -180,7 +180,7 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
       <style jsx global>{`
         .report-card-back-container body, .report-card-back-container {
           font-family: Arial, sans-serif;
-          font-size: 9px;
+          font-size: 12px;
           padding: 8px;
           color: #000;
           background-color: #fff;
@@ -205,16 +205,16 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
         }
         .report-card-back-container th {
           background-color: #f0f0f0;
-          font-size: 8px;
+          font-size: 12px;
           vertical-align: middle;
           line-height: 1.2;
         }
         .report-card-back-container td {
-            font-size: 9px;
+            font-size: 12px;
             vertical-align: middle;
         }
         .report-card-back-container .small {
-          font-size: 7px;
+          font-size: 12px;
         }
         .report-card-back-container .bold {
           font-weight: bold;
@@ -226,7 +226,7 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
           width: 28px;
           text-align: center;
           border: 1px solid #ccc;
-          font-size: 9px;
+          font-size: 12px;
           padding: 1px;
           box-sizing: border-box;
           -moz-appearance: textfield;
@@ -262,9 +262,9 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
             vertical-align: middle;
         }
          .report-card-back-container .paper-cell {
-            font-style: italic;
-            vertical-align: middle;
-            font-size: 8px;
+          font-style: italic;
+          vertical-align: middle;
+          font-size: 12px;
         }
         .report-card-back-container .attendance-table input[type="number"] {
             width: 35px;
@@ -287,7 +287,7 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
             overflow: visible !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-            font-size: 9px; /* small reduction for print if needed */
+            font-size: 12px; /* keep consistent 12px for print */
           }
           .report-card-back-container table, #mainTable {
             table-layout: fixed !important;
@@ -297,7 +297,7 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
           }
           .report-card-back-container th, .report-card-back-container td {
             padding: 3px 6px !important;
-            font-size: 9px !important;
+            font-size: 12px !important;
             line-height: 1 !important;
             white-space: normal !important;
             word-break: break-word !important;
