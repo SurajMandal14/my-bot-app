@@ -221,15 +221,13 @@ export default function GenerateCBSEStateReportPage() {
 
       allFetchedMarks.forEach(mark => {
         if (!mark.assessmentName) return;
+        const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
+        const testName = restOfName.join('-');
         
-        const assessmentConfig = currentAssessmentScheme.assessments.find(a => mark.assessmentName.startsWith(a.groupName + '-'));
+        const assessmentConfig = currentAssessmentScheme.assessments.find(a => a.groupName === assessmentGroup);
         if (!assessmentConfig) return;
-
-        const testName = mark.assessmentName.substring(assessmentConfig.groupName.length + 1);
         const testConfig = assessmentConfig.tests.find(t => t.testName === testName);
         if(!testConfig) return;
-        
-        const assessmentGroup = assessmentConfig.groupName;
 
         if ((typeof (assessmentConfig as any).type !== 'undefined' && (assessmentConfig as any).type === 'formative') ||
           (typeof (assessmentConfig as any).type === 'undefined' && isFormativeGroup({ groupName: assessmentConfig.groupName }))
@@ -459,3 +457,4 @@ export default function GenerateCBSEStateReportPage() {
     </div>
   );
 }
+

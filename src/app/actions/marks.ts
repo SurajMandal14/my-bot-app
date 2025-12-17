@@ -72,6 +72,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
             testKey: fieldsOnInsert.testKey,
             academicYear: fieldsOnInsert.academicYear,
             schoolId: fieldsOnInsert.schoolId,
+            // DO NOT include assessmentName in filter
           },
           update: {
             $set: fieldsToUpdate,

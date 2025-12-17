@@ -237,7 +237,7 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
     const updateData: Partial<Omit<User, '_id' | 'createdAt'>> & { updatedAt: Date } = {
       name,
       email,
-      classId: (role === 'student' && classId && ObjectId.isValid(classId)) ? classId : undefined,
+      classId: role === 'student' ? classId : undefined,
       updatedAt: new Date(),
       dateOfJoining: dateOfJoining || undefined,
       dateOfLeaving: dateOfLeaving || undefined,
@@ -491,7 +491,7 @@ export interface StudentDetailsForReportCard {
 }
 export interface GetStudentDetailsForReportCardResult {
   success: boolean;
-  student?: User;
+  student?: StudentDetailsForReportCard;
   error?: string;
   message?: string;
 }
@@ -507,35 +507,60 @@ export async function getStudentDetailsForReportCard(admissionIdOrStudentId: str
 
     const { db } = await connectToDatabase();
     const usersCollection = db.collection<User>('users');
-    
-    let query;
-    if (ObjectId.isValid(admissionIdOrStudentId)) {
-      query = { 
-        _id: new ObjectId(admissionIdOrStudentId),
-        schoolId: new ObjectId(schoolIdQuery),
-        role: 'student',
-      };
-    } else {
-       query = { 
-        admissionId: admissionIdOrStudentId, 
-        schoolId: new ObjectId(schoolIdQuery),
-        role: 'student',
-      };
-    }
 
-    const studentDoc = await usersCollection.findOne(query);
+    let studentDoc: User | null = null;
+    if (ObjectId.isValid(admissionIdOrStudentId)) {
+      // Treat as student _id
+      studentDoc = await usersCollection.findOne({ 
+        _id: new ObjectId(admissionIdOrStudentId) as any,
+        schoolId: new ObjectId(schoolIdQuery) as any,
+        role: 'student',
+        academicYear: academicYear,
+      });
+    } else {
+      // Treat as admissionId
+      studentDoc = await usersCollection.findOne({ 
+        admissionId: admissionIdOrStudentId, 
+        schoolId: new ObjectId(schoolIdQuery) as any,
+        role: 'student',
+        academicYear: academicYear,
+      });
+    }
 
     if (!studentDoc) {
-      return { success: false, message: `Student with Admission ID '${admissionIdOrStudentId}' not found in this school for the specified academic year.`, error: 'Student not found.' };
+      // Optional: Check if the student exists in another year for a more specific message
+      const studentInOtherYear = await usersCollection.findOne({
+          $or: [
+            { admissionId: admissionIdOrStudentId },
+            ObjectId.isValid(admissionIdOrStudentId) ? { _id: new ObjectId(admissionIdOrStudentId) as any } : { _id: { $exists: false } }
+          ],
+          schoolId: new ObjectId(schoolIdQuery) as any,
+          role: 'student',
+      });
+      if (studentInOtherYear) {
+          return { success: false, message: `Student found, but not for the academic year ${academicYear}.`, error: 'Student not in academic year.' };
+      }
+      return { success: false, message: `Student not found in this school for the specified academic year.`, error: 'Student not found.' };
     }
     
-    const student: User = {
-      ...studentDoc,
-      _id: studentDoc._id.toString(),
-      schoolId: studentDoc.schoolId?.toString(),
+    const student = studentDoc as User; // Type assertion
+
+    const studentDetails: StudentDetailsForReportCard = {
+      _id: student._id.toString(), 
+      name: student.name,
+      admissionId: student.admissionId,
+      classId: student.classId, 
+      schoolId: student.schoolId?.toString(),
+      fatherName: student.fatherName,
+      motherName: student.motherName,
+      dob: student.dob,
+      section: student.section,
+      rollNo: student.rollNo,
+      examNo: student.examNo,
+      aadharNo: student.aadharNo,
     };
 
-    return { success: true, student };
+    return { success: true, student: studentDetails };
   } catch (error) {
     console.error('Get student details for report card by admission ID error:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
@@ -567,7 +592,7 @@ export async function bulkCreateSchoolUsers(
     
     // Fetch all classes for the school once to avoid repeated DB calls
     const existingClasses = await db.collection<SchoolClass>('school_classes')
-        .find({ schoolId: schoolObjectId })
+      .find({ schoolId: schoolId })
         .toArray();
     
     // Create a map for quick lookup: "ClassName-Section-AcademicYear" -> classId
