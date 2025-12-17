@@ -81,13 +81,42 @@ export default function TeacherDashboardPage() {
       const teacherId = toID(authUser._id);
       const schoolId = toID(authUser.schoolId);
       const classId = authUser.classId ? toID(authUser.classId) : undefined;
-      
-      const academicYear = new Date().getFullYear().toString(); // Simplified for now
+
+      // Determine academic year: prefer primary class academic year, then school's activeAcademicYear, then derive current academic year
+      let academicYear = '';
+      if (classId) {
+          const classResultTemp = await getClassDetailsById(classId, schoolId);
+          if (classResultTemp.success && classResultTemp.classDetails) {
+              academicYear = classResultTemp.classDetails.academicYear;
+              setPrimaryClass(classResultTemp.classDetails);
+          }
+      }
+
+      if (!academicYear) {
+        try {
+          const schoolModule = await import('@/app/actions/schools');
+          const schoolRes = await schoolModule.getSchoolById(schoolId);
+          if (schoolRes && schoolRes.success && schoolRes.school) {
+            academicYear = schoolRes.school.activeAcademicYear || '';
+          }
+        } catch (e) {
+          console.warn('fetchTeacherData: failed to load school for academic year fallback', e);
+        }
+      }
+
+      if (!academicYear) {
+        const today = new Date();
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
+        academicYear = currentMonth >= 5 ? `${currentYear}-${currentYear + 1}` : `${currentYear - 1}-${currentYear}`;
+      }
+
       const subjectsResult = await getSubjectsForTeacher(teacherId, schoolId, academicYear);
       setAssignedSubjects(subjectsResult);
 
       if (classId) {
-          const classResult = await getClassDetailsById(classId, schoolId);
+          // If we already set primaryClass above, use it; otherwise fetch
+          const classResult = primaryClass ? { success: true, classDetails: primaryClass } : await getClassDetailsById(classId, schoolId);
           if (classResult.success && classResult.classDetails) {
               setPrimaryClass(classResult.classDetails);
               
