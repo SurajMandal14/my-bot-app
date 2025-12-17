@@ -32,9 +32,6 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         if(!ObjectId.isValid(sm.studentId)) {
             return { success: false, message: `Invalid Student ID format: ${sm.studentId}`, error: 'Invalid Student ID.'}
         }
-         if (!sm.assessmentName || sm.assessmentName.trim() === "") {
-            return { success: false, message: `Assessment name missing for student ${sm.studentName}.`, error: 'Missing assessment name in student marks.'}
-        }
     }
 
     const operations = studentMarks.map(sm => {
@@ -43,7 +40,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         studentName: sm.studentName,
         classId: new ObjectId(classId),
         className: className,
-        subjectId: subjectId, 
+        subjectId: subjectName, // Standardize on subjectName
         subjectName: subjectName,
         assessmentKey: sm.assessmentKey,
         testKey: sm.testKey,
@@ -72,7 +69,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
           },
           update: {
             $set: fieldsToUpdate,
-            $setOnInsert: { ...fieldsOnInsert, assessmentName: sm.assessmentName },
+            $setOnInsert: { ...fieldsOnInsert },
           },
           upsert: true,
         },
@@ -108,7 +105,6 @@ export async function getMarksForAssessment(
   subjectNameParam: string,
   assessmentKey: string,
   academicYear: string,
-  paper?: 'Paper1' | 'Paper2'
 ): Promise<GetMarksResult> {
   try {
     if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
@@ -154,6 +150,7 @@ export interface SubjectForTeacher {
   label: string;
   classId: string;
   className: string;
+  subjectId: string; // Standardized to be the subject name
   subjectName: string;
 }
 
@@ -198,6 +195,7 @@ export async function getSubjectsForTeacher(teacherId: string, schoolId: string,
                             label: `${subject.name} (${cls.name}${cls.section ? ` - ${cls.section}` : ''})`, // Include section in label
                             classId: cls._id.toString(),
                             className: cls.name,
+                            subjectId: subject.name, // Use name as the consistent ID
                             subjectName: subject.name
                         });
                     }

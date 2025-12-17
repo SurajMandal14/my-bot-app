@@ -21,12 +21,12 @@ import type { School, AssessmentLocks } from "@/types/school";
 import { getAcademicYears } from '@/app/actions/academicYears';
 import type { AcademicYear } from '@/types/academicYear';
 import { getAssessmentSchemeForClass } from '@/app/actions/assessmentConfigurations';
-import type { AssessmentScheme } from '@/types/assessment';
+import type { AssessmentScheme, AssessmentTest } from '@/types/assessment';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 // STATE INTERFACES
-interface StudentMarksCustomState { [assessmentName: string]: number | null }
+interface StudentMarksCustomState { [testKey: string]: number | null }
 
 
 const getCurrentAcademicYear = (): string => {
@@ -49,7 +49,7 @@ export default function TeacherMarksEntryPage() {
   const [selectedSubjectName, setSelectedSubjectName] = useState<string>("");
   
   const [assessmentScheme, setAssessmentScheme] = useState<AssessmentScheme | null>(null);
-  const [selectedAssessmentName, setSelectedAssessmentName] = useState<string>("");
+  const [selectedAssessmentKey, setSelectedAssessmentKey] = useState<string>("");
   
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
@@ -63,9 +63,9 @@ export default function TeacherMarksEntryPage() {
   const [isLoadingStudentsAndMarks, setIsLoadingStudentsAndMarks] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const currentAssessmentConfig = assessmentScheme?.assessments.find(a => a.groupName === selectedAssessmentName);
+  const currentAssessmentConfig = assessmentScheme?.assessments.find(a => a.key === selectedAssessmentKey);
   
-  const isMarksEntryLocked = selectedAssessmentName && selectedAcademicYear && schoolDetails?.marksEntryLocks?.[selectedAcademicYear]?.[selectedAssessmentName as keyof AssessmentLocks] === true;
+  const isMarksEntryLocked = selectedAssessmentKey && selectedAcademicYear && schoolDetails?.marksEntryLocks?.[selectedAcademicYear]?.[selectedAssessmentKey as keyof AssessmentLocks] === true;
 
   useEffect(() => {
     const storedUser = localStorage.getItem('loggedInUser');
@@ -120,7 +120,7 @@ export default function TeacherMarksEntryPage() {
         setSelectedClassId("");
         setSelectedSubjectName("");
         setAssessmentScheme(null);
-        setSelectedAssessmentName("");
+        setSelectedAssessmentKey("");
       }
       
       setIsLoading(false);
@@ -162,14 +162,14 @@ export default function TeacherMarksEntryPage() {
       } else {
         setAssessmentScheme(null);
       }
-      setSelectedAssessmentName(""); // Reset assessment selection
+      setSelectedAssessmentKey(""); // Reset assessment selection
     };
     fetchScheme();
   }, [selectedClassId, allTaughtSubjects, authUser?.schoolId, selectedAcademicYear, toast]);
 
 
   const fetchStudentsAndMarks = useCallback(async () => {
-    const isReadyForFetch = selectedClassId && selectedSubjectName && selectedAssessmentName && selectedAcademicYear && authUser?.schoolId;
+    const isReadyForFetch = selectedClassId && selectedSubjectName && selectedAssessmentKey && selectedAcademicYear && authUser?.schoolId;
     if (!isReadyForFetch || !currentAssessmentConfig) {
       setStudentsForMarks([]); setStudentMarks({}); setSelectedStudentIds({}); return;
     }
@@ -189,14 +189,14 @@ export default function TeacherMarksEntryPage() {
 
       const marksResult = await getMarksForAssessment(
         authUser!.schoolId!, selectedClassId, selectedSubjectName,
-        selectedAssessmentName, selectedAcademicYear
+        selectedAssessmentKey, selectedAcademicYear
       );
 
       const initialMarks: Record<string, any> = {};
       studentsResult.users.forEach(student => {
         const studentIdStr = student._id!.toString();
           initialMarks[studentIdStr] = currentAssessmentConfig.tests.reduce((acc, test) => {
-              acc[test.testName] = null;
+              acc[test.key] = null;
               return acc;
           }, {} as Record<string, null>);
       });
@@ -204,18 +204,10 @@ export default function TeacherMarksEntryPage() {
       if (marksResult.success && marksResult.marks) {
         marksResult.marks.forEach(mark => {
           const studentIdStr = mark.studentId.toString();
-          if (!initialMarks[studentIdStr]) return;
-          if (mark.assessmentName) {
-            const prefix = `${selectedAssessmentName}-`;
-            if (mark.assessmentName.startsWith(prefix)) {
-                const testName = mark.assessmentName.substring(prefix.length);
-                if (testName) {
-                    // Ensure the key exists before assigning
-                    if (Object.prototype.hasOwnProperty.call(initialMarks[studentIdStr], testName)) {
-                        (initialMarks[studentIdStr] as StudentMarksCustomState)[testName] = mark.marksObtained;
-                    }
-                }
-            }
+          if (!initialMarks[studentIdStr] || !mark.testKey) return;
+          
+          if (Object.prototype.hasOwnProperty.call(initialMarks[studentIdStr], mark.testKey)) {
+            (initialMarks[studentIdStr] as StudentMarksCustomState)[mark.testKey] = mark.marksObtained;
           }
         });
       }
@@ -226,7 +218,7 @@ export default function TeacherMarksEntryPage() {
     } finally {
       setIsLoadingStudentsAndMarks(false);
     }
-  }, [authUser, selectedClassId, selectedSubjectName, selectedAssessmentName, selectedAcademicYear, toast, isMarksEntryLocked, currentAssessmentConfig]);
+  }, [authUser, selectedClassId, selectedSubjectName, selectedAssessmentKey, selectedAcademicYear, toast, isMarksEntryLocked, currentAssessmentConfig]);
 
   useEffect(() => { fetchStudentsAndMarks(); }, [fetchStudentsAndMarks]);
 
@@ -247,7 +239,7 @@ export default function TeacherMarksEntryPage() {
 
   const handleSubmit = async () => {
     const classInfo = allTaughtSubjects.find(s => s.classId === selectedClassId);
-    if (!authUser || !selectedClassId || !selectedSubjectName || !selectedAssessmentName || !selectedAcademicYear || !currentAssessmentConfig || !classInfo) return;
+    if (!authUser || !selectedClassId || !selectedSubjectName || !selectedAssessmentKey || !selectedAcademicYear || !currentAssessmentConfig || !classInfo) return;
     
     const finalSelectedStudentIds = Object.keys(selectedStudentIds).filter(id => selectedStudentIds[id]);
     if (finalSelectedStudentIds.length === 0) { toast({ variant: "info", title: "No Students Selected" }); return; }
@@ -262,14 +254,21 @@ export default function TeacherMarksEntryPage() {
       if (!marksState) continue;
 
         for (const test of currentAssessmentConfig.tests) {
-            const marksObtained = (marksState as StudentMarksCustomState)?.[test.testName];
+            const marksObtained = (marksState as StudentMarksCustomState)?.[test.key];
             if(marksObtained === null || marksObtained === undefined) continue;
 
             if (marksObtained > test.maxMarks) {
-                toast({ variant: "destructive", title: "Marks Exceed Max", description: `Marks for ${student.name} (${test.testName}: ${marksObtained}) exceed max marks (${test.maxMarks}).`});
+                toast({ variant: "destructive", title: "Marks Exceed Max", description: `Marks for ${student.name} (${test.label}: ${marksObtained}) exceed max marks (${test.maxMarks}).`});
                 setIsSubmitting(false); return;
             }
-            marksToSubmit.push({ studentId: studentIdStr, studentName: student.name || "N/A", assessmentName: `${selectedAssessmentName}-${test.testName}`, marksObtained, maxMarks: test.maxMarks });
+            marksToSubmit.push({ 
+              studentId: studentIdStr, 
+              studentName: student.name || "N/A", 
+              assessmentKey: selectedAssessmentKey,
+              testKey: test.key,
+              marksObtained, 
+              maxMarks: test.maxMarks
+            });
         }
     }
 
@@ -306,17 +305,17 @@ export default function TeacherMarksEntryPage() {
            <div><Label htmlFor="academic-year-select">Academic Year</Label><Select onValueChange={setSelectedAcademicYear} value={selectedAcademicYear} disabled={isLoading || academicYears.length === 0}><SelectTrigger id="academic-year-select"><SelectValue placeholder="Select year"/></SelectTrigger><SelectContent>{academicYears.map(year => <SelectItem key={year._id} value={year.year}>{year.year}</SelectItem>)}</SelectContent></Select></div>
            <div><Label htmlFor="class-select">Class</Label><Select onValueChange={setSelectedClassId} value={selectedClassId} disabled={isLoading || availableClasses.length === 0}><SelectTrigger id="class-select"><SelectValue placeholder={isLoading ? "Loading..." : "Select class"} /></SelectTrigger><SelectContent>{availableClasses.map(cls => <SelectItem key={cls.value} value={cls.value}>{cls.label}</SelectItem>)}</SelectContent></Select></div>
            <div><Label htmlFor="subject-select">Subject</Label><Select onValueChange={setSelectedSubjectName} value={selectedSubjectName} disabled={!selectedClassId || availableSubjects.length === 0}><SelectTrigger id="subject-select"><SelectValue placeholder="Select subject" /></SelectTrigger><SelectContent>{availableSubjects.map(subject => <SelectItem key={subject} value={subject}>{subject}</SelectItem>)}</SelectContent></Select></div>
-           <div><Label htmlFor="assessment-select">Assessment</Label><Select onValueChange={setSelectedAssessmentName} value={selectedAssessmentName} disabled={!selectedClassId || !assessmentScheme}><SelectTrigger id="assessment-select"><SelectValue placeholder="Select assessment" /></SelectTrigger><SelectContent>{(assessmentScheme?.assessments || []).map(a => <SelectItem key={a.groupName} value={a.groupName}>{a.groupName}</SelectItem>)}</SelectContent></Select></div>
+           <div><Label htmlFor="assessment-select">Assessment</Label><Select onValueChange={setSelectedAssessmentKey} value={selectedAssessmentKey} disabled={!selectedClassId || !assessmentScheme}><SelectTrigger id="assessment-select"><SelectValue placeholder="Select assessment" /></SelectTrigger><SelectContent>{(assessmentScheme?.assessments || []).map(a => <SelectItem key={a.key} value={a.key}>{a.label}</SelectItem>)}</SelectContent></Select></div>
         </CardContent>
       </Card>
       
-      {selectedAssessmentName && isMarksEntryLocked && (
-        <Alert variant="destructive"><Lock className="h-4 w-4" /><AlertTitle>Marks Entry Locked</AlertTitle><AlertDescription>The administrator has locked marks entry for <strong>{selectedAssessmentName}</strong> for this academic year.</AlertDescription></Alert>
+      {selectedAssessmentKey && isMarksEntryLocked && (
+        <Alert variant="destructive"><Lock className="h-4 w-4" /><AlertTitle>Marks Entry Locked</AlertTitle><AlertDescription>The administrator has locked marks entry for <strong>{assessmentScheme?.assessments.find(a=>a.key === selectedAssessmentKey)?.label}</strong> for this academic year.</AlertDescription></Alert>
       )}
 
       {(studentsForMarks.length > 0 || isLoadingStudentsAndMarks) && !isMarksEntryLocked && (
         <Card>
-          <CardHeader><CardTitle>Enter Marks for: {availableClasses.find(c=>c.value === selectedClassId)?.label} - {selectedSubjectName} - {selectedAssessmentName}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Enter Marks for: {availableClasses.find(c=>c.value === selectedClassId)?.label} - {selectedSubjectName} - {assessmentScheme?.assessments.find(a=>a.key === selectedAssessmentKey)?.label}</CardTitle></CardHeader>
           <CardContent>
             {isLoadingStudentsAndMarks ? <div className="flex items-center justify-center py-6"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading...</p></div>
             : <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}><ScrollArea className="h-[60vh]"><div className="overflow-x-auto"><Table>
@@ -324,7 +323,7 @@ export default function TeacherMarksEntryPage() {
                       <TableHead className="w-12 sticky left-0 bg-card z-20"><Checkbox checked={selectAllCheckboxState} onCheckedChange={handleSelectAllChange} /></TableHead>
                       <TableHead className="sticky left-12 bg-card z-30 min-w-[150px]">Student Name</TableHead>
                       <TableHead>Admission ID</TableHead>
-                      {currentAssessmentConfig?.tests.map(test => <TableHead key={test.testName} className="w-28 text-center">{test.testName} ({test.maxMarks}M)</TableHead>)}
+                      {currentAssessmentConfig?.tests.map(test => <TableHead key={test.key} className="w-28 text-center">{test.label} ({test.maxMarks}M)</TableHead>)}
                   </TableRow></TableHeader>
                   <TableBody>{studentsForMarks.map(student => {
                       const studentIdStr = student._id!.toString();
@@ -333,7 +332,7 @@ export default function TeacherMarksEntryPage() {
                           <TableCell className="sticky left-0 bg-card z-10"><Checkbox checked={!!selectedStudentIds[studentIdStr]} onCheckedChange={c => setSelectedStudentIds(p => ({...p, [studentIdStr]: !!c}))} /></TableCell>
                           <TableCell className="sticky left-12 bg-card z-20 font-medium">{student.name}</TableCell>
                           <TableCell>{student.admissionId || 'N/A'}</TableCell>
-                          {currentAssessmentConfig?.tests.map(test => <TableCell key={test.testName}><Input type="number" value={(currentMarks as StudentMarksCustomState)?.[test.testName] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.testName, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
+                          {currentAssessmentConfig?.tests.map(test => <TableCell key={test.key}><Input type="number" value={(currentMarks as StudentMarksCustomState)?.[test.key] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.key, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
                       </TableRow>);
                   })}</TableBody>
               </Table></div></ScrollArea><div className="mt-6 flex justify-end"><Button type="submit" disabled={isSubmitting || isLoadingStudentsAndMarks}><Save className="mr-2 h-4 w-4" /> Submit Marks</Button></div></form>}
