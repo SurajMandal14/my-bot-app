@@ -266,3 +266,4 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
     return { success: false, error: errorMessage, message: 'Failed to fetch marks for report card.' };
   }
 }
+
