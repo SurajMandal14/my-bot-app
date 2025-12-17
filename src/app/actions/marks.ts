@@ -45,6 +45,8 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         className: className,
         subjectId: subjectId, 
         subjectName: subjectName,
+        assessmentKey: sm.assessmentKey,
+        testKey: sm.testKey,
         academicYear: academicYear,
         schoolId: new ObjectId(schoolId),
         createdAt: new Date(),
@@ -63,7 +65,8 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
             studentId: fieldsOnInsert.studentId,
             classId: fieldsOnInsert.classId,
             subjectId: fieldsOnInsert.subjectId, 
-            assessmentName: sm.assessmentName,
+            assessmentKey: fieldsOnInsert.assessmentKey,
+            testKey: fieldsOnInsert.testKey,
             academicYear: fieldsOnInsert.academicYear,
             schoolId: fieldsOnInsert.schoolId,
           },
@@ -103,9 +106,9 @@ export async function getMarksForAssessment(
   schoolId: string,
   classId: string,
   subjectNameParam: string,
-  assessmentNameBase: string, // e.g., "FA1", "SA1"
+  assessmentKey: string,
   academicYear: string,
-  paper?: 'Paper1' | 'Paper2' // New optional parameter for SA papers
+  paper?: 'Paper1' | 'Paper2'
 ): Promise<GetMarksResult> {
   try {
     if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
@@ -114,27 +117,18 @@ export async function getMarksForAssessment(
 
     const { db } = await connectToDatabase();
     const marksCollection = db.collection<MarkEntry>('marks');
-
-    // More robust regex to handle custom test names (e.g., "FA1-My Custom Test")
-    const queryAssessmentFilter = { $regex: `^${assessmentNameBase}-` };
     
-    let paperFilter = {};
-    if (assessmentNameBase.startsWith("SA") && paper) {
-        paperFilter = { assessmentName: { $regex: `^${assessmentNameBase}-${paper}-` }};
-    } else if (assessmentNameBase.startsWith("SA") && !paper) {
-        // If it's SA but no paper, we need to decide what to do. 
-        // For now, let's assume we fetch all for that SA.
-        paperFilter = { assessmentName: { $regex: `^${assessmentNameBase}-` }};
-    }
-
-    const marks = await marksCollection.find({
+    // The query should filter by subjectName (which is passed in subjectNameParam)
+    // and the assessmentKey.
+    const query = {
       schoolId: new ObjectId(schoolId),
       classId: new ObjectId(classId),
-      subjectId: subjectNameParam,
-      assessmentName: queryAssessmentFilter,
+      subjectName: subjectNameParam, // Use subjectNameParam which is the subject's name
+      assessmentKey: assessmentKey,
       academicYear: academicYear,
-      ...paperFilter
-    }).toArray();
+    };
+    
+    const marks = await marksCollection.find(query).toArray();
 
     const marksWithStrId = marks.map(mark => ({
         ...mark,
