@@ -290,8 +290,12 @@ export default function GenerateCBSEStateReportPage() {
       toast({ title: 'Nothing to print', description: 'Load a student report first.' });
       return;
     }
-
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    let printWindow: Window | null = null;
+    try {
+      printWindow = window.open('', '_blank');
+    } catch (err) {
+      printWindow = null;
+    }
     if (!printWindow) {
       toast({ title: 'Popup blocked', description: 'Please allow popups to print.' });
       return;
