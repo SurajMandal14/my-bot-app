@@ -192,46 +192,32 @@ export default function TeacherMarksEntryPage() {
         selectedAssessmentName, selectedAcademicYear
       );
 
-      // Build a normalization helper and a map of normalized test names -> original testName
-      const normalize = (s: string | undefined) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
-      const testKeyMap: Record<string, string> = {};
-      currentAssessmentConfig.tests.forEach(test => {
-        testKeyMap[normalize(test.testName)] = test.testName;
-      });
-
       const initialMarks: Record<string, any> = {};
       studentsResult.users.forEach(student => {
         const studentIdStr = student._id!.toString();
-        initialMarks[studentIdStr] = currentAssessmentConfig.tests.reduce((acc, test) => {
-            acc[test.testName] = null;
-            return acc;
-        }, {} as Record<string, null>);
+          initialMarks[studentIdStr] = currentAssessmentConfig.tests.reduce((acc, test) => {
+              acc[test.testName] = null;
+              return acc;
+          }, {} as Record<string, null>);
       });
-
+      
       if (marksResult.success && marksResult.marks) {
         marksResult.marks.forEach(mark => {
           const studentIdStr = mark.studentId.toString();
           if (!initialMarks[studentIdStr]) return;
           if (mark.assessmentName) {
-            const assessmentFull = (mark.assessmentName || '').trim();
-            const prefix = `${selectedAssessmentName}-`;
-            if (assessmentFull.startsWith(prefix)) {
-              const rawTestName = assessmentFull.slice(prefix.length);
-              const norm = normalize(rawTestName);
-              let originalKey = testKeyMap[norm];
-              if (!originalKey) {
-                // Try fuzzy match: find key that contains or is contained by norm
-                const found = Object.keys(testKeyMap).find(k => k === norm || k.includes(norm) || norm.includes(k));
-                if (found) originalKey = testKeyMap[found];
-              }
-              if (originalKey && Object.prototype.hasOwnProperty.call(initialMarks[studentIdStr], originalKey)) {
-                (initialMarks[studentIdStr] as StudentMarksCustomState)[originalKey] = mark.marksObtained;
-              }
+            const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
+            const testName = restOfName.join('-');
+
+            if (assessmentGroup === selectedAssessmentName && testName) {
+                // Ensure the key exists before assigning
+                if (Object.prototype.hasOwnProperty.call(initialMarks[studentIdStr], testName)) {
+                    (initialMarks[studentIdStr] as StudentMarksCustomState)[testName] = mark.marksObtained;
+                }
             }
           }
         });
       }
-
       setStudentMarks(initialMarks);
 
     } catch (error) {
@@ -346,7 +332,7 @@ export default function TeacherMarksEntryPage() {
                           <TableCell className="sticky left-0 bg-card z-10"><Checkbox checked={!!selectedStudentIds[studentIdStr]} onCheckedChange={c => setSelectedStudentIds(p => ({...p, [studentIdStr]: !!c}))} /></TableCell>
                           <TableCell className="sticky left-12 bg-card z-20 font-medium">{student.name}</TableCell>
                           <TableCell>{student.admissionId || 'N/A'}</TableCell>
-                          {currentAssessmentConfig?.tests.map(test => <TableCell key={test.testName}><Input name={`${studentIdStr}_${(test.testName || '').trim()}`} type="number" value={(currentMarks as StudentMarksCustomState)?.[test.testName] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.testName, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
+                          {currentAssessmentConfig?.tests.map(test => <TableCell key={test.testName}><Input type="number" value={(currentMarks as StudentMarksCustomState)?.[test.testName] ?? ""} onChange={e => handleMarksChange(studentIdStr, test.testName, e.target.value)} disabled={isSubmitting} max={test.maxMarks} min="0" className="mx-auto w-24"/></TableCell>)}
                       </TableRow>);
                   })}</TableBody>
               </Table></div></ScrollArea><div className="mt-6 flex justify-end"><Button type="submit" disabled={isSubmitting || isLoadingStudentsAndMarks}><Save className="mr-2 h-4 w-4" /> Submit Marks</Button></div></form>}

@@ -462,8 +462,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                 {formativeGroups.flatMap(assessment => {
                   const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
                   return assessment.tests
-                    .map((test, testIndex) => (
-                      <th key={`${assessment.groupName}-${(test.testName || '').trim()}-${testIndex}`} className="fa-test-head">{(test.testName || '').trim()} ({test.maxMarks}M)</th>
+                    .map((test) => (
+                      <th key={`${assessment.groupName}-${test.testName}`} className="fa-test-head">{test.testName} ({test.maxMarks}M)</th>
                     ))
                     .concat([
                       <th key={`${assessment.groupName}-Total`} className="fa-total-head">Total ({groupMax}M)</th>,
@@ -488,31 +488,31 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                 <tr key={subject.name}>
                   <td>{SIndex + 1}</td>
                   <td style={{textAlign: 'left', paddingLeft: '5px'}}>{subject.name}</td>
-                    {formativeGroups.map((assessment, index) => {
+                  {formativeGroups.map((assessment, index) => {
                      const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
                      const periodData = subjectFaData[faPeriodKey];
                      return (
-                      <React.Fragment key={`${faPeriodKey}-${assessment.groupName}`}>
-                      {assessment.tests.map((test, testIndex) => {
-                        const toolKey = `tool${testIndex+1}` as keyof MarksEntry;
-                        return (
-                        <td key={`${faPeriodKey}-${assessment.groupName}-${toolKey}-${testIndex}`} className="fa-test-cell">
-                          <input
-                            type="number"
-                            value={periodData?.[toolKey] ?? ''}
-                            onChange={(e) => onFaMarksChange(subjectIdentifier, faPeriodKey, toolKey, e.target.value)}
-                            max={test.maxMarks}
-                            min="0"
-                            disabled={isCurrentSubjectDisabled}
-                          />
-                          </td>
-                        );
-                      })}
-                      <td className="fa-total-cell">{results[assessment.groupName]?.total ?? ''}</td>
-                      <td className="fa-grade-cell">{results[assessment.groupName]?.grade ?? ''}</td>
-                      </React.Fragment>
+                        <React.Fragment key={faPeriodKey}>
+                        {assessment.tests.map((test, testIndex) => {
+                            const toolKey = `tool${testIndex+1}` as keyof MarksEntry;
+                            return (
+                            <td key={`${faPeriodKey}-${toolKey}`} className="fa-test-cell">
+                                <input
+                                    type="number"
+                                    value={periodData?.[toolKey] ?? ''}
+                                    onChange={(e) => onFaMarksChange(subjectIdentifier, faPeriodKey, toolKey, e.target.value)}
+                                    max={test.maxMarks}
+                                    min="0"
+                                    disabled={isCurrentSubjectDisabled}
+                                />
+                                </td>
+                            );
+                        })}
+                        <td className="fa-total-cell">{results[assessment.groupName]?.total ?? ''}</td>
+                        <td className="fa-grade-cell">{results[assessment.groupName]?.grade ?? ''}</td>
+                        </React.Fragment>
                      );
-                    })}
+                  })}
                   <td>{results.overallTotal}</td>
                   <td>{results.overallGrade}</td>
                 </tr>
