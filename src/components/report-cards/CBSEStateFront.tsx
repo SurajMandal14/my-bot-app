@@ -383,7 +383,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
     type="text"
     value={studentData.udiseCodeSchoolName || ""}
     readOnly
-    style={{ textAlign: 'center' }}
+    style={{ textAlign: 'center', fontSize: "20px", fontWeight: "bold" }}
   />
   <br></br><br></br>
 </div>
@@ -401,8 +401,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         <table className="header-table"><tbody>
             <tr>
               <td colSpan={4}>
-                <div style={{flex: 1}}>
-                    U-DISE Code & School Name : <input type="text" value={studentData.udiseCodeSchoolName || ""} onChange={e => onStudentDataChange('udiseCodeSchoolName', e.target.value)} disabled={isFieldDisabledForRole()} />
+              <div style={{flex: 1}}>
+                U-DISE Code & School Name : <input type="text" value={studentData.udiseCodeSchoolName || ""} onChange={e => onStudentDataChange('udiseCodeSchoolName', e.target.value)} disabled={isFieldDisabledForRole()} />
                   </div>
               </td>
             </tr>
