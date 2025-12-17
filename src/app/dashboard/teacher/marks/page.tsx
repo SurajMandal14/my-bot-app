@@ -192,15 +192,22 @@ export default function TeacherMarksEntryPage() {
         selectedAssessmentName, selectedAcademicYear
       );
 
+      // Build a normalization helper and a map of normalized test names -> original testName
+      const normalize = (s: string | undefined) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+      const testKeyMap: Record<string, string> = {};
+      currentAssessmentConfig.tests.forEach(test => {
+        testKeyMap[normalize(test.testName)] = test.testName;
+      });
+
       const initialMarks: Record<string, any> = {};
       studentsResult.users.forEach(student => {
         const studentIdStr = student._id!.toString();
-          initialMarks[studentIdStr] = currentAssessmentConfig.tests.reduce((acc, test) => {
-              acc[test.testName] = null;
-              return acc;
-          }, {} as Record<string, null>);
+        initialMarks[studentIdStr] = currentAssessmentConfig.tests.reduce((acc, test) => {
+            acc[test.testName] = null;
+            return acc;
+        }, {} as Record<string, null>);
       });
-      
+
       if (marksResult.success && marksResult.marks) {
         marksResult.marks.forEach(mark => {
           const studentIdStr = mark.studentId.toString();
@@ -209,14 +216,22 @@ export default function TeacherMarksEntryPage() {
             const assessmentFull = (mark.assessmentName || '').trim();
             const prefix = `${selectedAssessmentName}-`;
             if (assessmentFull.startsWith(prefix)) {
-              const testName = assessmentFull.slice(prefix.length);
-              if (testName && Object.prototype.hasOwnProperty.call(initialMarks[studentIdStr], testName)) {
-                (initialMarks[studentIdStr] as StudentMarksCustomState)[testName] = mark.marksObtained;
+              const rawTestName = assessmentFull.slice(prefix.length);
+              const norm = normalize(rawTestName);
+              let originalKey = testKeyMap[norm];
+              if (!originalKey) {
+                // Try fuzzy match: find key that contains or is contained by norm
+                const found = Object.keys(testKeyMap).find(k => k === norm || k.includes(norm) || norm.includes(k));
+                if (found) originalKey = testKeyMap[found];
+              }
+              if (originalKey && Object.prototype.hasOwnProperty.call(initialMarks[studentIdStr], originalKey)) {
+                (initialMarks[studentIdStr] as StudentMarksCustomState)[originalKey] = mark.marksObtained;
               }
             }
           }
         });
       }
+
       setStudentMarks(initialMarks);
 
     } catch (error) {
