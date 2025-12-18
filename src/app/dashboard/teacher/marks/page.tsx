@@ -14,7 +14,7 @@ import { BookCopy, Loader2, Save, Info, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { AuthUser, User as AppUser } from "@/types/user";
 import type { StudentMarkInput, MarksSubmissionPayload } from "@/types/marks";
-import { getSubjectsForTeacher, submitMarks, getMarksForAssessment, type SubjectForTeacher } from "@/app/actions/marks";
+import { getSubjectsForTeacher, submitMarks, getMarksForAssessment, migrateOldSchoolMarksData, type SubjectForTeacher } from "@/app/actions/marks";
 import { getStudentsByClass } from "@/app/actions/schoolUsers";
 import { getSchoolById } from "@/app/actions/schools";
 import type { School, AssessmentLocks } from "@/types/school";
@@ -40,6 +40,7 @@ const getCurrentAcademicYear = (): string => {
 export default function TeacherMarksEntryPage() {
   const { toast } = useToast();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [isMigrationRunning, setIsMigrationRunning] = useState(false);
 
   const [allTaughtSubjects, setAllTaughtSubjects] = useState<SubjectForTeacher[]>([]);
   const [availableClasses, setAvailableClasses] = useState<{ value: string; label: string; }[]>([]);
@@ -78,6 +79,21 @@ export default function TeacherMarksEntryPage() {
       } catch (e) { console.error("Marks Entry: Failed to parse user", e); }
     }
   }, []);
+
+  const runDataMigration = useCallback(async () => {
+    if (!authUser?.schoolId) return;
+    setIsMigrationRunning(true);
+    try {
+      const migrationResult = await migrateOldSchoolMarksData(authUser.schoolId.toString(), false);
+      if (migrationResult.success && migrationResult.fixedCount && migrationResult.fixedCount > 0) {
+        toast({ title: "Data Migration Complete", description: `Fixed ${migrationResult.fixedCount} marks records to be compatible with the new format.`, variant: "default" });
+      }
+    } catch (err) {
+      console.error("Migration error:", err);
+    } finally {
+      setIsMigrationRunning(false);
+    }
+  }, [authUser?.schoolId, toast]);
 
   const fetchInitialData = useCallback(async () => {
     if (!authUser || !authUser._id || !authUser.schoolId) return;
@@ -125,6 +141,13 @@ export default function TeacherMarksEntryPage() {
       
       setIsLoading(false);
   }, [authUser, selectedAcademicYear, selectedClassId]);
+
+  // Run data migration on page load to fix old school data
+  useEffect(() => {
+    if (authUser && authUser.schoolId && !isMigrationRunning) {
+      runDataMigration();
+    }
+  }, [authUser, runDataMigration, isMigrationRunning]);
 
   useEffect(() => {
     if (selectedAcademicYear && authUser) fetchSubjectsForYear();
@@ -346,4 +369,5 @@ export default function TeacherMarksEntryPage() {
     </div>
   );
 }
+
 
