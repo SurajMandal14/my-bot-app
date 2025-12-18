@@ -421,7 +421,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         <table id="fa-table">
           <thead>
             <tr>
-              <th rowSpan={2}>Sl. No</th>
+              <th rowSpan={2}>S. No</th>
               <th rowSpan={2}>Subject</th>
               {formativeGroups.map(assessment => {
                   const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
