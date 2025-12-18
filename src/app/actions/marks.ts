@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { z } from 'zod';
@@ -12,28 +11,14 @@ import type { SchoolClass, SchoolClassSubject } from '@/types/classes';
 
 export async function submitMarks(payload: MarksSubmissionPayload): Promise<SubmitMarksResult> {
   try {
-    // Normalize incoming payload to ensure each student mark has `assessmentName`.
-    // Accept two shapes from clients: { assessmentName } or { assessmentKey, testKey }.
-    const payloadForValidation = JSON.parse(JSON.stringify(payload));
-    if (Array.isArray(payloadForValidation.studentMarks)) {
-      payloadForValidation.studentMarks = payloadForValidation.studentMarks.map((sm: any) => {
-        const copy = { ...sm };
-        if (!copy.assessmentName && copy.assessmentKey && copy.testKey) {
-          copy.assessmentName = `${copy.assessmentKey}-${copy.testKey}`;
-          // Keep original keys for backward compatibility but ensure schema required field exists
-        }
-        return copy;
-      });
-    }
-
-    const validatedPayloadStructure = marksSubmissionPayloadSchema.safeParse(payloadForValidation);
+    const validatedPayloadStructure = marksSubmissionPayloadSchema.safeParse(payload);
     if (!validatedPayloadStructure.success) {
       const errors = validatedPayloadStructure.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');
       return { success: false, message: 'Validation failed for payload structure.', error: errors };
     }
 
     const {
-      classId, className, subjectName,
+      classId, className, subjectId, subjectName,
       academicYear, markedByTeacherId, schoolId, studentMarks
     } = validatedPayloadStructure.data;
 
@@ -47,21 +32,19 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         if(!ObjectId.isValid(sm.studentId)) {
             return { success: false, message: `Invalid Student ID format: ${sm.studentId}`, error: 'Invalid Student ID.'}
         }
+         if (!sm.assessmentName || sm.assessmentName.trim() === "") {
+            return { success: false, message: `Assessment name missing for student ${sm.studentName}.`, error: 'Missing assessment name in student marks.'}
+        }
     }
 
     const operations = studentMarks.map(sm => {
-      // Add assessmentName for easier report mapping
-      const assessmentName = `${sm.assessmentKey}-${sm.testKey}`;
       const fieldsOnInsert = {
         studentId: new ObjectId(sm.studentId),
         studentName: sm.studentName,
         classId: new ObjectId(classId),
         className: className,
-        subjectId: subjectName, // Standardize on subjectName
+        subjectId: subjectId, 
         subjectName: subjectName,
-        assessmentKey: sm.assessmentKey,
-        testKey: sm.testKey,
-        assessmentName, // NEW FIELD
         academicYear: academicYear,
         schoolId: new ObjectId(schoolId),
         createdAt: new Date(),
@@ -72,7 +55,6 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         maxMarks: sm.maxMarks,
         markedByTeacherId: new ObjectId(markedByTeacherId),
         updatedAt: new Date(),
-        assessmentName, // Ensure always present on update
       };
 
       return {
@@ -80,16 +62,14 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
           filter: {
             studentId: fieldsOnInsert.studentId,
             classId: fieldsOnInsert.classId,
-            subjectName: fieldsOnInsert.subjectName, 
-            assessmentKey: fieldsOnInsert.assessmentKey,
-            testKey: fieldsOnInsert.testKey,
+            subjectId: fieldsOnInsert.subjectId, 
+            assessmentName: sm.assessmentName,
             academicYear: fieldsOnInsert.academicYear,
             schoolId: fieldsOnInsert.schoolId,
-            // DO NOT include assessmentName in filter
           },
           update: {
             $set: fieldsToUpdate,
-            $setOnInsert: { ...fieldsOnInsert },
+            $setOnInsert: { ...fieldsOnInsert, assessmentName: sm.assessmentName },
           },
           upsert: true,
         },
@@ -100,7 +80,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         return { success: true, message: "No marks data provided to submit.", count: 0};
     }
 
-    const result = await marksCollection.bulkWrite(operations as any);
+    const result = await marksCollection.bulkWrite(operations);
     let processedCount = result.upsertedCount + result.modifiedCount;
 
     revalidatePath('/dashboard/teacher/marks');
@@ -123,8 +103,9 @@ export async function getMarksForAssessment(
   schoolId: string,
   classId: string,
   subjectNameParam: string,
-  assessmentKey: string,
+  assessmentNameBase: string, // e.g., "FA1", "SA1"
   academicYear: string,
+  paper?: 'Paper1' | 'Paper2' // New optional parameter for SA papers
 ): Promise<GetMarksResult> {
   try {
     if (!ObjectId.isValid(schoolId) || !ObjectId.isValid(classId)) {
@@ -133,18 +114,27 @@ export async function getMarksForAssessment(
 
     const { db } = await connectToDatabase();
     const marksCollection = db.collection<MarkEntry>('marks');
+
+    // More robust regex to handle custom test names (e.g., "FA1-My Custom Test")
+    const queryAssessmentFilter = { $regex: `^${assessmentNameBase}-` };
     
-    // The query should filter by subjectName (which is passed in subjectNameParam)
-    // and the assessmentKey.
-    const query = {
+    let paperFilter = {};
+    if (assessmentNameBase.startsWith("SA") && paper) {
+        paperFilter = { assessmentName: { $regex: `^${assessmentNameBase}-${paper}-` }};
+    } else if (assessmentNameBase.startsWith("SA") && !paper) {
+        // If it's SA but no paper, we need to decide what to do. 
+        // For now, let's assume we fetch all for that SA.
+        paperFilter = { assessmentName: { $regex: `^${assessmentNameBase}-` }};
+    }
+
+    const marks = await marksCollection.find({
       schoolId: new ObjectId(schoolId),
       classId: new ObjectId(classId),
-      subjectName: subjectNameParam, // Use subjectNameParam which is the subject's name
-      assessmentKey: assessmentKey,
+      subjectId: subjectNameParam,
+      assessmentName: queryAssessmentFilter,
       academicYear: academicYear,
-    };
-    
-    const marks = await marksCollection.find(query).toArray();
+      ...paperFilter
+    }).toArray();
 
     const marksWithStrId = marks.map(mark => ({
         ...mark,
@@ -170,7 +160,6 @@ export interface SubjectForTeacher {
   label: string;
   classId: string;
   className: string;
-  subjectId: string; // Standardized to be the subject name
   subjectName: string;
 }
 
@@ -215,7 +204,6 @@ export async function getSubjectsForTeacher(teacherId: string, schoolId: string,
                             label: `${subject.name} (${cls.name}${cls.section ? ` - ${cls.section}` : ''})`, // Include section in label
                             classId: cls._id.toString(),
                             className: cls.name,
-                            subjectId: subject.name, // Use name as the consistent ID
                             subjectName: subject.name
                         });
                     }
@@ -266,4 +254,3 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
     return { success: false, error: errorMessage, message: 'Failed to fetch marks for report card.' };
   }
 }
-
