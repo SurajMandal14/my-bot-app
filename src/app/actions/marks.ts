@@ -127,19 +127,10 @@ export async function getMarksForAssessment(
         paperFilter = { assessmentName: { $regex: `^${assessmentNameBase}-` }};
     }
 
-    // Handle both new format (subjectId is string name) and old format (subjectId might be ObjectId)
-    // Use $or to query for both string match and ObjectId match for backward compatibility with old schools
-    const subjectIdFilter = {
-      $or: [
-        { subjectId: subjectNameParam }, // New format: subjectId is the subject name string
-        ...(ObjectId.isValid(subjectNameParam) ? [{ subjectId: new ObjectId(subjectNameParam) }] : []) // Old format: subjectId might be ObjectId
-      ]
-    };
-
     const marks = await marksCollection.find({
       schoolId: new ObjectId(schoolId),
       classId: new ObjectId(classId),
-      ...subjectIdFilter,
+      subjectId: subjectNameParam,
       assessmentName: queryAssessmentFilter,
       academicYear: academicYear,
       ...paperFilter
@@ -240,8 +231,6 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
     const { db } = await connectToDatabase();
     const marksCollection = db.collection<MarkEntry>('marks');
 
-    // Handle both string subjectId (new format) and any other format (old schools)
-    // Simply fetch all marks for the student across all subjects
     const marks = await marksCollection.find({
       studentId: new ObjectId(studentId),
       schoolId: new ObjectId(schoolId),
@@ -263,84 +252,5 @@ export async function getStudentMarksForReportCard(studentId: string, schoolId: 
     console.error('Get student marks for report card error:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
     return { success: false, error: errorMessage, message: 'Failed to fetch marks for report card.' };
-  }
-}
-
-/**
- * Migration function to fix marks data in old schools.
- * Standardizes subjectId field to be consistent string format instead of ObjectId or mixed formats.
- * This is called automatically when fetching marks to ensure backward compatibility.
- * @param schoolId - School ID to migrate
- * @param dryRun - If true, only report what would be fixed without making changes
- */
-export async function migrateOldSchoolMarksData(schoolId: string, dryRun: boolean = false): Promise<{ success: boolean; message: string; fixedCount?: number; error?: string }> {
-  try {
-    if (!ObjectId.isValid(schoolId)) {
-      return { success: false, message: 'Invalid School ID format.', error: 'Invalid ID format.' };
-    }
-
-    const { db } = await connectToDatabase();
-    const marksCollection = db.collection<MarkEntry>('marks');
-    const schoolClassesCollection = db.collection('school_classes');
-
-    // Build a map of classId -> subjects with subject names
-    const classesMap = new Map<string, string[]>();
-    const classesResult = await schoolClassesCollection.find({ schoolId: new ObjectId(schoolId) }).toArray();
-    classesResult.forEach((cls: any) => {
-      const subjectNames = (cls.subjects || []).map((s: SchoolClassSubject) => s.name);
-      classesMap.set(cls._id.toString(), subjectNames);
-    });
-
-    // Find all marks where subjectId is an ObjectId (old format) or doesn't match any known subject name
-    const allMarks = await marksCollection.find({ schoolId: new ObjectId(schoolId) }).toArray();
-    
-    const marksToFix: any[] = [];
-    allMarks.forEach(mark => {
-      const classSubjects = classesMap.get(mark.classId.toString()) || [];
-      const subjectIdIsObjectId = ObjectId.isValid(mark.subjectId as string) && typeof mark.subjectId === 'object';
-      const subjectIdIsInvalidString = typeof mark.subjectId === 'string' && !classSubjects.includes(mark.subjectId) && mark.subjectName;
-      
-      if (subjectIdIsObjectId || subjectIdIsInvalidString) {
-        marksToFix.push({
-          _id: mark._id,
-          classId: mark.classId,
-          currentSubjectId: mark.subjectId,
-          correctSubjectId: mark.subjectName, // Use subjectName as the correct subjectId
-        });
-      }
-    });
-
-    if (marksToFix.length === 0) {
-      return { success: true, message: 'No marks data needs migration for this school.', fixedCount: 0 };
-    }
-
-    if (dryRun) {
-      return { 
-        success: true, 
-        message: `Found ${marksToFix.length} marks records that need migration (dry run only).`,
-        fixedCount: marksToFix.length
-      };
-    }
-
-    // Fix the marks by updating subjectId to be the subject name string
-    const updateOperations = marksToFix.map(mark => ({
-      updateOne: {
-        filter: { _id: mark._id },
-        update: { $set: { subjectId: mark.correctSubjectId } },
-      },
-    }));
-
-    const result = await marksCollection.bulkWrite(updateOperations);
-    const totalFixed = result.modifiedCount + result.upsertedCount;
-
-    return { 
-      success: true, 
-      message: `Successfully migrated ${totalFixed} marks records. SubjectId standardized to string format.`,
-      fixedCount: totalFixed
-    };
-  } catch (error) {
-    console.error('Migrate old school marks data error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
-    return { success: false, message: 'Failed to migrate marks data.', error: errorMessage };
   }
 }
