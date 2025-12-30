@@ -124,7 +124,8 @@ export default function AdminClassManagementPage() {
       }
 
       if (teachersResult.success && teachersResult.users) {
-        setAvailableTeachers(teachersResult.users.filter(u => u.role === 'teacher'));
+        const isTeacherWithId = (u: Partial<AppUser>): u is AppUser => u.role === 'teacher' && !!u._id;
+        setAvailableTeachers(teachersResult.users.filter(isTeacherWithId));
       }
 
       if (schoolDetailsResult.success && schoolDetailsResult.school) {
@@ -193,6 +194,17 @@ export default function AdminClassManagementPage() {
     setIsSubmitting(true);
     
     const payload = { ...values, academicYear: selectedAcademicYear };
+    // If creating but a class with same name+section+year exists, switch to Edit flow
+    if (!editingClass) {
+      const existing = allSchoolClasses.find(c => c.academicYear === selectedAcademicYear && c.name === (payload.name || '') && (c.section || '') === (payload.section || ''));
+      if (existing) {
+        setIsSubmitting(false);
+        setEditingClass(existing);
+        setIsFormOpen(true);
+        toast({ title: "Class Already Exists", description: `Switched to edit mode for ${existing.name}${existing.section ? ` - ${existing.section}` : ''}. You can add or update subjects here.` });
+        return;
+      }
+    }
     
     const result = editingClass
       ? await updateSchoolClass(editingClass._id.toString(), authUser.schoolId.toString(), payload)

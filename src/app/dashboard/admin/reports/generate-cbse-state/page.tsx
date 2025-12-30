@@ -48,6 +48,7 @@ const getDefaultSaPaperData = (): SAPaperData => ({
     as5: { marks: null, maxMarks: 20 },
     as6: { marks: null, maxMarks: 20 },
 });
+const saKeyOrder: (keyof SAPaperData)[] = ['as1','as2','as3','as4','as5','as6'];
 
 const getDefaultFaMarksEntryFront = (): FrontMarksEntry => ({ tool1: null, tool2: null, tool3: null, tool4: null });
 
@@ -201,6 +202,12 @@ export default function GenerateCBSEStateReportPage() {
 
       const newFaMarksForState: Record<string, FrontSubjectFAData> = {};
       const newSaDataForState: ReportCardSASubjectEntry[] = [];
+      const hasTypedScheme = Array.isArray(currentAssessmentScheme.assessments) && currentAssessmentScheme.assessments.some((g: any) => typeof g.type !== 'undefined');
+      const summativeGroups = hasTypedScheme
+        ? currentAssessmentScheme.assessments.filter((g: any) => g.type === 'summative')
+        : currentAssessmentScheme.assessments.filter(g => g.groupName.toUpperCase().startsWith('SA'));
+      const sa1Tests = summativeGroups[0]?.tests || [];
+      const sa2Tests = summativeGroups[1]?.tests || [];
       const formativeGroups = currentAssessmentScheme.assessments.filter(isFormativeGroup);
       
       currentClass.subjects.forEach(subject => {
@@ -215,37 +222,54 @@ export default function GenerateCBSEStateReportPage() {
         if(subject.name === "Science") papers = ["Physics", "Biology"];
         else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName && m.assessmentName.includes('Paper2'))) papers = ["I", "II"];
         papers.forEach(paper => {
-            newSaDataForState.push({ subjectName: subject.name, paper, sa1: JSON.parse(JSON.stringify(getDefaultSaPaperData())), sa2: JSON.parse(JSON.stringify(getDefaultSaPaperData())), faTotal200M: null });
+            const row: ReportCardSASubjectEntry = { subjectName: subject.name, paper, sa1: JSON.parse(JSON.stringify(getDefaultSaPaperData())), sa2: JSON.parse(JSON.stringify(getDefaultSaPaperData())), faTotal200M: null };
+            saKeyOrder.forEach((key, idx) => {
+              if (sa1Tests[idx]) row.sa1[key].maxMarks = sa1Tests[idx].maxMarks;
+              if (sa2Tests[idx]) row.sa2[key].maxMarks = sa2Tests[idx].maxMarks;
+            });
+            newSaDataForState.push(row);
         });
       });
 
-      allFetchedMarks.forEach(mark => {
-        if (!mark.assessmentName) return;
-        const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
-        const testName = restOfName.join('-');
-        
-        const assessmentConfig = currentAssessmentScheme.assessments.find(a => a.groupName === assessmentGroup);
-        if (!assessmentConfig) return;
-        const testConfig = assessmentConfig.tests.find(t => t.testName === testName);
-        if(!testConfig) return;
+      // Prefer latest marks first to avoid old entries overriding new
+      const normalize = (s: string) => (s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      const sortedMarks = [...allFetchedMarks].sort((a: any, b: any) => {
+        const aTime = new Date((a.updatedAt || a.createdAt || 0) as any).getTime();
+        const bTime = new Date((b.updatedAt || b.createdAt || 0) as any).getTime();
+        return bTime - aTime;
+      });
 
-        if ((typeof (assessmentConfig as any).type !== 'undefined' && (assessmentConfig as any).type === 'formative') ||
-          (typeof (assessmentConfig as any).type === 'undefined' && isFormativeGroup({ groupName: assessmentConfig.groupName }))
+      sortedMarks.forEach(mark => {
+        if (!mark.assessmentName) return;
+        const anNorm = normalize(mark.assessmentName);
+        // Find the matching group by prefix instead of splitting on '-'
+        const matchedGroup = currentAssessmentScheme.assessments.find(g => anNorm.startsWith(`${normalize(g.groupName)}-`));
+        if (!matchedGroup) return;
+
+        const groupPrefix = `${normalize(matchedGroup.groupName)}-`;
+        const testNameNorm = anNorm.slice(groupPrefix.length);
+        // Map normalized test names to their index within the matched group
+        const testIndex = matchedGroup.tests.findIndex(t => normalize(t.testName) === testNameNorm);
+        if (testIndex === -1) return;
+
+        if ((typeof (matchedGroup as any).type !== 'undefined' && (matchedGroup as any).type === 'formative') ||
+          (typeof (matchedGroup as any).type === 'undefined' && isFormativeGroup({ groupName: matchedGroup.groupName }))
         ) {
-          const faPeriodIndex = formativeGroups.findIndex(a => a.groupName === assessmentGroup);
+          const faPeriodIndex = formativeGroups.findIndex(a => a.groupName === matchedGroup.groupName);
           if (faPeriodIndex === -1) return;
           const faPeriodKey = `fa${faPeriodIndex + 1}` as keyof FrontSubjectFAData;
-          const testIndex = assessmentConfig.tests.findIndex(t => t.testName === testName);
-          if (testIndex === -1) return;
           const toolKey = `tool${testIndex + 1}` as keyof FrontMarksEntry;
           if (newFaMarksForState[mark.subjectName]?.[faPeriodKey]) {
-            (newFaMarksForState[mark.subjectName][faPeriodKey] as any)[toolKey] = mark.marksObtained;
+            // Set only if empty to keep the most recent (due to sorted order)
+            if ((newFaMarksForState[mark.subjectName][faPeriodKey] as any)[toolKey] == null) {
+              (newFaMarksForState[mark.subjectName][faPeriodKey] as any)[toolKey] = mark.marksObtained;
+            }
           }
-        } else if ((typeof (assessmentConfig as any).type !== 'undefined' && (assessmentConfig as any).type === 'summative') ||
-             (typeof (assessmentConfig as any).type === 'undefined' && isSummativeGroup({ groupName: assessmentConfig.groupName }))
-        ) {
-          const saPeriod = (assessmentGroup.toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
-          const asKey = testConfig.testName.toLowerCase() as keyof SAPaperData;
+           } else if ((typeof (matchedGroup as any).type !== 'undefined' && (matchedGroup as any).type === 'summative') ||
+             (typeof (matchedGroup as any).type === 'undefined' && isSummativeGroup({ groupName: matchedGroup.groupName }))
+           ) {
+          const saPeriod = (normalize(matchedGroup.groupName) === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
+          const asKey = saKeyOrder[testIndex] || 'as1';
           const dbPaperPart = "Paper1";
           let displayPaperName = (mark.subjectName === "Science") ? (dbPaperPart === 'Paper1' ? 'Physics' : 'Biology') : (dbPaperPart === 'Paper1' ? 'I' : 'II');
           const targetRow = newSaDataForState.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
