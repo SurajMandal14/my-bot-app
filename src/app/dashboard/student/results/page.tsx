@@ -29,6 +29,7 @@ import type { AssessmentScheme } from '@/types/assessment';
 
 const getDefaultFaMarksEntryFront = (): FrontMarksEntryType => ({ tool1: null, tool2: null, tool3: null, tool4: null });
 const getDefaultSaPaperData = (): SAPaperData => ({ as1: { marks: null, maxMarks: 20 }, as2: { marks: null, maxMarks: 20 }, as3: { marks: null, maxMarks: 20 }, as4: { marks: null, maxMarks: 20 }, as5: { marks: null, maxMarks: 20 }, as6: { marks: null, maxMarks: 20 }});
+const saKeyOrder: (keyof SAPaperData)[] = ['as1','as2','as3','as4','as5','as6'];
 
 export default function StudentResultsPage() {
   const { toast } = useToast();
@@ -108,6 +109,12 @@ export default function StudentResultsPage() {
 
       const newFaMarks: Record<string, FrontSubjectFAData> = {};
       const newSaData: ReportCardSASubjectEntry[] = [];
+      const hasTypedScheme = Array.isArray(currentAssessmentScheme.assessments) && currentAssessmentScheme.assessments.some((g: any) => typeof g.type !== 'undefined');
+      const summativeGroups = hasTypedScheme
+        ? currentAssessmentScheme.assessments.filter((g: any) => g.type === 'summative')
+        : currentAssessmentScheme.assessments.filter(a => a.groupName.toUpperCase().startsWith('SA'));
+      const sa1Tests = summativeGroups[0]?.tests || [];
+      const sa2Tests = summativeGroups[1]?.tests || [];
       
       currentClass.subjects.forEach(subject => {
         newFaMarks[subject.name] = { fa1: getDefaultFaMarksEntryFront(), fa2: getDefaultFaMarksEntryFront(), fa3: getDefaultFaMarksEntryFront(), fa4: getDefaultFaMarksEntryFront() };
@@ -116,7 +123,12 @@ export default function StudentResultsPage() {
         else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName && m.assessmentName.includes('Paper2'))) papers = ["I", "II"];
         
         papers.forEach(paper => {
-            newSaData.push({ subjectName: subject.name, paper, sa1: JSON.parse(JSON.stringify(getDefaultSaPaperData())), sa2: JSON.parse(JSON.stringify(getDefaultSaPaperData())), faTotal200M: null });
+            const row: ReportCardSASubjectEntry = { subjectName: subject.name, paper, sa1: JSON.parse(JSON.stringify(getDefaultSaPaperData())), sa2: JSON.parse(JSON.stringify(getDefaultSaPaperData())), faTotal200M: null };
+            saKeyOrder.forEach((key, idx) => {
+              if (sa1Tests[idx]) row.sa1[key].maxMarks = sa1Tests[idx].maxMarks;
+              if (sa2Tests[idx]) row.sa2[key].maxMarks = sa2Tests[idx].maxMarks;
+            });
+            newSaData.push(row);
         });
       });
 
@@ -143,8 +155,9 @@ export default function StudentResultsPage() {
                 (newFaMarks[mark.subjectName][faPeriodKey] as any)[toolKey] = mark.marksObtained;
             }
         } else if (assessmentGroup.startsWith("SA")) {
-            const saPeriod = (assessmentGroup.toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
-            const asKey = testConfig.testName.toLowerCase() as keyof SAPaperData;
+          const saPeriod = (assessmentGroup.toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
+          const testIndex = assessmentConfig.tests.findIndex(t => t.testName === testName);
+          const asKey = saKeyOrder[testIndex] || 'as1';
             const dbPaperPart = "Paper1";
             let displayPaperName = (mark.subjectName === "Science") ? (dbPaperPart === 'Paper1' ? 'Physics' : 'Biology') : (dbPaperPart === 'Paper1' ? 'I' : 'II');
             

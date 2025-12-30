@@ -167,7 +167,7 @@ export default function StudentReportPage() {
           <div className="flex justify-end no-print">
             <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print Report</Button>
           </div>
-          <div id="student-report-printable" className="space-y-6">
+          <div id="student-report-printable" className="space-y-6" key={student?._id?.toString() || 'no-student'}>
           <Card>
             <CardHeader><CardTitle className="flex items-center"><User className="mr-2 h-5 w-5"/> Student Information</CardTitle></CardHeader>
             <CardContent>
