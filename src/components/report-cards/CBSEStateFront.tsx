@@ -130,6 +130,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
       : groups.filter(g => isFormativeGroup({ groupName: g.groupName }));
   }, [assessmentScheme]);
 
+  
+
   const isTeacher = currentUserRole === 'teacher';
   const isStudent = currentUserRole === 'student';
   const isAdmin = currentUserRole === 'admin';
@@ -238,6 +240,25 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         /* Uniform widths for FA test columns via class */
         #fa-table .fa-test-head { min-width: 115px; }
         #fa-table .fa-test-cell { min-width: 105px; }
+        
+        /* Print adjustments: ensure content fits on page */
+        @page { size: A4 landscape; margin: 10mm; }
+        @media print {
+          .report-card-container {
+            overflow-x: visible !important;
+            padding: 0 !important;
+            background: #fff !important;
+            font-size: 9px !important;
+          }
+          .report-card-container table { min-width: 0 !important; width: 100% !important; table-layout: fixed !important; }
+          .report-card-container th, .report-card-container td { padding: 2px !important; max-width: none !important; }
+          /* Relax FA table width constraints for print */
+          #fa-table .fa-test-head, #fa-table .fa-test-cell, #fa-table .fa-total-head, #fa-table .fa-total-cell, #fa-table .fa-grade-head, #fa-table .fa-grade-cell { min-width: auto !important; }
+          /* Disable sticky in print */
+          #fa-table tbody td:first-child, #fa-table tbody .fa-subject-sticky { position: static !important; left: auto !important; z-index: auto !important; background: transparent !important; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
+        }
         .report-card-container .header-table td {
           border: none;
           text-align: left;
@@ -436,90 +457,67 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           </tbody></table>
 
         <div className="subtitle">Formative Assessment</div>
-        <table id="fa-table">
-          <thead>
-            <tr>
-              <th rowSpan={2}>Sl. No</th>
-              <th rowSpan={2}>Subject</th>
-              {formativeGroups.map(assessment => {
-                  const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
-                  const colSpan = (assessment.tests?.length || 0) + 2; // tests + Total + Grade
-                  return (
-                    <th key={assessment.groupName} colSpan={colSpan}>
-                      {assessment.groupName} ({groupMax}M)
-                    </th>
-                  );
-              })}
-              <th rowSpan={2}>
-                {(() => {
-                  const overallFaMax = formativeGroups.reduce((sum, ag) => sum + (ag.tests || []).reduce((s, t) => s + (t.maxMarks || 0), 0), 0);
-                  return `TOTAL (${overallFaMax}M)`;
-                })()}
-              </th>
-              <th rowSpan={2}>GRADE</th>
-            </tr>
-            <tr>
-                {formativeGroups.flatMap(assessment => {
-                  const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
-                  return assessment.tests
-                    .map((test) => (
-                      <th key={`${assessment.groupName}-${test.testName}`} className="fa-test-head">{test.testName} ({test.maxMarks}M)</th>
-                    ))
-                    .concat([
-                      <th key={`${assessment.groupName}-Total`} className="fa-total-head">Total ({groupMax}M)</th>,
-                      <th key={`${assessment.groupName}-Grade`} className="fa-grade-head">Grade</th>
-                    ]);
-                })}
-            </tr>
-          </thead>
-          <tbody>
-            {(academicSubjects || []).map((subject, SIndex) => { 
-              const subjectIdentifier = subject.name; 
-              const isCurrentSubjectDisabled = isFieldDisabledForRole(subjectIdentifier);
-              const defaultFaPeriodMarksRow: MarksEntry = { tool1: null, tool2: null, tool3: null, tool4: null };
-              const dynamicDefaultSubjectFaRow: any = {};
-              formativeGroups.forEach((_, idx) => {
-                const key = `fa${idx + 1}`;
-                dynamicDefaultSubjectFaRow[key] = { ...defaultFaPeriodMarksRow };
-              });
-              const subjectFaData = faMarks[subjectIdentifier] || (dynamicDefaultSubjectFaRow as SubjectFAData);
-              const results = calculateFaResults(subjectIdentifier);
-              return (
-                <tr key={subject.name}>
-                  <td>{SIndex + 1}</td>
-                  <td style={{textAlign: 'left', paddingLeft: '5px'}}>{subject.name}</td>
-                  {formativeGroups.map((assessment, index) => {
-                     const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
-                     const periodData = subjectFaData[faPeriodKey];
-                     return (
-                        <React.Fragment key={faPeriodKey}>
-                        {assessment.tests.map((test, testIndex) => {
-                            const toolKey = `tool${testIndex+1}` as keyof MarksEntry;
-                            return (
-                            <td key={`${faPeriodKey}-${toolKey}`} className="fa-test-cell">
-                                <input
-                                    type="number"
-                                    value={periodData?.[toolKey] ?? ''}
-                                    onChange={(e) => onFaMarksChange(subjectIdentifier, faPeriodKey, toolKey, e.target.value)}
-                                    max={test.maxMarks}
-                                    min="0"
-                                    disabled={isCurrentSubjectDisabled}
-                                />
-                                </td>
-                            );
+        {formativeGroups.map((assessment, gIndex) => {
+          const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
+          return (
+            <div key={`fa-section-${assessment.groupName}`} style={{ marginBottom: '12px' }}>
+              <div className="subtitle">{assessment.groupName} ({groupMax}M)</div>
+              <table className="fa-table">
+                <thead>
+                  <tr>
+                    <th>Sl. No</th>
+                    <th>Subject</th>
+                    {assessment.tests.map((test: any, testIndex: number) => (
+                      <th key={`fa-head-${assessment.groupName}-${testIndex}-${String(test.testName).trim()}`} className="fa-test-head">{test.testName} ({test.maxMarks}M)</th>
+                    ))}
+                    <th className="fa-total-head">Total ({groupMax}M)</th>
+                    <th className="fa-grade-head">Grade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(academicSubjects || []).map((subject, SIndex) => {
+                    const subjectIdentifier = subject.name;
+                    const isCurrentSubjectDisabled = isFieldDisabledForRole(subjectIdentifier);
+                    const defaultFaPeriodMarksRow: MarksEntry = { tool1: null, tool2: null, tool3: null, tool4: null };
+                    const dynamicDefaultSubjectFaRow: any = {};
+                    formativeGroups.forEach((_, idx) => {
+                      const key = `fa${idx + 1}`;
+                      dynamicDefaultSubjectFaRow[key] = { ...defaultFaPeriodMarksRow };
+                    });
+                    const subjectFaData = faMarks[subjectIdentifier] || (dynamicDefaultSubjectFaRow as SubjectFAData);
+                    const results = calculateFaResults(subjectIdentifier);
+                    const faPeriodKey = `fa${gIndex + 1}` as keyof SubjectFAData;
+                    const periodData = subjectFaData[faPeriodKey];
+
+                    return (
+                      <tr key={`fa-row-${assessment.groupName}-${SIndex}-${subject.name}`}>
+                        <td>{SIndex + 1}</td>
+                        <td className="fa-subject-sticky" style={{ textAlign: 'left', paddingLeft: '5px' }}>{subject.name}</td>
+                        {assessment.tests.map((test: any, testIndex: number) => {
+                          const toolKey = `tool${testIndex + 1}` as keyof MarksEntry;
+                          return (
+                            <td key={`fa-cell-${assessment.groupName}-${SIndex}-${subject.name}-${testIndex}-${toolKey}`} className="fa-test-cell">
+                              <input
+                                type="number"
+                                value={periodData?.[toolKey] ?? ''}
+                                onChange={(e) => onFaMarksChange(subjectIdentifier, faPeriodKey, toolKey, e.target.value)}
+                                max={test.maxMarks}
+                                min="0"
+                                disabled={isCurrentSubjectDisabled}
+                              />
+                            </td>
+                          );
                         })}
                         <td className="fa-total-cell">{results[assessment.groupName]?.total ?? ''}</td>
                         <td className="fa-grade-cell">{results[assessment.groupName]?.grade ?? ''}</td>
-                        </React.Fragment>
-                     );
+                      </tr>
+                    );
                   })}
-                  <td>{results.overallTotal}</td>
-                  <td>{results.overallGrade}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
         <p className="small-note">
           Formative Assessment Tools: (1) Children Participation and Reflections, (2) Project work, (3) Written work, (4) Slip Test (20M)
         </p>

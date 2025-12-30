@@ -173,6 +173,10 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
   const sa2Tests = sa2Group?.tests || [];
   const sa1Label = sa1Group?.groupName || 'Summative Assessment-1';
   const sa2Label = sa2Group?.groupName || 'Summative Assessment-2';
+  const sa1Max = sa1Tests.reduce((sum, t) => sum + (t.maxMarks || 0), 0);
+  const sa2Max = sa2Tests.reduce((sum, t) => sum + (t.maxMarks || 0), 0);
+
+  const saKeyOrder: (keyof SAPaperData)[] = ['as1','as2','as3','as4','as5','as6'];
 
 
   return (
@@ -219,6 +223,11 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
         .report-card-back-container .bold {
           font-weight: bold;
         }
+        .report-card-back-container .subtitle {
+          text-align: center;
+          font-weight: bold;
+          margin: 6px 0;
+        }
         .report-card-back-container .nowrap {
           white-space: nowrap;
         }
@@ -260,6 +269,30 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
             padding-left: 5px;
             font-weight: bold;
             vertical-align: middle;
+        }
+        /* Sticky subject for SA tables */
+        .sa-table tbody .sa-subject-sticky {
+          position: sticky;
+          left: 0;
+          background: #fff;
+          z-index: 3;
+        }
+        
+        /* Print adjustments for SA: fit on page */
+        @page { size: A4 landscape; margin: 10mm; }
+        @media print {
+          .report-card-back-container {
+            overflow-x: visible !important;
+            padding: 0 !important;
+            background: #fff !important;
+            font-size: 8.5px !important;
+          }
+          .report-card-back-container table { min-width: 0 !important; width: 100% !important; table-layout: fixed !important; }
+          .report-card-back-container th, .report-card-back-container td { padding: 2px !important; max-width: none !important; }
+          /* Disable sticky (if any) for print */
+          .sa-table tbody .sa-subject-sticky { position: static !important; left: auto !important; z-index: auto !important; background: transparent !important; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
         }
          .report-card-back-container .paper-cell {
           font-style: italic;
@@ -317,103 +350,137 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
       <div className="report-card-back-container">
         <h2 style={{ textAlign: 'center' }}>SUMMATIVE ASSESSMENT</h2>
 
-        <table id="mainTable">
-            <thead>
-                <tr>
-                    <th rowSpan={3}>Subject</th>
-                    <th rowSpan={3} className="paper-cell">Paper</th>
-                    {(() => {
-                      const sa1Max = sa1Tests.reduce((sum, t) => sum + (t.maxMarks || 0), 0);
-                      const colSpanSa1 = sa1Tests.length + 2; // tests + Total + Grade
-                      return (
-                        <th colSpan={colSpanSa1}>{`${sa1Label} (${sa1Max}M)`}</th>
-                      );
-                    })()}
-                    {(() => {
-                      const sa2Max = sa2Tests.reduce((sum, t) => sum + (t.maxMarks || 0), 0);
-                      const colSpanSa2 = sa2Tests.length + 2; // tests + Total + Grade
-                      return (
-                        <th colSpan={colSpanSa2}>{`${sa2Label} (${sa2Max}M)`}</th>
-                      );
-                    })()}
-                    <th colSpan={7}>Final Result (Based on FA+SA1 and Internal+SA2)</th>
-                </tr>
-                <tr>
-                    <th rowSpan={2}>Total Marks</th>
-                    <th rowSpan={2}>Grade</th>
-                    <th rowSpan={2}>Total Marks</th>
-                    <th rowSpan={2}>Grade</th>
-                    <th rowSpan={2} className="small">FA (Total)</th>
-                    <th rowSpan={2} className="small">SA1 (Adj)</th>
-                    <th rowSpan={2} className="small">FA(Avg)+SA1 (100M)</th>
-                    <th rowSpan={2} className="small">Internal (20M)</th>
-                    <th rowSpan={2} className="small">SA2 (Adj)</th>
-                    <th rowSpan={2} className="small">TOTAL (100M)</th>
-                    <th rowSpan={2}>GRADE</th>
-                </tr>
-                <tr>
-                    {sa1Tests.map(t => <th key={`sa1-head-${t.testName}`}>{t.testName} ({t.maxMarks}M)</th>)}
-                    {sa2Tests.map(t => <th key={`sa2-head-${t.testName}`}>{t.testName} ({t.maxMarks}M)</th>)}
-                </tr>
-            </thead>
-            <tbody>
-                {saData.map((rowData, rowIndex) => {
-                    if (!rowData || typeof rowData !== 'object') {
-                        return <tr key={`invalid-row-${rowIndex}`}><td colSpan={24}>Invalid data</td></tr>;
-                    }
-                    const derived = calculateRowDerivedData(rowData);
-                    const faTotal200M_display = rowData.faTotal200M ?? '';
-                    const isInputDisabled = isStudent || isPageReadOnlyForAdmin || (isTeacher && !isSubjectEditableForTeacher(rowData.subjectName));
-                    const isFirstPaperOfSubject = rowIndex === 0 || saData[rowIndex - 1].subjectName !== rowData.subjectName;
-                    const subjectPaperCount = saData.filter(r => r.subjectName === rowData.subjectName).length;
-
+        {/* SA1 Section */}
+        <div className="subtitle">{`${sa1Label} (${sa1Max}M)`}</div>
+        <table className="sa-table">
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th className="paper-cell">Paper</th>
+              {sa1Tests.map(t => <th key={`sa1-head-${t.testName}`}>{t.testName} ({t.maxMarks}M)</th>)}
+              <th>Total Marks</th>
+              <th>Grade</th>
+            </tr>
+          </thead>
+          <tbody>
+            {saData.map((rowData, rowIndex) => {
+              if (!rowData || typeof rowData !== 'object') {
+                return <tr key={`invalid-sa1-row-${rowIndex}`}><td colSpan={24}>Invalid data</td></tr>;
+              }
+              const derived = calculateRowDerivedData(rowData);
+              const isInputDisabled = isStudent || isPageReadOnlyForAdmin || (isTeacher && !isSubjectEditableForTeacher(rowData.subjectName));
+              const isFirstPaperOfSubject = rowIndex === 0 || saData[rowIndex - 1].subjectName !== rowData.subjectName;
+              const subjectPaperCount = saData.filter(r => r.subjectName === rowData.subjectName).length;
+              return (
+                <tr key={`sa1-${rowData.subjectName}-${rowData.paper}-${rowIndex}`}>
+                  {isFirstPaperOfSubject && <td rowSpan={subjectPaperCount} className="subject-cell sa-subject-sticky">{rowData.subjectName}</td>}
+                  <td className="paper-cell">{rowData.paper}</td>
+                  {sa1Tests.map((test, testIndex) => {
+                    const skillKey = saKeyOrder[testIndex] || 'as1';
                     return (
-                        <tr key={`${rowData.subjectName}-${rowData.paper}-${rowIndex}`}>
-                            {isFirstPaperOfSubject && <td rowSpan={subjectPaperCount} className="subject-cell">{rowData.subjectName}</td>}
-                            <td className="paper-cell">{rowData.paper}</td>
-                            
-                            {/* SA1 Marks */}
-                            {sa1Tests.map(test => {
-                              const skillKey = test.testName.toLowerCase() as keyof SAPaperData;
-                              return (
-                                <td key={`sa1-${skillKey}`}>
-                                    <input type="number" 
-                                        value={rowData.sa1?.[skillKey]?.marks ?? ''} 
-                                        onChange={e => onSaDataChange(rowIndex, 'sa1', skillKey, e.target.value)}
-                                        disabled={isInputDisabled} 
-                                    />
-                                </td>
-                            )})}
-                            <td className="calculated">{derived.sa1Total}</td>
-                            <td className="calculated">{derived.sa1Grade}</td>
-                            
-                            {/* SA2 Marks */}
-                             {sa2Tests.map(test => {
-                              const skillKey = test.testName.toLowerCase() as keyof SAPaperData;
-                              return (
-                                <td key={`sa2-${skillKey}`}>
-                                    <input type="number" 
-                                        value={rowData.sa2?.[skillKey]?.marks ?? ''} 
-                                        onChange={e => onSaDataChange(rowIndex, 'sa2', skillKey, e.target.value)}
-                                        disabled={isInputDisabled} 
-                                    />
-                                </td>
-                            )})}
-                            <td className="calculated">{derived.sa2Total}</td>
-                            <td className="calculated">{derived.sa2Grade}</td>
-
-                            {/* Final Result */}
-                            <td><input type="number" className="fatotal-input" value={faTotal200M_display} onChange={e => onFaTotalChange(rowIndex, e.target.value)} disabled={isInputDisabled} /></td>
-                            <td className="calculated">{derived.sa1Total}</td>
-                            <td className="calculated">{derived.faAvgPlusSa1_100M}</td>
-                            <td className="calculated">{derived.internalMarks}</td>
-                            <td className="calculated">{derived.sa2Total}</td>
-                            <td className="calculated">{derived.finalTotal100M}</td>
-                            <td className="calculated">{derived.finalGrade}</td>
-                        </tr>
+                      <td key={`sa1-${rowIndex}-${String(skillKey)}`}>
+                        <input type="number"
+                          value={rowData.sa1?.[skillKey]?.marks ?? ''}
+                          onChange={e => onSaDataChange(rowIndex, 'sa1', skillKey, e.target.value)}
+                          disabled={isInputDisabled}
+                        />
+                      </td>
                     );
-                })}
-            </tbody>
+                  })}
+                  <td className="calculated">{derived.sa1Total}</td>
+                  <td className="calculated">{derived.sa1Grade}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {/* SA2 Section */}
+        <div className="subtitle">{`${sa2Label} (${sa2Max}M)`}</div>
+        <table className="sa-table">
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th className="paper-cell">Paper</th>
+              {sa2Tests.map(t => <th key={`sa2-head-${t.testName}`}>{t.testName} ({t.maxMarks}M)</th>)}
+              <th>Total Marks</th>
+              <th>Grade</th>
+            </tr>
+          </thead>
+          <tbody>
+            {saData.map((rowData, rowIndex) => {
+              if (!rowData || typeof rowData !== 'object') {
+                return <tr key={`invalid-sa2-row-${rowIndex}`}><td colSpan={24}>Invalid data</td></tr>;
+              }
+              const derived = calculateRowDerivedData(rowData);
+              const isInputDisabled = isStudent || isPageReadOnlyForAdmin || (isTeacher && !isSubjectEditableForTeacher(rowData.subjectName));
+              const isFirstPaperOfSubject = rowIndex === 0 || saData[rowIndex - 1].subjectName !== rowData.subjectName;
+              const subjectPaperCount = saData.filter(r => r.subjectName === rowData.subjectName).length;
+              return (
+                <tr key={`sa2-${rowData.subjectName}-${rowData.paper}-${rowIndex}`}>
+                  {isFirstPaperOfSubject && <td rowSpan={subjectPaperCount} className="subject-cell sa-subject-sticky">{rowData.subjectName}</td>}
+                  <td className="paper-cell">{rowData.paper}</td>
+                  {sa2Tests.map((test, testIndex) => {
+                    const skillKey = saKeyOrder[testIndex] || 'as1';
+                    return (
+                      <td key={`sa2-${rowIndex}-${String(skillKey)}`}>
+                        <input type="number"
+                          value={rowData.sa2?.[skillKey]?.marks ?? ''}
+                          onChange={e => onSaDataChange(rowIndex, 'sa2', skillKey, e.target.value)}
+                          disabled={isInputDisabled}
+                        />
+                      </td>
+                    );
+                  })}
+                  <td className="calculated">{derived.sa2Total}</td>
+                  <td className="calculated">{derived.sa2Grade}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {/* Final Result Section */}
+        <div className="subtitle">Final Result (Based on FA+SA1 and Internal+SA2)</div>
+        <table className="sa-table">
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th className="paper-cell">Paper</th>
+              <th className="small">FA (Total)</th>
+              <th className="small">SA1 (Adj)</th>
+              <th className="small">FA(Avg)+SA1 (100M)</th>
+              <th className="small">Internal (20M)</th>
+              <th className="small">SA2 (Adj)</th>
+              <th className="small">TOTAL (100M)</th>
+              <th>GRADE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {saData.map((rowData, rowIndex) => {
+              if (!rowData || typeof rowData !== 'object') {
+                return <tr key={`invalid-final-row-${rowIndex}`}><td colSpan={24}>Invalid data</td></tr>;
+              }
+              const derived = calculateRowDerivedData(rowData);
+              const faTotal200M_display = rowData.faTotal200M ?? '';
+              const isInputDisabled = isStudent || isPageReadOnlyForAdmin || (isTeacher && !isSubjectEditableForTeacher(rowData.subjectName));
+              const isFirstPaperOfSubject = rowIndex === 0 || saData[rowIndex - 1].subjectName !== rowData.subjectName;
+              const subjectPaperCount = saData.filter(r => r.subjectName === rowData.subjectName).length;
+              return (
+                <tr key={`final-${rowData.subjectName}-${rowData.paper}-${rowIndex}`}>
+                  {isFirstPaperOfSubject && <td rowSpan={subjectPaperCount} className="subject-cell sa-subject-sticky">{rowData.subjectName}</td>}
+                  <td className="paper-cell">{rowData.paper}</td>
+                  <td><input type="number" className="fatotal-input" value={faTotal200M_display} onChange={e => onFaTotalChange(rowIndex, e.target.value)} disabled={isInputDisabled} /></td>
+                  <td className="calculated">{derived.sa1Total}</td>
+                  <td className="calculated">{derived.faAvgPlusSa1_100M}</td>
+                  <td className="calculated">{derived.internalMarks}</td>
+                  <td className="calculated">{derived.sa2Total}</td>
+                  <td className="calculated">{derived.finalTotal100M}</td>
+                  <td className="calculated">{derived.finalGrade}</td>
+                </tr>
+              );
+            })}
+          </tbody>
         </table>
 
         <p><strong>Final Grade in Curricular Areas:</strong> <input type="text" value={finalOverallGradeInput ?? calculateOverallFinalGrade()} onChange={e => onFinalOverallGradeInputChange(e.target.value)} className="final-grade-input" disabled={isStudent || isTeacher || isPageReadOnlyForAdmin} /></p>
