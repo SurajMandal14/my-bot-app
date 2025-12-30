@@ -20,10 +20,11 @@ import type { AcademicYear } from "@/types/academicYear";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import type { SchoolClass } from "@/types/classes";
 
 
-function AssessmentGroupTests({ control, groupIndex }: { control: Control<AssessmentSchemeFormData>, groupIndex: number }) {
+function AssessmentGroupTests({ control, groupIndex, hasDuplicatesForGroup }: { control: Control<AssessmentSchemeFormData>, groupIndex: number, hasDuplicatesForGroup: boolean }) {
   const { fields: testFields, append: appendTest, remove: removeTest } = useFieldArray({
     control: control,
     name: `assessments.${groupIndex}.tests`,
@@ -33,11 +34,36 @@ function AssessmentGroupTests({ control, groupIndex }: { control: Control<Assess
     <div className="pl-4 border-l-2 space-y-2">
       {testFields.map((test, testIndex) => (
         <div key={test.id} className="flex items-end gap-2">
-          <FormField control={control} name={`assessments.${groupIndex}.tests.${testIndex}.testName`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Test Name</FormLabel><FormControl><Input placeholder="e.g., Tool 1" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+          <FormField control={control} name={`assessments.${groupIndex}.tests.${testIndex}.testName`} render={({ field }) => (
+            <FormItem className="flex-1">
+              <FormLabel className="flex items-center gap-1">Test Name
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Use unique names per assessment; spaces are trimmed.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., Tool 1" {...field} onBlur={(e) => field.onChange(e.target.value.trim())} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}/>
           <FormField control={control} name={`assessments.${groupIndex}.tests.${testIndex}.maxMarks`} render={({ field }) => (<FormItem><FormLabel>Max Marks</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} /></FormControl><FormMessage /></FormItem>)}/>
           <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => removeTest(testIndex)} disabled={testFields.length <= 1}><Trash2 className="h-4 w-4"/></Button>
         </div>
       ))}
+      {hasDuplicatesForGroup && (
+        <div className="text-destructive text-sm flex items-center gap-2">
+          <Info className="h-4 w-4" />
+          Test names must be unique within this assessment.
+        </div>
+      )}
       <Button type="button" variant="outline" size="sm" onClick={() => appendTest({ testName: "", maxMarks: 10 })}>
         <PlusCircle className="mr-2 h-4 w-4"/> Add Test
       </Button>
@@ -293,10 +319,40 @@ export default function ConfigureMarksPage() {
                       return (
                       <Card key={group.id} className="p-4 bg-muted/50">
                         <div className="flex items-end gap-3 mb-3">
-                          <FormField control={assessmentForm.control} name={`assessments.${originalIndex}.groupName`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Assessment Name (e.g., FA1)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                          <FormField control={assessmentForm.control} name={`assessments.${originalIndex}.groupName`} render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <FormLabel className="flex items-center gap-1">Assessment Name (e.g., FA1)
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                      Renaming groups/tests preserves existing marks.
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </FormLabel>
+                              <FormControl>
+                                <Input {...field} onBlur={(e) => field.onChange(e.target.value.trim())} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}/>
                           <FormField control={assessmentForm.control} name={`assessments.${originalIndex}.type`} render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Type</FormLabel>
+                              <FormLabel className="flex items-center gap-1">Type
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                      Formative (FA) vs Summative (SA) classification.
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </FormLabel>
                               <FormControl>
                                 <Select value={field.value ?? 'formative'} onValueChange={field.onChange}>
                                   <SelectTrigger className="w-[160px]"><SelectValue placeholder="Select type" /></SelectTrigger>
@@ -311,7 +367,14 @@ export default function ConfigureMarksPage() {
                           )}/>
                           <Button type="button" variant="destructive" size="icon" onClick={() => removeAssessmentGroup(originalIndex)} disabled={assessmentGroups.length <= 1}><Trash2 className="h-4 w-4" /></Button>
                         </div>
-                         <AssessmentGroupTests control={assessmentForm.control} groupIndex={originalIndex} />
+                         {(() => {
+                           const groupTests = assessmentForm.getValues(`assessments.${originalIndex}.tests`) || [];
+                           const names = groupTests.map((t: any) => String(t?.testName || '').trim().toLowerCase());
+                           const hasDup = names.length !== new Set(names).size;
+                           return (
+                             <AssessmentGroupTests control={assessmentForm.control} groupIndex={originalIndex} hasDuplicatesForGroup={hasDup} />
+                           );
+                         })()}
                        </Card>
                       );
                     })}
@@ -320,12 +383,31 @@ export default function ConfigureMarksPage() {
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Assessment Group
                 </Button>
               </div>
-              <DialogFooter><DialogClose asChild><Button type="button" variant="outline" disabled={isSubmittingScheme}>Cancel</Button></DialogClose>
-                <Button type="submit" disabled={isSubmittingScheme}>
+              {(() => {
+                const assessmentsWatch = assessmentForm.watch("assessments") || [];
+                const anyDuplicate = assessmentsWatch.some((g) => {
+                  const names = (g.tests || []).map((t) => String(t.testName || '').trim().toLowerCase());
+                  const set = new Set(names);
+                  return names.length !== set.size;
+                });
+                return (
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button type="button" variant="outline" disabled={isSubmittingScheme}>Cancel</Button>
+                    </DialogClose>
+                    <Button type="submit" disabled={isSubmittingScheme || anyDuplicate}>
                     {isSubmittingScheme && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                     Save Scheme
-                </Button>
-              </DialogFooter>
+                    </Button>
+                    {anyDuplicate && (
+                      <div className="text-destructive text-sm flex items-center gap-2 mt-2">
+                        <Info className="h-4 w-4" />
+                        Resolve duplicate test names before saving.
+                      </div>
+                    )}
+                  </DialogFooter>
+                );
+              })()}
           </form>
         </Form>
       </DialogContent>
