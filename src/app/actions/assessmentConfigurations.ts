@@ -117,15 +117,27 @@ export async function updateAssessmentScheme(
 
     const oldAssessments: { groupName: string; tests: { testName: string }[] }[] = existingSchemeDoc.assessments || [];
 
-        const validatedFields = assessmentSchemeSchema.safeParse(formData);
+        // Normalize names by trimming whitespace before validation
+        const normalizedFormData: AssessmentSchemeFormData = {
+          assessments: (formData.assessments || []).map((g) => ({
+            groupName: g.groupName?.trim() || '',
+            type: g.type,
+            tests: (g.tests || []).map((t) => ({
+              testName: (t.testName || '').trim(),
+              maxMarks: t.maxMarks,
+            })),
+          })),
+        };
+
+        const validatedFields = assessmentSchemeSchema.safeParse(normalizedFormData);
         
         if (!validatedFields.success) {
             return { success: false, message: 'Validation failed.', error: validatedFields.error.flatten().fieldErrors.toString() };
         }
     // Proceed to update the scheme
         const updateData = {
-            ...validatedFields.data,
-            updatedAt: new Date(),
+          ...validatedFields.data,
+          updatedAt: new Date(),
         };
 
         const result = await db.collection('assessment_schemes').updateOne(
