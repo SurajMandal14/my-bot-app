@@ -5,14 +5,21 @@ import type { ObjectId } from 'mongodb';
 // --- Assessment Schemes ---
 
 const testComponentSchema = z.object({
-  testName: z.string().min(1, "Test name (e.g., Tool 1) is required."),
+  testName: z.string().refine((s) => s.trim().length > 0, "Test name (e.g., Tool 1) is required."),
   maxMarks: z.coerce.number().min(1, "Max marks must be at least 1."),
 });
 
 const assessmentGroupSchema = z.object({
-  groupName: z.string().min(1, "Assessment group name (e.g., FA1) is required."),
+  groupName: z.string().refine((s) => s.trim().length > 0, "Assessment group name (e.g., FA1) is required."),
   type: z.enum(['formative', 'summative']).default('formative'),
   tests: z.array(testComponentSchema).min(1, "At least one test component is required per assessment group."),
+}).refine((group) => {
+  const names = group.tests.map((t) => t.testName.trim().toLowerCase());
+  const unique = new Set(names);
+  return names.length === unique.size;
+}, {
+  message: "Test names must be unique within each assessment group.",
+  path: ["tests"],
 });
 
 export const assessmentSchemeSchema = z.object({
