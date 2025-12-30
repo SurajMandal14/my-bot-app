@@ -17,6 +17,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
       return { success: false, message: 'Validation failed for payload structure.', error: errors };
     }
 
+    const normalize = (s: string) => (s || '').trim().replace(/\s+/g, ' ');
     const {
       classId, className, subjectId, subjectName,
       academicYear, markedByTeacherId, schoolId, studentMarks
@@ -24,6 +25,25 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
 
     const { db } = await connectToDatabase();
     const marksCollection = db.collection<Omit<MarkEntry, '_id'>>('marks');
+
+    // Ensure the unique index matches our upsert filter and includes subjectId
+    try {
+      const indexes = await marksCollection.indexes();
+      for (const idx of indexes) {
+        const keys = Object.keys(idx.key || {});
+        const hasSubject = keys.includes('subjectId');
+        const hasAllWithoutSubject = ['studentId','classId','assessmentName','academicYear','schoolId']
+          .every(k => keys.includes(k));
+        if (idx.unique && hasAllWithoutSubject && !hasSubject) {
+          // Drop outdated unique index that omits subjectId (causes conflicts across multiple subjects)
+          try { await marksCollection.dropIndex(idx.name); } catch {}
+        }
+      }
+      await marksCollection.createIndex(
+        { studentId: 1, classId: 1, subjectId: 1, assessmentName: 1, academicYear: 1, schoolId: 1 },
+        { unique: true, name: 'marks_unique_composite' }
+      ).catch(() => {});
+    } catch {}
 
     if (!ObjectId.isValid(classId) || !ObjectId.isValid(schoolId) || !ObjectId.isValid(markedByTeacherId)) {
         return { success: false, message: 'Invalid ID format for class, school, or teacher.', error: 'Invalid ID format.' };
@@ -37,14 +57,22 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         }
     }
 
+    const normalizedSubjectId = normalize(subjectId);
+    const normalizedSubjectName = normalize(subjectName);
+
     const operations = studentMarks.map(sm => {
+      // Normalize assessment name as <group>-<test> with trimmed single-space components
+      const parts = (sm.assessmentName || '').split('-');
+      const groupPart = normalize(parts[0] || '');
+      const testPart = normalize(parts.slice(1).join('-'));
+      const normalizedAssessmentName = `${groupPart}-${testPart}`;
       const fieldsOnInsert = {
         studentId: new ObjectId(sm.studentId),
         studentName: sm.studentName,
         classId: new ObjectId(classId),
         className: className,
-        subjectId: subjectId, 
-        subjectName: subjectName,
+        subjectId: normalizedSubjectId,
+        subjectName: normalizedSubjectName,
         academicYear: academicYear,
         schoolId: new ObjectId(schoolId),
         createdAt: new Date(),
@@ -62,14 +90,14 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
           filter: {
             studentId: fieldsOnInsert.studentId,
             classId: fieldsOnInsert.classId,
-            subjectId: fieldsOnInsert.subjectId, 
-            assessmentName: sm.assessmentName,
+            subjectId: fieldsOnInsert.subjectId,
+            assessmentName: normalizedAssessmentName,
             academicYear: fieldsOnInsert.academicYear,
             schoolId: fieldsOnInsert.schoolId,
           },
           update: {
             $set: fieldsToUpdate,
-            $setOnInsert: { ...fieldsOnInsert, assessmentName: sm.assessmentName },
+            $setOnInsert: { ...fieldsOnInsert, assessmentName: normalizedAssessmentName },
           },
           upsert: true,
         },
@@ -80,8 +108,33 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
         return { success: true, message: "No marks data provided to submit.", count: 0};
     }
 
-    const result = await marksCollection.bulkWrite(operations);
-    let processedCount = result.upsertedCount + result.modifiedCount;
+    let processedCount = 0;
+    try {
+      const result = await marksCollection.bulkWrite(operations, { ordered: false });
+      processedCount = result.upsertedCount + result.modifiedCount;
+    } catch (bulkErr: any) {
+      // If a duplicate key error occurs, return a clear message
+      if (bulkErr?.code === 11000) {
+        return {
+          success: false,
+          message: 'Duplicate key error while saving marks. Likely due to an outdated unique index not including subjectId.',
+          error: bulkErr?.message || 'Duplicate key',
+        };
+      }
+      // Fallback: try sequential upserts so we can salvage valid entries
+      let successCount = 0;
+      for (const op of operations) {
+        try {
+          const r = await marksCollection.updateOne(op.updateOne.filter, op.updateOne.update as any, { upsert: true });
+          if (r.upsertedCount || r.modifiedCount || r.matchedCount) successCount++;
+        } catch {}
+      }
+      if (successCount === 0) {
+        const errorMessage = bulkErr instanceof Error ? bulkErr.message : 'Bulk write failed';
+        return { success: false, message: 'Bulk write failed during marks submission.', error: errorMessage };
+      }
+      processedCount = successCount;
+    }
 
     revalidatePath('/dashboard/teacher/marks');
     revalidatePath('/dashboard/admin/reports/generate-cbse-state');
@@ -116,7 +169,9 @@ export async function getMarksForAssessment(
     const marksCollection = db.collection<MarkEntry>('marks');
 
     // More robust regex to handle custom test names (e.g., "FA1-My Custom Test")
-    const queryAssessmentFilter = { $regex: `^${assessmentNameBase}-` };
+    const normalize = (s: string) => (s || '').trim().replace(/\s+/g, ' ');
+    const base = normalize(assessmentNameBase);
+    const queryAssessmentFilter = { $regex: `^${base}-` };
     
     let paperFilter = {};
     if (assessmentNameBase.startsWith("SA") && paper) {
@@ -130,11 +185,13 @@ export async function getMarksForAssessment(
     const marks = await marksCollection.find({
       schoolId: new ObjectId(schoolId),
       classId: new ObjectId(classId),
-      subjectId: subjectNameParam,
+      subjectId: normalize(subjectNameParam),
       assessmentName: queryAssessmentFilter,
       academicYear: academicYear,
       ...paperFilter
-    }).toArray();
+    })
+    .sort({ updatedAt: -1 as 1 | -1, createdAt: -1 as 1 | -1 })
+    .toArray();
 
     const marksWithStrId = marks.map(mark => ({
         ...mark,
