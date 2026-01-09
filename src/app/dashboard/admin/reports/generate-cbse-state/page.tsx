@@ -206,10 +206,10 @@ export default function GenerateCBSEStateReportPage() {
       const summativeGroups = hasTypedScheme
         ? currentAssessmentScheme.assessments.filter((g: any) => g.type === 'summative')
         : currentAssessmentScheme.assessments.filter(g => g.groupName.toUpperCase().startsWith('SA'));
-      const sa1Tests = summativeGroups[0]?.tests || [];
-      const sa2Tests = summativeGroups[1]?.tests || [];
-      const formativeGroups = currentAssessmentScheme.assessments.filter(isFormativeGroup);
-      
+      const formativeGroups = hasTypedScheme
+        ? currentAssessmentScheme.assessments.filter((g: any) => g.type === 'formative')
+        : currentAssessmentScheme.assessments.filter(isFormativeGroup);
+
       currentClass.subjects.forEach(subject => {
         // Build FA periods dynamically based on scheme
         const faPeriodObj: any = {};
@@ -222,12 +222,25 @@ export default function GenerateCBSEStateReportPage() {
         if(subject.name === "Science") papers = ["Physics", "Biology"];
         else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName && m.assessmentName.includes('Paper2'))) papers = ["I", "II"];
         papers.forEach(paper => {
-            const row: ReportCardSASubjectEntry = { subjectName: subject.name, paper, sa1: JSON.parse(JSON.stringify(getDefaultSaPaperData())), sa2: JSON.parse(JSON.stringify(getDefaultSaPaperData())), faTotal200M: null };
-            saKeyOrder.forEach((key, idx) => {
-              if (sa1Tests[idx]) row.sa1[key].maxMarks = sa1Tests[idx].maxMarks;
-              if (sa2Tests[idx]) row.sa2[key].maxMarks = sa2Tests[idx].maxMarks;
+          // Dynamically create saN fields for each summative group
+          const saFields: Record<string, SAPaperData> = {};
+          summativeGroups.forEach((group, saIdx) => {
+            const saKey = `sa${saIdx + 1}`;
+            saFields[saKey] = JSON.parse(JSON.stringify(getDefaultSaPaperData()));
+            // Set maxMarks for each test in this group
+            group.tests.forEach((test: any, testIdx: number) => {
+              if (saFields[saKey][saKeyOrder[testIdx]]) {
+                saFields[saKey][saKeyOrder[testIdx]].maxMarks = test.maxMarks;
+              }
             });
-            newSaDataForState.push(row);
+          });
+          const row: ReportCardSASubjectEntry = {
+            subjectName: subject.name,
+            paper,
+            ...saFields,
+            faTotal200M: null
+          };
+          newSaDataForState.push(row);
         });
       });
 
@@ -265,10 +278,12 @@ export default function GenerateCBSEStateReportPage() {
               (newFaMarksForState[mark.subjectName][faPeriodKey] as any)[toolKey] = mark.marksObtained;
             }
           }
-           } else if ((typeof (matchedGroup as any).type !== 'undefined' && (matchedGroup as any).type === 'summative') ||
-             (typeof (matchedGroup as any).type === 'undefined' && isSummativeGroup({ groupName: matchedGroup.groupName }))
-           ) {
-          const saPeriod = (normalize(matchedGroup.groupName) === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
+        } else if ((typeof (matchedGroup as any).type !== 'undefined' && (matchedGroup as any).type === 'summative') ||
+          (typeof (matchedGroup as any).type === 'undefined' && isSummativeGroup({ groupName: matchedGroup.groupName }))
+        ) {
+          // Dynamically determine SA period key
+          const summativeIndex = summativeGroups.findIndex(g => g.groupName === matchedGroup.groupName);
+          const saPeriod = `sa${summativeIndex + 1}`;
           const asKey = saKeyOrder[testIndex] || 'as1';
           const dbPaperPart = "Paper1";
           let displayPaperName = (mark.subjectName === "Science") ? (dbPaperPart === 'Paper1' ? 'Physics' : 'Biology') : (dbPaperPart === 'Paper1' ? 'I' : 'II');
@@ -281,7 +296,7 @@ export default function GenerateCBSEStateReportPage() {
       setFaMarks(newFaMarksForState);
       
       newSaDataForState.forEach(row => {
-          row.faTotal200M = calculateFaTotal200MForRow(row.subjectName, row.paper, newFaMarksForState, currentAssessmentScheme);
+        row.faTotal200M = calculateFaTotal200MForRow(row.subjectName, row.paper, newFaMarksForState, currentAssessmentScheme);
       });
       setSaData(newSaDataForState);
 
@@ -452,7 +467,7 @@ export default function GenerateCBSEStateReportPage() {
                   secondLanguage={frontSecondLanguage} onSecondLanguageChange={() => {}}
                   academicYear={frontAcademicYear} onAcademicYearChange={() => {}}
                   currentUserRole={currentUserRole}
-                  schoolLogoUrl={schoolLogoUrl}
+                  schoolLogoUrl={schoolLogoUrl ?? undefined}
                   editableSubjects={[]}
                 />
             </div>
@@ -467,7 +482,8 @@ export default function GenerateCBSEStateReportPage() {
                   finalOverallGradeInput={finalOverallGradeInput} onFinalOverallGradeInputChange={setFinalOverallGradeInput}
                   secondLanguageSubjectName={frontSecondLanguage} 
                   currentUserRole={currentUserRole}
-                  editableSubjects={[]} 
+                  editableSubjects={[]}
+                  admissionNo={studentData?.admissionNo}
                 />
             </div>
         </div>
