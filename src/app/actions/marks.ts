@@ -65,7 +65,10 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
       const parts = (sm.assessmentName || '').split('-');
       const groupPart = normalize(parts[0] || '');
       const testPart = normalize(parts.slice(1).join('-'));
-      const normalizedAssessmentName = `${groupPart}-${testPart}`;
+      // const normalizedAssessmentName = `${groupPart}-${testPart}`;
+      const normalizedAssessmentName = sm.assessmentName;
+      console.log(normalizedAssessmentName)
+
       const fieldsOnInsert = {
         studentId: new ObjectId(sm.studentId),
         studentName: sm.studentName,
@@ -181,12 +184,13 @@ export async function getMarksForAssessment(
         // For now, let's assume we fetch all for that SA.
         paperFilter = { assessmentName: { $regex: `^${assessmentNameBase}-` }};
     }
+    console.log(assessmentNameBase, queryAssessmentFilter, paperFilter);
 
     const marks = await marksCollection.find({
       schoolId: new ObjectId(schoolId),
       classId: new ObjectId(classId),
       subjectId: normalize(subjectNameParam),
-      assessmentName: queryAssessmentFilter,
+      assessmentName: queryAssessmentFilter, 
       academicYear: academicYear,
       ...paperFilter
     })
@@ -202,7 +206,8 @@ export async function getMarksForAssessment(
         classId: mark.classId.toString(),
     }));
 
-    return { success: true, marks: marksWithStrId };
+
+    console.log(`Fetched ${marksWithStrId.length} marks for assessment ${assessmentNameBase} in classId ${classId}, subject ${subjectNameParam}.`);    return { success: true, marks: marksWithStrId };
 
   } catch (error) {
     console.error('Get marks server action error:', error);
