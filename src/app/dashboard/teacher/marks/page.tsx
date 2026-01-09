@@ -121,7 +121,7 @@ export default function TeacherMarksEntryPage() {
   const fetchSubjectsForYear = useCallback(async () => {
       if (!authUser || !authUser._id || !authUser.schoolId || !selectedAcademicYear) return;
       setIsLoading(true);
-      const subjectsResult = await getSubjectsForTeacher(authUser._id, authUser.schoolId, selectedAcademicYear);
+      const subjectsResult = await getSubjectsForTeacher(authUser._id.toString(), authUser.schoolId.toString(), selectedAcademicYear);
       setAllTaughtSubjects(subjectsResult);
       
       const uniqueClasses = Array.from(new Map(subjectsResult.map(s => [s.classId, {value: s.classId, label: s.label.split('(')[1].replace(')', '') }])).values());
@@ -173,7 +173,7 @@ export default function TeacherMarksEntryPage() {
     const fetchScheme = async () => {
       const selectedClassInfo = allTaughtSubjects.find(s => s.classId === selectedClassId);
       if (selectedClassId && authUser?.schoolId && selectedAcademicYear && selectedClassInfo?.className) {
-        const schemeResult = await getAssessmentSchemeForClass(selectedClassInfo.className, authUser.schoolId, selectedAcademicYear);
+        const schemeResult = await getAssessmentSchemeForClass(selectedClassInfo.className, authUser.schoolId.toString(), selectedAcademicYear);
         if (schemeResult.success && schemeResult.scheme) {
           setAssessmentScheme(schemeResult.scheme);
         } else {
@@ -201,7 +201,7 @@ export default function TeacherMarksEntryPage() {
 
     setIsLoadingStudentsAndMarks(true);
     try {
-      const studentsResult = await getStudentsByClass(authUser!.schoolId!, selectedClassId, selectedAcademicYear);
+      const studentsResult = await getStudentsByClass(authUser!.schoolId!.toString(), selectedClassId, selectedAcademicYear);
       if (!studentsResult.success || !studentsResult.users) {
         toast({ variant: "destructive", title: "Error", description: studentsResult.message || "Failed to load students." });
         setIsLoadingStudentsAndMarks(false); return;
@@ -228,7 +228,7 @@ export default function TeacherMarksEntryPage() {
       {
         const subject = selectedSubjectName;
         const result = await getMarksForAssessment(
-          authUser!.schoolId!, selectedClassId, subject,
+          authUser!.schoolId!.toString(), selectedClassId, subject,
           selectedAssessmentName, selectedAcademicYear
         );
         if (result.success && result.marks) {
@@ -281,7 +281,7 @@ export default function TeacherMarksEntryPage() {
 
   const handleSelectAllChange = (checked: boolean | 'indeterminate') => {
     if (checked === 'indeterminate') return;
-    setSelectedStudentIds(studentsForMarks.reduce((acc, s) => ({ ...acc, [s._id!]: checked }), {}));
+    setSelectedStudentIds(studentsForMarks.reduce((acc, s) => ({ ...acc, [s._id!.toString()]: checked }), {}));
   };
   
   const allStudentsSelected = studentsForMarks.length > 0 && studentsForMarks.every(s => selectedStudentIds[s._id!.toString()]);
@@ -290,10 +290,10 @@ export default function TeacherMarksEntryPage() {
 
   const handleSubmitSubject = async (subjectName: string) => {
     const classInfo = allTaughtSubjects.find(s => s.classId === selectedClassId);
-    if (!authUser || !selectedClassId || !selectedAssessmentName || !selectedAcademicYear || !currentAssessmentConfig || !classInfo) return;
+    if (!authUser || !authUser.schoolId || !authUser._id || !selectedClassId || !selectedAssessmentName || !selectedAcademicYear || !currentAssessmentConfig || !classInfo) return;
 
     const finalSelectedStudentIds = Object.keys(selectedStudentIds).filter(id => selectedStudentIds[id]);
-    if (finalSelectedStudentIds.length === 0) { toast({ variant: "info", title: "No Students Selected" }); return; }
+    if (finalSelectedStudentIds.length === 0) { toast({ variant: "default", title: "No Students Selected" }); return; }
 
     setIsSubmitting(true);
     const marksToSubmit: StudentMarkInput[] = [];
@@ -313,9 +313,9 @@ export default function TeacherMarksEntryPage() {
         marksToSubmit.push({ studentId: studentIdStr, studentName: student.name || "N/A", assessmentName: `${selectedAssessmentName}-${test.testName}`, marksObtained, maxMarks: test.maxMarks });
       }
     }
-
-    if (marksToSubmit.length === 0) { toast({ variant: "info", title: "No Marks to Submit" }); setIsSubmitting(false); return; }
-
+  
+    if (marksToSubmit.length === 0) { toast({ variant: "default", title: "No Marks to Submit" }); setIsSubmitting(false); return; }
+  
     const payload: MarksSubmissionPayload = {
       classId: selectedClassId,
       className: classInfo.className,
@@ -323,7 +323,7 @@ export default function TeacherMarksEntryPage() {
       subjectName: subjectName,
       academicYear: selectedAcademicYear,
       markedByTeacherId: authUser._id.toString(),
-      schoolId: authUser.schoolId.toString(),
+      schoolId: authUser.schoolId!.toString(),
       studentMarks: marksToSubmit,
     };
     const result = await submitMarks(payload);
