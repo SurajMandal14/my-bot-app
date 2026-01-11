@@ -10,7 +10,8 @@ RUN npm install
 
 # Copy rest of the app
 COPY . .
-
+ARG MONGODB_URI
+ENV MONGODB_URI=$MONGODB_URI
 # Build the app
 RUN npm run build
 
