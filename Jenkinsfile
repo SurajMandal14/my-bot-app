@@ -14,9 +14,13 @@ pipeline {
 
         stage('Build Podman Image') {
             steps {
-                sh 'sudo podman build -t my-bot-app-image .'
-            }
+        // Wrap the build stage in credentials binding
+                withCredentials([string(credentialsId: 'mongodb-uri-credential', variable: 'MONGODB_URI_VALUE')]) {
+            // Pass the value as a build-arg
+                    sh 'sudo podman build --build-arg MONGODB_URI="${MONGODB_URI_VALUE}" -t my-bot-app-image .'
         }
+    }
+}
 
         // ⚠️ CRITICAL: This stage must be here to prevent name conflicts
         stage('Stop & Remove Old Container') {
