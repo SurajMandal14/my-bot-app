@@ -31,6 +31,15 @@ const getDefaultFaMarksEntryFront = (): FrontMarksEntryType => ({ tool1: null, t
 const getDefaultSaPaperData = (): SAPaperData => ({ as1: { marks: null, maxMarks: 20 }, as2: { marks: null, maxMarks: 20 }, as3: { marks: null, maxMarks: 20 }, as4: { marks: null, maxMarks: 20 }, as5: { marks: null, maxMarks: 20 }, as6: { marks: null, maxMarks: 20 }});
 const saKeyOrder: (keyof SAPaperData)[] = ['as1','as2','as3','as4','as5','as6'];
 
+// Helpers to classify assessment groups by explicit group naming only
+const isFormativeGroup = (group: { groupName: string }) => {
+  return !group.groupName.toUpperCase().startsWith('SA');
+};
+
+const isSummativeGroup = (group: { groupName: string }) => {
+  return group.groupName.toUpperCase().startsWith('SA');
+};
+
 export default function StudentResultsPage() {
   const { toast } = useToast();
   const { authUser: contextAuthUser, isLoading: isContextLoading, activeAcademicYear } = useStudentData();
@@ -113,11 +122,20 @@ export default function StudentResultsPage() {
       const summativeGroups = hasTypedScheme
         ? currentAssessmentScheme.assessments.filter((g: any) => g.type === 'summative')
         : currentAssessmentScheme.assessments.filter(a => a.groupName.toUpperCase().startsWith('SA'));
+      const formativeGroups = hasTypedScheme
+        ? currentAssessmentScheme.assessments.filter((g: any) => g.type === 'formative')
+        : currentAssessmentScheme.assessments.filter(a => a.groupName.toUpperCase().startsWith('FA'));
       const sa1Tests = summativeGroups[0]?.tests || [];
       const sa2Tests = summativeGroups[1]?.tests || [];
       
       currentClass.subjects.forEach(subject => {
-        newFaMarks[subject.name] = { fa1: getDefaultFaMarksEntryFront(), fa2: getDefaultFaMarksEntryFront(), fa3: getDefaultFaMarksEntryFront(), fa4: getDefaultFaMarksEntryFront() };
+        // Build FA periods dynamically based on scheme
+        const faPeriodObj: any = {};
+        formativeGroups.forEach((_, idx) => {
+          const key = `fa${idx + 1}`;
+          faPeriodObj[key] = getDefaultFaMarksEntryFront();
+        });
+        newFaMarks[subject.name] = faPeriodObj as FrontSubjectFAData;
         let papers: string[] = ["I"];
         if(subject.name === "Science") papers = ["Physics", "Biology"];
         else if(allFetchedMarks.some(m => m.subjectName === subject.name && m.assessmentName && m.assessmentName.includes('Paper2'))) papers = ["I", "II"];
@@ -132,46 +150,65 @@ export default function StudentResultsPage() {
         });
       });
 
-      allFetchedMarks.forEach(mark => {
+      // Normalize function for case-insensitive, spacing-tolerant matching
+      const normalize = (s: string) => (s || '').trim().replace(/\\s+/g, ' ').toLowerCase();
+      
+      // Sort marks by most recent first to avoid old entries overriding new ones
+      const sortedMarks = [...allFetchedMarks].sort((a: any, b: any) => {
+        const aTime = new Date((a.updatedAt || a.createdAt || 0) as any).getTime();
+        const bTime = new Date((b.updatedAt || b.createdAt || 0) as any).getTime();
+        return bTime - aTime;
+      });
+
+      sortedMarks.forEach(mark => {
         if (!mark.assessmentName) return;
-        const [assessmentGroup, ...restOfName] = mark.assessmentName.split('-');
-        const testName = restOfName.join('-');
-        
-        const assessmentConfig = currentAssessmentScheme.assessments.find(a => a.groupName === assessmentGroup);
-        if (!assessmentConfig) return;
-        const testConfig = assessmentConfig.tests.find(t => t.testName === testName);
-        if(!testConfig) return;
+        const anNorm = normalize(mark.assessmentName);
+        // Find the matching group by prefix instead of splitting on '-'
+        const matchedGroup = currentAssessmentScheme.assessments.find(g => anNorm.startsWith(`${normalize(g.groupName)}-`));
+        if (!matchedGroup) return;
 
-        if (assessmentGroup.startsWith("FA")) {
-            const faPeriodIndex = currentAssessmentScheme.assessments.filter(a => a.groupName.startsWith("FA")).findIndex(a => a.groupName === assessmentGroup);
-            if (faPeriodIndex === -1) return;
-            const faPeriodKey = `fa${faPeriodIndex + 1}` as keyof FrontSubjectFAData;
-            
-            const testIndex = assessmentConfig.tests.findIndex(t => t.testName === testName);
-            if (testIndex === -1) return;
-            const toolKey = `tool${testIndex + 1}` as keyof FrontMarksEntryType;
+        const groupPrefix = `${normalize(matchedGroup.groupName)}-`;
+        const testNameNorm = anNorm.slice(groupPrefix.length);
+        // Map normalized test names to their index within the matched group
+        const testIndex = matchedGroup.tests.findIndex(t => normalize(t.testName) === testNameNorm);
+        if (testIndex === -1) return;
 
-            if (newFaMarks[mark.subjectName]?.[faPeriodKey]) {
-                (newFaMarks[mark.subjectName][faPeriodKey] as any)[toolKey] = mark.marksObtained;
+        if ((typeof (matchedGroup as any).type !== 'undefined' && (matchedGroup as any).type === 'formative') ||
+          (typeof (matchedGroup as any).type === 'undefined' && isFormativeGroup({ groupName: matchedGroup.groupName }))
+        ) {
+          const faPeriodIndex = formativeGroups.findIndex(a => a.groupName === matchedGroup.groupName);
+          if (faPeriodIndex === -1) return;
+          const faPeriodKey = `fa${faPeriodIndex + 1}` as keyof FrontSubjectFAData;
+          const toolKey = `tool${testIndex + 1}` as keyof FrontMarksEntryType;
+          if (newFaMarks[mark.subjectName]?.[faPeriodKey]) {
+            // Set only if empty to keep the most recent (due to sorted order)
+            if ((newFaMarks[mark.subjectName][faPeriodKey] as any)[toolKey] == null) {
+              (newFaMarks[mark.subjectName][faPeriodKey] as any)[toolKey] = mark.marksObtained;
             }
-        } else if (assessmentGroup.startsWith("SA")) {
-          const saPeriod = (assessmentGroup.toLowerCase() === 'sa1' ? 'sa1' : 'sa2') as 'sa1' | 'sa2';
-          const testIndex = assessmentConfig.tests.findIndex(t => t.testName === testName);
+          }
+        } else if ((typeof (matchedGroup as any).type !== 'undefined' && (matchedGroup as any).type === 'summative') ||
+          (typeof (matchedGroup as any).type === 'undefined' && isSummativeGroup({ groupName: matchedGroup.groupName }))
+        ) {
+          // Dynamically determine SA period key
+          const summativeIndex = summativeGroups.findIndex(g => g.groupName === matchedGroup.groupName);
+          const saPeriod = `sa${summativeIndex + 1}`;
           const asKey = saKeyOrder[testIndex] || 'as1';
-            const dbPaperPart = "Paper1";
-            let displayPaperName = (mark.subjectName === "Science") ? (dbPaperPart === 'Paper1' ? 'Physics' : 'Biology') : (dbPaperPart === 'Paper1' ? 'I' : 'II');
-            
-            const targetRow = newSaData.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
-            if (targetRow?.[saPeriod]?.[asKey]) {
-                (targetRow[saPeriod] as any)[asKey] = { marks: mark.marksObtained, maxMarks: mark.maxMarks };
-            }
+          const dbPaperPart = "Paper1";
+          let displayPaperName = (mark.subjectName === "Science") ? (dbPaperPart === 'Paper1' ? 'Physics' : 'Biology') : (dbPaperPart === 'Paper1' ? 'I' : 'II');
+          const targetRow = newSaData.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
+          if (targetRow?.[saPeriod as 'sa1' | 'sa2']?.[asKey]) {
+            (targetRow[saPeriod as 'sa1' | 'sa2'] as any)[asKey] = { marks: mark.marksObtained, maxMarks: mark.maxMarks };
+          }
         }
       });
       setFaMarks(newFaMarks);
       setSaData(newSaData.map(row => ({ ...row, faTotal200M: calculateFaTotal200MForRow(row.subjectName, newFaMarks, currentAssessmentScheme) })));
       
       const attendanceMap = new Map<number, ReportCardAttendanceMonth>();
-      (reportCard.attendance || []).forEach(r => attendanceMap.set(r.month, { workingDays: r.totalWorkingDays, presentDays: r.daysPresent }));
+      (reportCard.attendance || []).forEach((r: any, idx: number) => {
+        const month = typeof r.month === 'number' ? r.month : idx;
+        attendanceMap.set(month, { workingDays: r.workingDays ?? null, presentDays: r.presentDays ?? null });
+      });
       const completeAttendance: ReportCardAttendanceMonth[] = Array(11).fill(null).map((_, i) => {
           const monthIndex = (i + 5) % 12;
           return attendanceMap.get(monthIndex) || { workingDays: null, presentDays: null };
@@ -261,6 +298,7 @@ export default function StudentResultsPage() {
               secondLanguageSubjectName={secondLanguage}
               currentUserRole="student"
               editableSubjects={[]}
+              admissionNo={studentData?.admissionNo}
               onSaDataChange={() => {}} onFaTotalChange={() => {}} onAttendanceDataChange={() => {}} onFinalOverallGradeInputChange={() => {}}
             />
           </div>

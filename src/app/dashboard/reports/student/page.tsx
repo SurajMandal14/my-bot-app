@@ -107,12 +107,43 @@ export default function StudentReportPage() {
   };
   
   const groupedMarks = useMemo(() => {
-    return marks.reduce((acc, mark) => {
+    // Normalize assessment names by trimming, collapsing whitespace, and lowercasing
+    const normalize = (s: string) => (s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    
+    // Filter and sort marks to prefer most recent entries
+    const sortedMarks = [...marks].sort((a: any, b: any) => {
+      const aTime = new Date((a.updatedAt || a.createdAt || 0) as any).getTime();
+      const bTime = new Date((b.updatedAt || b.createdAt || 0) as any).getTime();
+      return bTime - aTime;
+    });
+
+    // Group by subject and deduplicate by assessment (keep most recent)
+    const grouped = sortedMarks.reduce((acc, mark) => {
       const subject = mark.subjectName;
       if (!acc[subject]) acc[subject] = [];
-      acc[subject].push(mark);
+      
+      // Check if this assessment already exists
+      const assessmentNorm = normalize(mark.assessmentName || '');
+      const existingIndex = acc[subject].findIndex(m => normalize(m.assessmentName || '') === assessmentNorm);
+      
+      if (existingIndex === -1) {
+        // New assessment, add it
+        acc[subject].push(mark);
+      } else if (new Date((mark.updatedAt || mark.createdAt || 0) as any).getTime() > 
+                 new Date((acc[subject][existingIndex].updatedAt || acc[subject][existingIndex].createdAt || 0) as any).getTime()) {
+        // Newer entry, replace the old one
+        acc[subject][existingIndex] = mark;
+      }
+      
       return acc;
     }, {} as Record<string, MarkEntry[]>);
+
+    // Sort assessments within each subject by normalized name for consistency
+    Object.keys(grouped).forEach(subject => {
+      grouped[subject].sort((a, b) => normalize(a.assessmentName || '').localeCompare(normalize(b.assessmentName || '')));
+    });
+
+    return grouped;
   }, [marks]);
   
   const handlePrint = () => {
