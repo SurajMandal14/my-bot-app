@@ -32,7 +32,7 @@ export async function getStudentReportCard(
     const [studentRes, marksRes, attendanceRes] = await Promise.all([
       getStudentDetailsForReportCard(studentId, schoolId, academicYear), // Assuming this fetches by studentId now
       getStudentMarksForReportCard(studentId, schoolId, academicYear),
-      getStudentMonthlyAttendance(studentId)
+      getStudentMonthlyAttendance(studentId, academicYear)
     ]);
     
     if (!studentRes.success || !studentRes.student) {
@@ -88,7 +88,7 @@ export async function getStudentReportCard(
         ? (attendanceRes.records || []).map((r: any) => ({
             month: r.month || r.monthName || '',
             workingDays: r.workingDays ?? r.totalWorkingDays ?? 0,
-            presentDays: r.presentDays ?? r.presentCount ?? 0,
+            presentDays: r.presentDays ?? r.daysPresent ?? r.presentCount ?? 0,
           }))
         : [],
       finalOverallGrade: null, // To be calculated client-side
