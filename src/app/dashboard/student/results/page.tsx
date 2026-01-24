@@ -21,9 +21,11 @@ import CBSEStateFront, {
 } from '@/components/report-cards/CBSEStateFront';
 import CBSEStateBack, { 
     type ReportCardSASubjectEntry, 
-    type ReportCardAttendanceMonth,
-    type SAPaperData
+    type SAPaperData,
 } from '@/components/report-cards/CBSEStateBack';
+
+import type { ReportCardAttendanceMonth } from '@/types/report';
+
 import { getClassDetailsById } from '@/app/actions/classes';
 import type { AssessmentScheme } from '@/types/assessment';
 
@@ -204,15 +206,35 @@ export default function StudentResultsPage() {
       setFaMarks(newFaMarks);
       setSaData(newSaData.map(row => ({ ...row, faTotal200M: calculateFaTotal200MForRow(row.subjectName, newFaMarks, currentAssessmentScheme) })));
       
-      const attendanceMap = new Map<number, ReportCardAttendanceMonth>();
-      (reportCard.attendance || []).forEach((r: any, idx: number) => {
-        const month = typeof r.month === 'number' ? r.month : idx;
-        attendanceMap.set(month, { workingDays: r.workingDays ?? null, presentDays: r.presentDays ?? null });
-      });
-      const completeAttendance: ReportCardAttendanceMonth[] = Array(11).fill(null).map((_, i) => {
-          const monthIndex = (i + 5) % 12;
-          return attendanceMap.get(monthIndex) || { workingDays: null, presentDays: null };
-      });
+      // Preserve all attendance entries returned by the report. If the
+      // server provided a `month` index for each item keep it. Otherwise
+      // fall back to the array order. Sort by month when month indices are
+      // present to keep chronological order.
+      const rawAttendance: any[] = reportCard.attendance || [];
+
+      // Map entries and normalize shape
+      const mapped = rawAttendance.map((r: any, idx: number) => ({
+        month: typeof r.month === 'number' ? r.month : null,
+        workingDays: r.workingDays ?? null,
+        presentDays: r.presentDays ?? null,
+      })) as ReportCardAttendanceMonth[];
+
+      // If at least one entry has a month index, sort by that index and
+      // include all unique month indices present. Otherwise preserve array
+      // order and include all entries.
+      const hasMonthIndex = mapped.some(m => typeof m.month === 'number');
+      let completeAttendance: ReportCardAttendanceMonth[] = [];
+      if (hasMonthIndex) {
+        // Stable sort by month index (nulls to end)
+        completeAttendance = mapped.slice().sort((a, b) => {
+          const am = a.month === null || a.month === undefined ? 999 : (a.month as number);
+          const bm = b.month === null || b.month === undefined ? 999 : (b.month as number);
+          return am - bm;
+        });
+      } else {
+        completeAttendance = mapped;
+      }
+
       setAttendanceData(completeAttendance);
 
     } catch (e: any) {
