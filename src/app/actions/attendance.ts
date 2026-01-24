@@ -210,16 +210,31 @@ export async function getMonthlyAttendanceForAdmin(
 }
 
 
-export async function getStudentMonthlyAttendance(studentId: string): Promise<GetMonthlyAttendanceResult> {
+export async function getStudentMonthlyAttendance(studentId: string, academicYear?: string): Promise<GetMonthlyAttendanceResult> {
   try {
     if (!ObjectId.isValid(studentId)) {
       return { success: false, message: 'Invalid Student ID format.', error: 'Invalid ID format.' };
     }
 
     const { db } = await connectToDatabase();
-    const records = await db.collection<MonthlyAttendanceRecord>('monthly_attendances').find({
+    
+    // Build filter query
+    const filter: any = {
       studentId: new ObjectId(studentId) as any,
-    }).sort({ year: -1, month: -1 }).toArray();
+    };
+
+    // If academic year is provided (e.g., "2024-2025"), extract both years
+    if (academicYear) {
+      const parts = academicYear.split('-');
+      if (parts.length === 2) {
+        const startYear = parseInt(parts[0], 10);
+        const endYear = parseInt(parts[1], 10);
+        // Match records from both years in the academic year range
+        filter.year = { $in: [startYear, endYear] };
+      }
+    }
+
+    const records = await db.collection<MonthlyAttendanceRecord>('monthly_attendances').find(filter).sort({ year: -1, month: -1 }).toArray();
     
     const recordsWithStrId = records.map(record => ({
       ...record,
