@@ -41,6 +41,12 @@ export interface ReportCardSASubjectEntry {
 export interface ReportCardAttendanceMonth {
   workingDays: number | null;
   presentDays: number | null;
+  // Optional month index (0 = January, 11 = December). Included so callers
+  // can preserve which calendar month an attendance entry refers to.
+  month?: number | null;
+  // Optional year for the attendance entry (e.g. 2024). Helpful when
+  // attendance covers months across different calendar years.
+  year?: number | null;
 }
 
 
