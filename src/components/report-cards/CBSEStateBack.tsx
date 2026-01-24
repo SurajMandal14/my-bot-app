@@ -499,10 +499,10 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
 
         <table className="attendance-table">
           <thead>
-            <tr><th colSpan={12}>ATTENDANCE REPORT</th><th rowSpan={2}>Total</th><th rowSpan={2}>%</th><th rowSpan={2}>Result</th></tr>
+            <tr><th colSpan={attendanceData.length + 1}>ATTENDANCE REPORT</th><th rowSpan={2}>Total</th><th rowSpan={2}>%</th><th rowSpan={2}>Result</th></tr>
             <tr>
               <th>MONTH</th>
-              {monthNames.map(month => <th key={month}>{month.substring(0,3)}</th>)}
+              {attendanceData.map((month, index) => <th key={`month-${index}`}>{monthNames[index] ? monthNames[index].substring(0,3) : `M${index+1}`}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -513,7 +513,7 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
               ))}
               <td className="calculated">{totalWorkingDays}</td>
               <td rowSpan={2} className="calculated">{attendancePercentage}%</td>
-              <td rowSpan={2}><input type="text" style={{width:'50px'}} disabled={isStudent || isTeacher || isPageReadOnlyForAdmin}/></td>
+              <td rowSpan={2}><input type="text" value={attendancePercentage > 45 ? 'Pass' : attendancePercentage > 0 ? 'Absent' : ''} style={{width:'50px'}} disabled={isStudent || isTeacher || isPageReadOnlyForAdmin}/></td>
             </tr>
             <tr>
               <td>No. of days present</td>
@@ -523,13 +523,13 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
               <td className="calculated">{totalPresentDays}</td>
             </tr>
             <tr>
-              <td>Sign. of Class Teacher</td><td colSpan={11}><input type="text" style={{width:'100%', textAlign:'left'}} disabled={isStudent || isTeacher || isPageReadOnlyForAdmin} /></td><td></td><td></td><th>Final Grade</th>
+              <td>Sign. of Class Teacher</td><td colSpan={attendanceData.length}><input type="text" style={{width:'100%', textAlign:'left'}} disabled={isStudent || isTeacher || isPageReadOnlyForAdmin} /></td><td></td><td></td><th>Final Grade</th>
             </tr>
              <tr>
-              <td>Sign. of Headmaster</td><td colSpan={11}><input type="text" style={{width:'100%', textAlign:'left'}} disabled={isStudent || isTeacher || isPageReadOnlyForAdmin} /></td><td></td><td></td><th>School Re Opening</th>
+              <td>Sign. of Headmaster</td><td colSpan={attendanceData.length}><input type="text" style={{width:'100%', textAlign:'left'}} disabled={isStudent || isTeacher || isPageReadOnlyForAdmin} /></td><td></td><td></td><th>School Re Opening</th>
             </tr>
              <tr>
-              <td>Sign. of Parent</td><td colSpan={11}><input type="text" style={{width:'100%', textAlign:'left'}} disabled={isStudent || isTeacher || isPageReadOnlyForAdmin} /></td><td></td><td></td><td><input type="text" style={{width:'100%'}} disabled={isStudent || isTeacher || isPageReadOnlyForAdmin}/></td>
+              <td>Sign. of Parent</td><td colSpan={attendanceData.length}><input type="text" style={{width:'100%', textAlign:'left'}} disabled={isStudent || isTeacher || isPageReadOnlyForAdmin} /></td><td></td><td></td><td><input type="text" style={{width:'100%'}} disabled={isStudent || isTeacher || isPageReadOnlyForAdmin}/></td>
             </tr>
           </tbody>
         </table>
