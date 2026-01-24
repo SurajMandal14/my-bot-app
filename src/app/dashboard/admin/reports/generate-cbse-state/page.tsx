@@ -9,9 +9,10 @@ import CBSEStateFront, {
 } from '@/components/report-cards/CBSEStateFront';
 import CBSEStateBack, { 
     type ReportCardSASubjectEntry, 
-    type ReportCardAttendanceMonth, 
     type SAPaperData
 } from '@/components/report-cards/CBSEStateBack';
+
+import type { ReportCardAttendanceMonth } from '@/types/report';
 
 
 import { Button } from '@/components/ui/button';
@@ -234,13 +235,13 @@ export default function GenerateCBSEStateReportPage() {
               }
             });
           });
-          const row: ReportCardSASubjectEntry = {
+          const row: any = {
             subjectName: subject.name,
             paper,
             ...saFields,
             faTotal200M: null
           };
-          newSaDataForState.push(row);
+          newSaDataForState.push(row as ReportCardSASubjectEntry);
         });
       });
 
@@ -288,17 +289,44 @@ export default function GenerateCBSEStateReportPage() {
           const dbPaperPart = "Paper1";
           let displayPaperName = (mark.subjectName === "Science") ? (dbPaperPart === 'Paper1' ? 'Physics' : 'Biology') : (dbPaperPart === 'Paper1' ? 'I' : 'II');
           const targetRow = newSaDataForState.find(row => row.subjectName === mark.subjectName && row.paper === displayPaperName);
-          if (targetRow?.[saPeriod]?.[asKey]) {
-            (targetRow[saPeriod] as any)[asKey] = { marks: mark.marksObtained, maxMarks: mark.maxMarks };
+          if (targetRow) {
+            const rowAny = targetRow as any;
+            if (rowAny[saPeriod]?.[asKey]) {
+              rowAny[saPeriod][asKey] = { marks: mark.marksObtained, maxMarks: mark.maxMarks };
+            }
           }
         }
       });
       setFaMarks(newFaMarksForState);
       
       newSaDataForState.forEach(row => {
-        row.faTotal200M = calculateFaTotal200MForRow(row.subjectName, row.paper, newFaMarksForState, currentAssessmentScheme);
+        row.faTotal200M = calculateFaTotal200MForRow(row.subjectName, row.paper?.toString(), newFaMarksForState, currentAssessmentScheme);
       });
       setSaData(newSaDataForState);
+
+      // Preserve all attendance entries returned by the report. If the
+      // server provided a `month` index for each item keep it. Otherwise
+      // fall back to the array order. Sort by month when month indices are
+      // present to keep chronological order.
+      const rawAttendance: any[] = reportCard.attendance || [];
+      const mappedAttendance = rawAttendance.map((r: any, idx: number) => ({
+        month: typeof r.month === 'number' ? r.month : null,
+        year: typeof r.year === 'number' ? r.year : (r.year ? Number(r.year) : null),
+        workingDays: r.workingDays ?? null,
+        presentDays: r.presentDays ?? null,
+      })) as ReportCardAttendanceMonth[];
+      const hasMonthIndex = mappedAttendance.some(m => typeof m.month === 'number');
+      let completeAttendance: ReportCardAttendanceMonth[] = [];
+      if (hasMonthIndex) {
+        completeAttendance = mappedAttendance.slice().sort((a, b) => {
+          const am = a.month === null || a.month === undefined ? 999 : (a.month as number);
+          const bm = b.month === null || b.month === undefined ? 999 : (b.month as number);
+          return am - bm;
+        });
+      } else {
+        completeAttendance = mappedAttendance;
+      }
+      setAttendanceData(completeAttendance);
 
       // Fetch school details (logo) for header branding
       try {
