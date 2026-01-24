@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -6,7 +5,8 @@ import type { SchoolClassSubject } from '@/types/classes';
 import type { UserRole } from '@/types/user';
 import type { AssessmentScheme } from '@/types/assessment';
 
-// Define interfaces for props and state
+// --- 1. REFACTORED INTERFACES FOR DYNAMISM ---
+
 export interface StudentData {
   udiseCodeSchoolName?: string;
   studentName?: string;
@@ -23,19 +23,11 @@ export interface StudentData {
   aadharNo?: string;
 }
 
-export interface MarksEntry {
-  tool1: number | null;
-  tool2: number | null;
-  tool3: number | null;
-  tool4: number | null; // This is the 20M tool
-}
+// Changed from hardcoded { tool1, tool2... } to dynamic dictionary
+export type MarksEntry = Record<string, number | null>;
 
-export interface SubjectFAData {
-  fa1: MarksEntry;
-  fa2: MarksEntry;
-  fa3: MarksEntry;
-  fa4: MarksEntry;
-}
+// Changed from hardcoded { fa1, fa2... } to dynamic dictionary
+export type SubjectFAData = Record<string, MarksEntry>;
 
 export interface CoCurricularSAData {
   sa1Max: number | null;
@@ -49,18 +41,22 @@ export interface CoCurricularSAData {
 interface CBSEStateFrontProps {
   studentData: StudentData;
   onStudentDataChange: (field: keyof StudentData, value: string) => void;
-  
-  academicSubjects: SchoolClassSubject[]; 
+
+  academicSubjects: SchoolClassSubject[];
   assessmentScheme: AssessmentScheme | null;
-  faMarks: Record<string, SubjectFAData>; 
-  onFaMarksChange: (subjectIdentifier: string, faPeriod: keyof SubjectFAData, toolKey: keyof MarksEntry, value: string) => void;
   
-  coMarks: CoCurricularSAData[]; // Kept for structure, but rendering removed
-  onCoMarksChange: (subjectIndex: number, saPeriod: 'sa1' | 'sa2' | 'sa3', type: 'Marks' | 'Max', value: string) => void; // Kept for structure
+  // Data is now a dynamic record of subjects
+  faMarks: Record<string, SubjectFAData>;
   
+  // Callback accepts strings now, allowing for 'fa1' or 'term1', 'tool1' or 'project'
+  onFaMarksChange: (subjectIdentifier: string, faPeriod: string, toolKey: string, value: string) => void;
+
+  coMarks: CoCurricularSAData[];
+  onCoMarksChange: (subjectIndex: number, saPeriod: 'sa1' | 'sa2' | 'sa3', type: 'Marks' | 'Max', value: string) => void;
+
   secondLanguage: 'Hindi' | 'Telugu';
   onSecondLanguageChange: (value: 'Hindi' | 'Telugu') => void;
-  
+
   academicYear: string;
   onAcademicYearChange: (value: string) => void;
 
@@ -71,44 +67,42 @@ interface CBSEStateFrontProps {
 }
 
 // Grade scales
-const overallSubjectGradeScale = [ 
-  { min: 180, grade: 'A+' }, { min: 160, grade: 'A' }, 
-  { min: 140, grade: 'B+' }, { min: 120, grade: 'B' }, 
-  { min: 100, grade: 'C+' }, { min: 80, grade: 'C' },  
-  { min: 60, grade: 'D' }, { min: 40, grade: 'E' },   
-  { min: 0, grade: 'F' } 
+const overallSubjectGradeScale = [
+  { min: 180, grade: 'A+' }, { min: 160, grade: 'A' },
+  { min: 140, grade: 'B+' }, { min: 120, grade: 'B' },
+  { min: 100, grade: 'C+' }, { min: 80, grade: 'C' },
+  { min: 60, grade: 'D' }, { min: 40, grade: 'E' },
+  { min: 0, grade: 'F' }
 ];
 
-const faPeriodGradeScale = [ 
+const faPeriodGradeScale = [
   { min: 46, grade: 'A1' }, { min: 41, grade: 'A2' },
   { min: 36, grade: 'B1' }, { min: 31, grade: 'B2' },
   { min: 26, grade: 'C1' }, { min: 21, grade: 'C2' },
-  { min: 18, grade: 'D1' }, { min: 0, grade: 'D2' } 
+  { min: 18, grade: 'D1' }, { min: 0, grade: 'D2' }
 ];
-const faPeriodGradeScale2ndLang = [ 
+const faPeriodGradeScale2ndLang = [
   { min: 45, grade: 'A1' }, { min: 40, grade: 'A2' },
   { min: 34, grade: 'B1' }, { min: 29, grade: 'B2' },
   { min: 23, grade: 'C1' }, { min: 18, grade: 'C2' },
-  { min: 10, grade: 'D1' }, { min: 0, grade: 'D2' } 
+  { min: 10, grade: 'D1' }, { min: 0, grade: 'D2' }
 ];
 
 const getGrade = (totalMarks: number, scale: { min: number; grade: string }[]): string => {
   for (let i = 0; i < scale.length; i++) {
     if (totalMarks >= scale[i].min) return scale[i].grade;
   }
-  return scale[scale.length - 1]?.grade || 'N/A'; 
+  return scale[scale.length - 1]?.grade || 'N/A';
 };
 
 
 const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   studentData,
   onStudentDataChange,
-  academicSubjects, 
+  academicSubjects,
   assessmentScheme,
-  faMarks, 
-  onFaMarksChange, 
-  // coMarks, // Prop kept
-  // onCoMarksChange, // Prop kept
+  faMarks,
+  onFaMarksChange,
   secondLanguage,
   onSecondLanguageChange,
   academicYear,
@@ -117,20 +111,12 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
   editableSubjects = [],
   schoolLogoUrl,
 }) => {
-  // Helpers to classify assessment groups by group name only
-  const isFormativeGroup = (group: { groupName: string }) => {
-    return !group.groupName.toUpperCase().startsWith('SA');
-  };
 
   const formativeGroups = React.useMemo(() => {
     const groups = assessmentScheme?.assessments || [];
-    const hasTypedScheme = groups.some((g: any) => typeof g.type !== 'undefined');
-    return hasTypedScheme
-      ? groups.filter((g: any) => g.type === 'formative')
-      : groups.filter(g => isFormativeGroup({ groupName: g.groupName }));
+    return groups.filter((g: any) => g.type === 'formative');
   }, [assessmentScheme]);
 
-  
 
   const isTeacher = currentUserRole === 'teacher';
   const isStudent = currentUserRole === 'student';
@@ -138,57 +124,65 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
 
   const isFieldDisabledForRole = (subjectName?: string): boolean => {
     if (isStudent) return true;
-    // Admins can see but not edit if a student is loaded.
-    if (isAdmin && !!studentData.studentIdNo) return true; 
+    if (isAdmin && !!studentData.studentIdNo) return true;
     if (isTeacher) {
-      if (!subjectName) return true; // Disable general fields for teachers
+      if (!subjectName) return true;
       return !editableSubjects.includes(subjectName);
     }
-    return false; // Superadmin can edit
+    return false;
   };
 
-
+  // --- 2. REFACTORED CALCULATION LOGIC ---
   const calculateFaResults = React.useCallback((subjectIdentifier: string) => {
-    const subjectFaData = faMarks[subjectIdentifier];
-    const defaultFaPeriodMarks: MarksEntry = { tool1: null, tool2: null, tool3: null, tool4: null };
-    const dynamicDefaultSubjectFaData: any = {};
-    formativeGroups.forEach((_, idx) => {
-      const key = `fa${idx + 1}`;
-      dynamicDefaultSubjectFaData[key] = { ...defaultFaPeriodMarks };
-    });
-    const currentSubjectData = subjectFaData || (dynamicDefaultSubjectFaData as SubjectFAData);
-
+    const subjectFaData = faMarks[subjectIdentifier] || {};
+    
     type Results = Record<string, { total: number; grade: string }> & { overallTotal: number; overallGrade: string };
-    const results = {} as Results;
+    
+    // Initialize results
+    const results = {
+        overallTotal: 0,
+        overallGrade: 'N/A'
+    } as Results;
+    
     let currentOverallTotal = 0;
-    results.overallTotal = 0;
-    results.overallGrade = 'N/A';
 
-    const subjectName = subjectIdentifier; 
+    const subjectName = subjectIdentifier;
     const isSecondLang = subjectName === secondLanguage;
     const currentFaPeriodGradeScale = isSecondLang ? faPeriodGradeScale2ndLang : faPeriodGradeScale;
 
+    // Iterate strictly over the CONFIGURATION (formativeGroups)
     formativeGroups.forEach((assessment, index) => {
-        const faPeriodKey = `fa${index + 1}` as keyof SubjectFAData;
-        const periodMarks = currentSubjectData[faPeriodKey] || defaultFaPeriodMarks;
-        
-        let periodTotal = 0;
-        assessment.tests.forEach((test, testIndex) => {
-          const toolKey = `tool${testIndex + 1}` as keyof MarksEntry;
-          periodTotal += periodMarks[toolKey] || 0;
-        });
-
-        currentOverallTotal += periodTotal;
-        results[assessment.groupName] = { // Use dynamic group name for results key
-          total: periodTotal,
-          grade: getGrade(periodTotal, currentFaPeriodGradeScale),
-        };
-      });
+      // DYNAMIC KEY: Prefer assessment.id from config, fall back to fa{index}
+      const faPeriodKey = (assessment as any).id || `fa${index + 1}`;
       
+      // Get marks for this period (safe access)
+      const periodMarks = subjectFaData[faPeriodKey] || {};
+
+      let periodTotal = 0;
+
+      // Sum up based on configured tests
+      assessment.tests.forEach((test: any, testIndex: number) => {
+        // DYNAMIC TOOL KEY: Prefer test.id from config, fall back to tool{index}
+        const toolKey = test.id || `tool${testIndex + 1}`;
+        
+        // Ensure we handle strings/nulls safely
+        const val = Number(periodMarks[toolKey]);
+        periodTotal += isNaN(val) ? 0 : val;
+      });
+
+      currentOverallTotal += periodTotal;
+      
+      // Store result keyed by Group Name (or ID if you prefer)
+      results[assessment.groupName] = { 
+        total: periodTotal,
+        grade: getGrade(periodTotal, currentFaPeriodGradeScale),
+      };
+    });
+
     results.overallTotal = currentOverallTotal;
-    results.overallGrade = getGrade(currentOverallTotal, overallSubjectGradeScale); 
+    results.overallGrade = getGrade(currentOverallTotal, overallSubjectGradeScale);
     return results;
-  }, [faMarks, secondLanguage, assessmentScheme]);
+  }, [faMarks, secondLanguage, formativeGroups]);
 
 
   return (
@@ -202,13 +196,12 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           padding: 5px;
           color: #000;
           background-color: #fff;
-          overflow-x: hidden; /* Prevent horizontal scrollbar - table will wrap/shrink */
+          overflow-x: hidden;
         }
-        /* Table layout tuned to fit page width without scroll */
         .report-card-container table {
           border-collapse: collapse;
           width: 100%;
-          table-layout: fixed; /* Distribute columns evenly and enable wrapping */
+          table-layout: fixed;
           margin-bottom: 10px;
           max-width: 100%;
         }
@@ -217,9 +210,9 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           padding: 3px 4px;
           text-align: center;
           vertical-align: middle;
-          word-break: break-word; /* Break long continuous words */
-          overflow-wrap: anywhere; /* Allow breaking at any point if needed */
-          white-space: normal; /* Allow wrapping */
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          white-space: normal;
           min-width: 40px;
         }
         .report-card-container th.group-header {
@@ -239,19 +232,14 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           background: #f0fdf4;
           font-weight: 500;
         }
-        /* Ensure key FA columns don't shrink too much (but allow shrink on very narrow viewports) */
-        /* S.No column */
         #fa-table thead tr:first-child th:first-child,
         #fa-table tbody td:first-child { min-width: 40px; }
-        /* Subject column */
         #fa-table thead tr:first-child th:nth-child(2),
         #fa-table tbody td:nth-child(2) { min-width: 80px; text-align: left; }
-        /* FA test columns and totals */
         #fa-table .fa-test-head, #fa-table .fa-test-cell { min-width: 40px; }
         #fa-table .fa-total-head, #fa-table .fa-total-cell { min-width: 45px; }
         #fa-table .fa-grade-head, #fa-table .fa-grade-cell { min-width: 45px; }
         
-        /* Responsive: stack on mobile */
         @media (max-width: 768px) {
           .report-card-container th, .report-card-container td {
             padding: 2px 3px;
@@ -279,9 +267,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             text-align: center !important;
             font-size: 10px !important;
           }
-          /* Relax FA table width constraints for print */
           #fa-table .fa-test-head, #fa-table .fa-test-cell, #fa-table .fa-total-head, #fa-table .fa-total-cell, #fa-table .fa-grade-head, #fa-table .fa-grade-cell { min-width: auto !important; }
-          /* Disable sticky in print */
           #fa-table tbody td:first-child, #fa-table tbody .fa-subject-sticky { position: static !important; left: auto !important; z-index: auto !important; background: transparent !important; }
           thead { display: table-header-group; }
           tfoot { display: table-footer-group; }
@@ -295,7 +281,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           text-align: center;
           font-weight: bold;
           font-size: 14px; 
-          margin-bottom: 3px; 
+          margin-bottom: 3px;
         }
         .report-card-container .subtitle {
           text-align: center;
@@ -350,7 +336,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
           word-break: break-word;
           overflow-wrap: anywhere;
           white-space: normal;
-          font-size: 12px; /* Unified header font size */
+          font-size: 12px;
           line-height: 1.2;
         }
          .report-card-container .header-table select {
@@ -373,17 +359,16 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         }
       `}</style>
       <style jsx global>{`
-        /* Print-specific rules for A4 Landscape */
         @media print {
           html, body { height: auto; }
           .report-card-container {
             width: 100%;
-            overflow: visible !important; /* ensure nothing is clipped in print */
+            overflow: visible !important;
             background: #fff;
             color: #000;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-            font-size: 12px; /* Keep font size consistent at 12px for print */
+            font-size: 12px;
           }
           .report-card-container .subtitle {
             margin-top: 10px !important;
@@ -392,7 +377,6 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             text-align: center !important;
             font-size: 11px !important;
           }
-          /* Force table to fit the printable width and wrap cells as needed */
           .report-card-container table, #fa-table {
             table-layout: fixed !important;
             width: 100% !important;
@@ -406,9 +390,8 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             white-space: normal !important;
             word-break: break-word !important;
             overflow-wrap: anywhere !important;
-            max-width: 1px; /* allow wrapping within fixed table layout */
+            max-width: 1px;
           }
-          /* Remove input outlines and simplify form controls for print */
           .report-card-container input, .report-card-container select {
             border: none !important;
             background: transparent !important;
@@ -416,95 +399,93 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
             margin: 0 !important;
             width: auto !important;
           }
-          /* Avoid page breaks inside rows for cleaner output */
           #fa-table tr { page-break-inside: avoid; }
         }
       `}</style>
-     <div
-  style={{
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  }}
->
-{schoolLogoUrl && (
-    <img
-      src={schoolLogoUrl}
-      alt="School Logo"
-      style={{ height: 48, width: 48, objectFit: 'contain' }}
-    />
-  )}
-  <input
-    type="text"
-    value={studentData.udiseCodeSchoolName || ""}
-    readOnly
-    style={{ textAlign: 'center' }}
-  />
-  <br></br><br></br>
-</div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+        }}
+      >
+        {schoolLogoUrl && (
+          <img
+            src={schoolLogoUrl}
+            alt="School Logo"
+            style={{ height: 48, width: 48, objectFit: 'contain' }}
+          />
+        )}
+        <input
+          type="text"
+          value={studentData.udiseCodeSchoolName || ""}
+          readOnly
+          style={{ textAlign: 'center' }}
+        />
+        <br></br><br></br>
+      </div>
       <div className="report-card-container">
-        <div className="title" align="center" style={{fontWeight: 'bold'}}>STUDENT ACADEMIC PERFORMANCE REPORT - 
-            <input 
-              type="text" 
-              className="academic-year-input"
-              value={academicYear} 
-              onChange={e => onAcademicYearChange(e.target.value)}
-              placeholder="20XX-20YY"
-              disabled={isFieldDisabledForRole()}
-            />
+        <div className="title" style={{ fontWeight: 'bold', textAlign: 'center' }}>STUDENT ACADEMIC PERFORMANCE REPORT -
+          <input
+            type="text"
+            className="academic-year-input"
+            value={academicYear}
+            onChange={e => onAcademicYearChange(e.target.value)}
+            placeholder="20XX-20YY"
+            disabled={isFieldDisabledForRole()}
+          />
         </div>
         <table className="header-table"><tbody>
-            <tr>
-              <td colSpan={4}>
-                <div style={{flex: 1}}>
-                    U-DISE Code & School Name : <input type="text" value={studentData.udiseCodeSchoolName || ""} onChange={e => onStudentDataChange('udiseCodeSchoolName', e.target.value)} disabled={isFieldDisabledForRole()} />
-                  </div>
-              </td>
-            </tr>
-            <tr>
-              <td>Student Name: <input type="text" value={studentData.studentName || ""} onChange={e => onStudentDataChange('studentName', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-              <td>Father Name: <input type="text" value={studentData.fatherName || ""} onChange={e => onStudentDataChange('fatherName', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-              <td>Mother Name: <input type="text" value={studentData.motherName || ""} onChange={e => onStudentDataChange('motherName', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-               <td>Roll No: <input type="text" value={studentData.rollNo || ""} onChange={e => onStudentDataChange('rollNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-            </tr>
-            <tr>
-              <td>Class: <input type="text" value={studentData.class || ""} onChange={e => onStudentDataChange('class', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-              <td>Section: <input type="text" value={studentData.section || ""} onChange={e => onStudentDataChange('section', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-              {/* <td>Student ID No: <input type="text" value={studentData.studentIdNo || ""} onChange={e => onStudentDataChange('studentIdNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td> */}
-              <td>Admn. No: <input type="text" value={studentData.admissionNo || ""} onChange={e => onStudentDataChange('admissionNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-            </tr>
-            <tr>
-              <td>Medium: <input type="text" value={studentData.medium || ""} onChange={e => onStudentDataChange('medium', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-              <td>Date of Birth: <input type="text" value={studentData.dob || ""} onChange={e => onStudentDataChange('dob', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-              <td>Exam No: <input type="text" value={studentData.examNo || ""} onChange={e => onStudentDataChange('examNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-               <td>Aadhar No: <input type="text" value={studentData.aadharNo || ""} onChange={e => onStudentDataChange('aadharNo', e.target.value)} disabled={isFieldDisabledForRole()}/></td>
-            </tr>
-            <tr>
-              <td colSpan={4}>
-                Second Language:
-                <select value={secondLanguage} onChange={(e) => onSecondLanguageChange(e.target.value as 'Hindi' | 'Telugu')} disabled={isFieldDisabledForRole()}>
-                  <option value="Hindi">Hindi</option>
-                  <option value="Telugu">Telugu</option>
-                </select>
-              </td>
-            </tr>
-          </tbody></table>
+          <tr>
+            <td colSpan={4}>
+              <div style={{ flex: 1 }}>
+                U-DISE Code & School Name : <input type="text" value={studentData.udiseCodeSchoolName || ""} onChange={e => onStudentDataChange('udiseCodeSchoolName', e.target.value)} disabled={isFieldDisabledForRole()} />
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>Student Name: <input type="text" value={studentData.studentName || ""} onChange={e => onStudentDataChange('studentName', e.target.value)} disabled={isFieldDisabledForRole()} /></td>
+            <td>Father Name: <input type="text" value={studentData.fatherName || ""} onChange={e => onStudentDataChange('fatherName', e.target.value)} disabled={isFieldDisabledForRole()} /></td>
+            <td>Mother Name: <input type="text" value={studentData.motherName || ""} onChange={e => onStudentDataChange('motherName', e.target.value)} disabled={isFieldDisabledForRole()} /></td>
+            <td>Roll No: <input type="text" value={studentData.rollNo || ""} onChange={e => onStudentDataChange('rollNo', e.target.value)} disabled={isFieldDisabledForRole()} /></td>
+          </tr>
+          <tr>
+            <td>Class: <input type="text" value={studentData.class || ""} onChange={e => onStudentDataChange('class', e.target.value)} disabled={isFieldDisabledForRole()} /></td>
+            <td>Section: <input type="text" value={studentData.section || ""} onChange={e => onStudentDataChange('section', e.target.value)} disabled={isFieldDisabledForRole()} /></td>
+            <td>Admn. No: <input type="text" value={studentData.admissionNo || ""} onChange={e => onStudentDataChange('admissionNo', e.target.value)} disabled={isFieldDisabledForRole()} /></td>
+          </tr>
+          <tr>
+            <td>Medium: <input type="text" value={studentData.medium || ""} onChange={e => onStudentDataChange('medium', e.target.value)} disabled={isFieldDisabledForRole()} /></td>
+            <td>Date of Birth: <input type="text" value={studentData.dob || ""} onChange={e => onStudentDataChange('dob', e.target.value)} disabled={isFieldDisabledForRole()} /></td>
+            <td>Exam No: <input type="text" value={studentData.examNo || ""} onChange={e => onStudentDataChange('examNo', e.target.value)} disabled={isFieldDisabledForRole()} /></td>
+            <td>Aadhar No: <input type="text" value={studentData.aadharNo || ""} onChange={e => onStudentDataChange('aadharNo', e.target.value)} disabled={isFieldDisabledForRole()} /></td>
+          </tr>
+          <tr>
+            <td colSpan={4}>
+              Second Language:
+              <select value={secondLanguage} onChange={(e) => onSecondLanguageChange(e.target.value as 'Hindi' | 'Telugu')} disabled={isFieldDisabledForRole()}>
+                <option value="Hindi">Hindi</option>
+                <option value="Telugu">Telugu</option>
+              </select>
+            </td>
+          </tr>
+        </tbody></table>
 
         <div className="subtitle">Formative Assessment</div>
         {(() => {
           return (
-            <table className="fa-table">
+            <table className="fa-table" id="fa-table">
               <thead>
                 {/* Group Headers */}
                 <tr>
                   <th rowSpan={2}>Sl. No</th>
                   <th rowSpan={2}>Subject</th>
                   {formativeGroups.map((assessment, gIndex) => {
-                    const groupMax = (assessment.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0);
+                    const groupMax = (assessment.tests || []).reduce((sum: number, t: any) => sum + (t.maxMarks || 0), 0);
                     return (
-                      <th 
-                        key={`fa-group-${assessment.groupName}`} 
+                      <th
+                        key={`fa-group-${assessment.groupName || gIndex}`}
                         colSpan={(assessment.tests || []).length + 2}
                         className="group-header"
                       >
@@ -517,7 +498,7 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                 <tr>
                   {formativeGroups.map((assessment, gIndex) => {
                     return (
-                      <React.Fragment key={`fa-subheaders-${assessment.groupName}`}>
+                      <React.Fragment key={`fa-subheaders-${assessment.groupName || gIndex}`}>
                         {assessment.tests.map((test: any, testIndex: number) => (
                           <th key={`fa-subhead-${assessment.groupName}-${testIndex}`} className="sub-header">
                             {test.testName} ({test.maxMarks}M)
@@ -534,31 +515,36 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
                 {(academicSubjects || []).map((subject, SIndex) => {
                   const subjectIdentifier = subject.name;
                   const isCurrentSubjectDisabled = isFieldDisabledForRole(subjectIdentifier);
-                  const defaultFaPeriodMarksRow: MarksEntry = { tool1: null, tool2: null, tool3: null, tool4: null };
-                  const dynamicDefaultSubjectFaRow: any = {};
-                  formativeGroups.forEach((_, idx) => {
-                    const key = `fa${idx + 1}`;
-                    dynamicDefaultSubjectFaRow[key] = { ...defaultFaPeriodMarksRow };
-                  });
-                  const subjectFaData = faMarks[subjectIdentifier] || (dynamicDefaultSubjectFaRow as SubjectFAData);
+                  
+                  // Get raw data or empty object, no forced defaults needed anymore
+                  const subjectFaData = faMarks[subjectIdentifier] || {};
+                  
+                  // Calculate on the fly based on configuration
                   const results = calculateFaResults(subjectIdentifier);
 
                   return (
                     <tr key={`fa-row-${SIndex}-${subject.name}`}>
                       <td>{SIndex + 1}</td>
                       <td className="fa-subject-sticky" style={{ textAlign: 'left', paddingLeft: '5px' }}>{subject.name}</td>
+                      
+                      {/* --- 3. DYNAMIC RENDERING LOOP --- */}
                       {formativeGroups.map((assessment, gIndex) => {
-                        const faPeriodKey = `fa${gIndex + 1}` as keyof SubjectFAData;
-                        const periodData = subjectFaData[faPeriodKey];
+                        // Dynamic Key Generation
+                        const faPeriodKey = (assessment as any).id || `fa${gIndex + 1}`;
+                        const periodData = subjectFaData[faPeriodKey] || {};
+
                         return (
                           <React.Fragment key={`fa-cells-${gIndex}-${subject.name}`}>
                             {assessment.tests.map((test: any, testIndex: number) => {
-                              const toolKey = `tool${testIndex + 1}` as keyof MarksEntry;
+                              // Dynamic Tool Key Generation
+                              const toolKey = test.id || `tool${testIndex + 1}`;
+                              
                               return (
                                 <td key={`fa-cell-${gIndex}-${SIndex}-${testIndex}-${toolKey}`} className="fa-test-cell">
                                   <input
                                     type="number"
-                                    value={periodData?.[toolKey] ?? ''}
+                                    // Safely access dynamic property
+                                    value={periodData[toolKey] ?? ''}
                                     onChange={(e) => onFaMarksChange(subjectIdentifier, faPeriodKey, toolKey, e.target.value)}
                                     max={test.maxMarks}
                                     min="0"
@@ -582,9 +568,9 @@ const CBSEStateFront: React.FC<CBSEStateFrontProps> = ({
         <p className="small-note">
           Formative Assessment Tools: (1) Children Participation and Reflections, (2) Project work, (3) Written work, (4) Slip Test (20M)
         </p>
-        
-        <p className="small-note" style={{marginTop: '15px'}}>
-            NOTE: In case of Science, Physical Science & Biological Science Teachers conduct & Record Formative Assessment Separately for 50 Marks each. Sum of FA1 to FA4 for Phy.Sci (200M) and Bio.Sci (200M) to be considered for respective rows on backside.
+
+        <p className="small-note" style={{ marginTop: '15px' }}>
+          NOTE: In case of Science, Physical Science & Biological Science Teachers conduct & Record Formative Assessment Separately for 50 Marks each. Sum of FA1 to FA4 for Phy.Sci (200M) and Bio.Sci (200M) to be considered for respective rows on backside.
         </p>
       </div>
     </>
