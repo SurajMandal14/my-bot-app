@@ -12,7 +12,7 @@ export type { ReportCardSASubjectEntry, ReportCardAttendanceMonth, SAPaperData }
 interface CBSEStateBackProps {
   saData: ReportCardSASubjectEntry[];
   assessmentScheme: AssessmentScheme | null;
-  onSaDataChange: (rowIndex: number, period: 'sa1' | 'sa2', fieldKey: keyof SAPaperData, value: string) => void;
+  onSaDataChange: (rowIndex: number, period: string, fieldKey: keyof SAPaperData, value: string) => void;
   onFaTotalChange: (rowIndex: number, value: string) => void; 
   attendanceData: ReportCardAttendanceMonth[];
   onAttendanceDataChange: (monthIndex: number, type: 'workingDays' | 'presentDays', value: string) => void;
@@ -123,34 +123,51 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
   const calculateRowDerivedData = (rowData: ReportCardSASubjectEntry) => {
     const isSecondLang = rowData.subjectName === secondLanguageSubjectName;
 
-    const sa1_data = rowData.sa1 || {};
-    const sa2_data = rowData.sa2 || {};
-    
-    const sa1_total_marks = Object.values(sa1_data).reduce((sum, skill) => sum + (skill?.marks || 0), 0);
-    const sa1_total_max_marks = Object.values(sa1_data).reduce((sum, skill) => sum + (skill?.maxMarks || 0), 0);
+    // Extract all SA period data dynamically
+    const saPeriods: Array<{ key: string; data: any; grade: string; totalMarks: number; totalMaxMarks: number }> = [];
+    summativeGroups.forEach((group, idx) => {
+      const saKey = `sa${idx + 1}`;
+      const sa_data = (rowData as any)[saKey] || {};
+      const sa_total_marks = Object.values(sa_data).reduce((sum: number, skill: any) => sum + (skill?.marks || 0), 0);
+      const sa_total_max_marks = Object.values(sa_data).reduce((sum: number, skill: any) => sum + (skill?.maxMarks || 0), 0);
+      const saGrade = saGradeScale(sa_total_marks, sa_total_max_marks, isSecondLang);
+      saPeriods.push({
+        key: saKey,
+        data: sa_data,
+        grade: saGrade,
+        totalMarks: sa_total_marks,
+        totalMaxMarks: sa_total_max_marks,
+      });
+    });
 
-    const sa2_total_marks = Object.values(sa2_data).reduce((sum, skill) => sum + (skill?.marks || 0), 0);
-    const sa2_total_max_marks = Object.values(sa2_data).reduce((sum, skill) => sum + (skill?.maxMarks || 0), 0);
+    // Use first and second SA periods for calculations, or default to empty
+    const sa1_period = saPeriods[0];
+    const sa2_period = saPeriods[1];
     
-    const sa1Grade = saGradeScale(sa1_total_marks, sa1_total_max_marks, isSecondLang);
-    const sa2Grade = saGradeScale(sa2_total_marks, sa2_total_max_marks, isSecondLang);
+    const sa1Grade = sa1_period?.grade || 'N/A';
+    const sa2Grade = sa2_period?.grade || 'N/A';
     const faTotal200M_val = rowData.faTotal200M ?? 0;
 
-    const sa1ForCalc = sa1_total_max_marks > 0 ? Math.min(sa1_total_marks, sa1_total_max_marks) : 0;
-    const sa2ForCalc = sa2_total_max_marks > 0 ? Math.min(sa2_total_marks, sa2_total_max_marks) : 0;
+    const sa1ForCalc = sa1_period && sa1_period.totalMaxMarks > 0 ? Math.min(sa1_period.totalMarks, sa1_period.totalMaxMarks) : 0;
+    const sa2ForCalc = sa2_period && sa2_period.totalMaxMarks > 0 ? Math.min(sa2_period.totalMarks, sa2_period.totalMaxMarks) : 0;
     
     const faAvg50 = faTotal200M_val / 4;
-    const sa1_50_for_avg = sa1_total_max_marks > 0 ? sa1ForCalc * (50 / sa1_total_max_marks) : 0;
+    const sa1_50_for_avg = sa1_period && sa1_period.totalMaxMarks > 0 ? sa1ForCalc * (50 / sa1_period.totalMaxMarks) : 0;
     const faAvgPlusSa1_100M = Math.round(faAvg50 + sa1_50_for_avg);
     
     const internalMarks = Math.round(faTotal200M_val / 10);
-    const sa2_external_80M = sa2_total_max_marks > 0 ? sa2ForCalc * (80 / sa2_total_max_marks) : 0;
+    const sa2_external_80M = sa2_period && sa2_period.totalMaxMarks > 0 ? sa2ForCalc * (80 / sa2_period.totalMaxMarks) : 0;
     const finalTotal100M = Math.round(internalMarks + sa2_external_80M);
     const finalGrade = finalGradeScale(finalTotal100M, isSecondLang);
     
     return {
-      sa1Total: sa1_total_marks, sa1Max: sa1_total_max_marks, sa1Grade,
-      sa2Total: sa2_total_marks, sa2Max: sa2_total_max_marks, sa2Grade,
+      saPeriods,
+      sa1Total: sa1_period?.totalMarks || 0, 
+      sa1Max: sa1_period?.totalMaxMarks || 0, 
+      sa1Grade,
+      sa2Total: sa2_period?.totalMarks || 0, 
+      sa2Max: sa2_period?.totalMaxMarks || 0, 
+      sa2Grade,
       faAvgPlusSa1_100M, internalMarks,
       finalTotal100M, finalGrade
     };
@@ -382,12 +399,13 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
         <h2 style={{ textAlign: 'center' }}>SUMMATIVE ASSESSMENTS & FINAL RESULT</h2>
 
         {(() => {
-          const sa1Group = summativeGroups[0];
-          const sa2Group = summativeGroups[1];
-          const sa1Tests = sa1Group?.tests || [];
-          const sa2Tests = sa2Group?.tests || [];
-          const sa1Max = sa1Tests.reduce((sum, t) => sum + (t.maxMarks || 0), 0);
-          const sa2Max = sa2Tests.reduce((sum, t) => sum + (t.maxMarks || 0), 0);
+          // Build SA headers and totals dynamically
+          const saHeadersWithMax = summativeGroups.map((group, idx) => ({
+            name: group.groupName || `SA${idx + 1}`,
+            tests: group.tests || [],
+            maxMarks: (group.tests || []).reduce((sum, t) => sum + (t.maxMarks || 0), 0),
+          }));
+
           return (
             <div className="sa-table-container">
               <table className="sa-table" id="mainTable">
@@ -396,26 +414,24 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                 <tr>
                   <th rowSpan={2}>Subject</th>
                   <th rowSpan={2}>Paper</th>
-                  <th colSpan={sa1Tests.length + 2} className="group-header">SA1 ({sa1Max}M)</th>
-                  <th colSpan={sa2Tests.length + 2} className="group-header">SA2 ({sa2Max}M)</th>
+                  {saHeadersWithMax.map((saHeader, idx) => (
+                    <th key={`sa-group-${idx}`} colSpan={saHeader.tests.length + 2} className="group-header">{saHeader.name} ({saHeader.maxMarks}M)</th>
+                  ))}
                   <th colSpan={4} className="group-header">Final Result (100M)</th>
                 </tr>
                 {/* Sub Headers */}
                 <tr>
-                  {sa1Tests.map((t) => (
-                    <th key={`sa1-${t.testName}`} className="sub-header">
-                      {t.testName}
-                    </th>
+                  {saHeadersWithMax.map((saHeader, saIdx) => (
+                    <React.Fragment key={`sa-tests-${saIdx}`}>
+                      {saHeader.tests.map((test: any) => (
+                        <th key={`sa-${saIdx}-${test.testName}`} className="sub-header">
+                          {test.testName}
+                        </th>
+                      ))}
+                      <th className="sub-header">Total Marks</th>
+                      <th className="sub-header">Grade</th>
+                    </React.Fragment>
                   ))}
-                  <th className="sub-header">Total Marks</th>
-                  <th className="sub-header">Grade</th>
-                  {sa2Tests.map((t) => (
-                    <th key={`sa2-${t.testName}`} className="sub-header">
-                      {t.testName}
-                    </th>
-                  ))}
-                  <th className="sub-header">Total Marks</th>
-                  <th className="sub-header">Grade</th>
                   <th className="sub-header">FA (200M)</th>
                   <th className="sub-header">FA(Avg)+SA1 (100M)</th>
                   <th className="sub-header">Internal (20M)</th>
@@ -426,7 +442,7 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
               <tbody>
                 {saData.map((rowData, rowIndex) => {
                   if (!rowData || typeof rowData !== 'object') {
-                    return <tr key={`invalid-row-${rowIndex}`}><td colSpan={24}>Invalid data</td></tr>;
+                    return <tr key={`invalid-row-${rowIndex}`}><td colSpan={100}>Invalid data</td></tr>;
                   }
                   const derived = calculateRowDerivedData(rowData);
                   const faTotal200M_display = rowData.faTotal200M ?? '';
@@ -437,40 +453,31 @@ const CBSEStateBack: React.FC<CBSEStateBackProps> = ({
                     <tr key={`combined-${rowData.subjectName}-${rowData.paper}-${rowIndex}`}>
                       {isFirstPaperOfSubject && <td rowSpan={subjectPaperCount} className="subject-cell sa-subject-sticky">{rowData.subjectName}</td>}
                       <td className="paper-cell">{rowData.paper}</td>
-                      {sa1Tests.map((_, testIndex) => {
-                        const skillKey = saKeyOrder[testIndex] || 'as1';
+                      {derived.saPeriods.map((saPeriod, saIdx) => {
+                        const saHeader = saHeadersWithMax[saIdx];
                         return (
-                          <td key={`sa1-${rowIndex}-${String(skillKey)}`} className="test-input">
-                            <input
-                              type="number"
-                              value={rowData.sa1?.[skillKey]?.marks ?? ''}
-                              onChange={e => onSaDataChange(rowIndex, 'sa1', skillKey, e.target.value)}
-                              disabled={isInputDisabled}
-                              min="0"
-                              max={sa1Tests[testIndex]?.maxMarks || 100}
-                            />
-                          </td>
+                          <React.Fragment key={`sa-row-${saIdx}`}>
+                            {saHeader.tests.map((_, testIndex) => {
+                              const skillKey = saKeyOrder[testIndex] || 'as1';
+                              const saKey = saPeriod.key;
+                              return (
+                                <td key={`${saKey}-${rowIndex}-${String(skillKey)}`} className="test-input">
+                                  <input
+                                    type="number"
+                                    value={(rowData as any)[saKey]?.[skillKey]?.marks ?? ''}
+                                    onChange={e => onSaDataChange(rowIndex, saKey as 'sa1' | 'sa2', skillKey, e.target.value)}
+                                    disabled={isInputDisabled}
+                                    min="0"
+                                    max={saHeader.tests[testIndex]?.maxMarks || 100}
+                                  />
+                                </td>
+                              );
+                            })}
+                            <td className="calculated">{saPeriod.totalMarks}</td>
+                            <td className="calculated">{saPeriod.grade}</td>
+                          </React.Fragment>
                         );
                       })}
-                      <td className="calculated">{derived.sa1Total}</td>
-                      <td className="calculated">{derived.sa1Grade}</td>
-                      {sa2Tests.map((_, testIndex) => {
-                        const skillKey = saKeyOrder[testIndex] || 'as1';
-                        return (
-                          <td key={`sa2-${rowIndex}-${String(skillKey)}`} className="test-input">
-                            <input
-                              type="number"
-                              value={rowData.sa2?.[skillKey]?.marks ?? ''}
-                              onChange={e => onSaDataChange(rowIndex, 'sa2', skillKey, e.target.value)}
-                              disabled={isInputDisabled}
-                              min="0"
-                              max={sa2Tests[testIndex]?.maxMarks || 100}
-                            />
-                          </td>
-                        );
-                      })}
-                      <td className="calculated">{derived.sa2Total}</td>
-                      <td className="calculated">{derived.sa2Grade}</td>
                       <td className="fatotal-input">
                         <input
                           type="number"

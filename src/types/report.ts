@@ -33,8 +33,7 @@ export interface SAPaperData {
 export interface ReportCardSASubjectEntry {
   subjectName: string; 
   paper: string; // "I", "II", "Physics", "Biology"
-  sa1: SAPaperData;
-  sa2: SAPaperData;
+  [key: `sa${number}`]: SAPaperData; // Dynamic SA periods: sa1, sa2, sa3, etc.
   faTotal200M: number | null;
 }
 
