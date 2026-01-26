@@ -25,6 +25,31 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
 
     const { db } = await connectToDatabase();
     const marksCollection = db.collection<Omit<MarkEntry, '_id'>>('marks');
+    const schoolsCollection = db.collection('schools');
+
+    // Check if marks entry is locked for this assessment
+    if (studentMarks.length > 0) {
+      const school = await schoolsCollection.findOne({ _id: new ObjectId(schoolId) });
+      if (school) {
+        const marksEntryLocks = school.marksEntryLocks as Record<string, Record<string, boolean>> | undefined;
+        const yearLocks = marksEntryLocks?.[academicYear];
+        
+        if (yearLocks) {
+          // Extract assessment prefix from the first student's marks (should all be the same)
+          const firstAssessmentName = studentMarks[0]?.assessmentName || '';
+          const assessmentPrefix = firstAssessmentName.split('-')[0]?.toUpperCase() || '';
+          
+          // Check if this assessment is locked
+          if (yearLocks[assessmentPrefix]) {
+            return {
+              success: false,
+              message: `Marks entry for ${assessmentPrefix} is currently locked for academic year ${academicYear}.`,
+              error: `${assessmentPrefix} entry is locked.`
+            };
+          }
+        }
+      }
+    }
 
     // Ensure the unique index matches our upsert filter and includes subjectId
     try {
@@ -36,7 +61,7 @@ export async function submitMarks(payload: MarksSubmissionPayload): Promise<Subm
           .every(k => keys.includes(k));
         if (idx.unique && hasAllWithoutSubject && !hasSubject) {
           // Drop outdated unique index that omits subjectId (causes conflicts across multiple subjects)
-          try { await marksCollection.dropIndex(idx.name); } catch {}
+          try { await marksCollection.dropIndex(idx.name!); } catch {}
         }
       }
       await marksCollection.createIndex(
