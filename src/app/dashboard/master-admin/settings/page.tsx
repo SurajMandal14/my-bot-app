@@ -26,6 +26,9 @@ import type { AuthUser } from "@/types/user";
 import { useEffect, useState, useCallback } from "react";
 import { getAcademicYears } from "@/app/actions/academicYears";
 import type { AcademicYear } from "@/types/academicYear";
+import { getSchoolClasses } from "@/app/actions/classes";
+import { getAssessmentSchemeForClass } from "@/app/actions/assessmentConfigurations";
+import type { AssessmentScheme } from "@/types/assessment";
 
 const DEFAULT_TERMS: TermFee[] = [
   { term: 'Term 1', amount: 0 },
@@ -33,13 +36,13 @@ const DEFAULT_TERMS: TermFee[] = [
   { term: 'Term 3', amount: 0 },
 ];
 
-const assessmentKeys: (keyof AssessmentLocks)[] = ["FA1", "FA2", "FA3", "FA4", "SA1", "SA2"];
-
 export default function MasterAdminSettingsPage() {
     const { toast } = useToast();
     const [authUser, setAuthUser] = useState<AuthUser | null>(null);
     const [school, setSchool] = useState<SchoolType | null>(null);
     const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+    const [assessmentGroups, setAssessmentGroups] = useState<string[]>([]);
+    const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -97,7 +100,7 @@ export default function MasterAdminSettingsPage() {
         allowStudentsToViewPublishedReports: schoolToMap.allowStudentsToViewPublishedReports || false,
         attendanceType: schoolToMap.attendanceType || 'monthly',
         tuitionFees: schoolToMap.tuitionFees?.length > 0 ? schoolToMap.tuitionFees : [{ className: "", terms: [...DEFAULT_TERMS] }],
-        busFeeStructures: schoolToMap.busFeeStructures?.length > 0 ? schoolToMap.busFeeStructures : [],
+        busFeeStructures: schoolToMap.busFeeStructures ? (schoolToMap.busFeeStructures.length > 0 ? schoolToMap.busFeeStructures : []) : [],
         activeAcademicYear: schoolToMap.activeAcademicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
         marksEntryLocks: schoolToMap.marksEntryLocks || {},
     }), []);
@@ -110,9 +113,10 @@ export default function MasterAdminSettingsPage() {
         }
 
         setIsLoading(true);
-        const [schoolResult, academicYearsResult] = await Promise.all([
-            getSchoolById(authUser.schoolId),
-            getAcademicYears()
+        const [schoolResult, academicYearsResult, classesResult] = await Promise.all([
+            getSchoolById(authUser.schoolId.toString()),
+            getAcademicYears(),
+            getSchoolClasses(authUser.schoolId.toString())
         ]);
         
         if (schoolResult.success && schoolResult.school) {
@@ -133,8 +137,27 @@ export default function MasterAdminSettingsPage() {
                 }
             }
         } else {
-             toast({ variant: 'warning', title: "Warning", description: "Could not load academic years list."});
+             toast({ variant: 'destructive', title: "Error", description: "Could not load academic years list."});
         }
+
+        // Load assessment groups from first available class
+        if (classesResult.success && classesResult.classes && classesResult.classes.length > 0) {
+            setSchoolClasses(classesResult.classes);
+            const firstClass = classesResult.classes[0];
+            const schemeResult = await getAssessmentSchemeForClass(firstClass.name, authUser.schoolId.toString(), academicYearsResult.academicYears?.[0]?.year || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`);
+            if (schemeResult.success && schemeResult.scheme?.assessments) {
+                const groups = schemeResult.scheme.assessments.map((a: any) => a.groupName).filter(Boolean);
+                setAssessmentGroups(groups);
+            } else {
+                // Fallback to default groups if no scheme found
+                setAssessmentGroups(["FA1", "FA2", "FA3", "FA4", "SA1", "SA2"]);
+            }
+        } else {
+            // Fallback to default groups if no classes found
+            setSchoolClasses([]);
+            setAssessmentGroups(["FA1", "FA2", "FA3", "FA4", "SA1", "SA2"]);
+        }
+
         setIsLoading(false);
     }, [authUser, form, toast, mapSchoolToFormData]);
 
@@ -146,6 +169,22 @@ export default function MasterAdminSettingsPage() {
         }
     }, [authUser, loadSchoolData]);
 
+    // Reload assessment groups when activeAcademicYear changes
+    useEffect(() => {
+        if (activeAcademicYear && schoolClasses.length > 0 && authUser?.schoolId) {
+            (async () => {
+                const firstClass = schoolClasses[0];
+                const schemeResult = await getAssessmentSchemeForClass(firstClass.name, authUser.schoolId!.toString(), activeAcademicYear);
+                if (schemeResult.success && schemeResult.scheme?.assessments) {
+                    const groups = schemeResult.scheme.assessments.map((a: any) => a.groupName).filter(Boolean);
+                    setAssessmentGroups(groups);
+                } else {
+                    setAssessmentGroups(["FA1", "FA2", "FA3", "FA4", "SA1", "SA2"]);
+                }
+            })();
+        }
+    }, [activeAcademicYear, schoolClasses, authUser?.schoolId]);
+
     // Force re-render of form values when activeAcademicYear changes to show correct locks
     useEffect(() => {
         form.trigger();
@@ -154,7 +193,7 @@ export default function MasterAdminSettingsPage() {
 
     const handleSaveChanges = async () => {
         if (!school) {
-            toast({variant: 'warning', title: 'No School Loaded', description: 'Cannot save settings without school information.'});
+            toast({variant: 'destructive', title: 'No School Loaded', description: 'Cannot save settings without school information.'});
             return;
         }
         
@@ -293,7 +332,7 @@ export default function MasterAdminSettingsPage() {
                     </div>
                      {activeAcademicYear ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {assessmentKeys.map(key => (
+                        {assessmentGroups.map(key => (
                             <Controller
                                 key={`${activeAcademicYear}-${key}`}
                                 control={form.control}

@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ const getCurrentAcademicYear = (): string => {
 
 export default function TeacherMarksEntryPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
   const [allTaughtSubjects, setAllTaughtSubjects] = useState<SubjectForTeacher[]>([]);
@@ -328,7 +330,16 @@ export default function TeacherMarksEntryPage() {
     };
     const result = await submitMarks(payload);
     toast({ title: result.success ? "Marks Submitted" : "Submission Failed", description: result.message || result.error, variant: result.success ? "default" : "destructive" });
-    if(result.success) fetchStudentsAndMarks();
+    if(result.success) {
+      // Invalidate router cache to ensure fresh data is fetched
+      router.refresh();
+      // Add a small delay to ensure database writes are complete before refetching
+      setTimeout(() => {
+        // Reset selections and refetch fresh data
+        setSelectedStudentIds({});
+        fetchStudentsAndMarks();
+      }, 500);
+    }
     setIsSubmitting(false);
   };
   
