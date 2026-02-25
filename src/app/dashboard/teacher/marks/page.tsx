@@ -208,15 +208,18 @@ export default function TeacherMarksEntryPage() {
         toast({ variant: "destructive", title: "Error", description: studentsResult.message || "Failed to load students." });
         setIsLoadingStudentsAndMarks(false); return;
       }
-      setStudentsForMarks(studentsResult.users);
-      setSelectedStudentIds(studentsResult.users.reduce((acc, s) => ({...acc, [s._id!]: true}), {}));
+      const validStudents = studentsResult.users.filter(s => s._id !== undefined) as AppUser[];
+      setStudentsForMarks(validStudents);
+      setSelectedStudentIds(validStudents.reduce((acc, s) => ({...acc, [s._id!.toString()]: true}), {}));
 
       // Initialize marks for the selected subject only
+      // Use validStudents (already filtered to those with a defined _id) so we
+      // don't hit the non-null assertion crash on students missing an _id.
       const baseMarksBySubject: Record<string, Record<string, StudentMarksCustomState>> = {};
       {
         const subject = selectedSubjectName;
         const perStudent: Record<string, StudentMarksCustomState> = {};
-        studentsResult.users.forEach(student => {
+        validStudents.forEach(student => {
           const studentIdStr = student._id!.toString();
           perStudent[studentIdStr] = currentAssessmentConfig.tests.reduce((acc, test) => {
             (acc as any)[test.testName] = null;
