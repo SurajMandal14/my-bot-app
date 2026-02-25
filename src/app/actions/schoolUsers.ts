@@ -237,7 +237,10 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
     const updateData: Partial<Omit<User, '_id' | 'createdAt'>> & { updatedAt: Date } = {
       name,
       email,
-      classId: role === 'student' ? classId : undefined,
+      // Only include classId in $set for students. For teachers the key is absent
+      // entirely so MongoDB leaves their existing class assignment untouched.
+      // (Setting it to undefined is serialized as null by BSON and would wipe the field.)
+      ...(role === 'student' ? { classId: classId ?? undefined } : {}),
       updatedAt: new Date(),
       dateOfJoining: dateOfJoining || undefined,
       dateOfLeaving: dateOfLeaving || undefined,
