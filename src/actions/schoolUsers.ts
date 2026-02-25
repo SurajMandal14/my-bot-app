@@ -237,7 +237,10 @@ export async function updateSchoolUser(userId: string, schoolId: string, values:
     const updateData: Partial<Omit<User, '_id' | 'createdAt'>> & { updatedAt: Date } = {
       name,
       email,
-      classId: (role === 'student' && classId && classId.trim() !== "" && ObjectId.isValid(classId)) ? classId.trim() : undefined,
+      // Only include classId in $set for students. For teachers the key is absent
+      // entirely so MongoDB leaves their existing class assignment untouched.
+      // (Setting it to undefined is serialized as null by BSON and would wipe the field.)
+      ...(role === 'student' ? { classId: (classId && classId.trim() !== "" && ObjectId.isValid(classId)) ? classId.trim() : undefined } : {}),
       updatedAt: new Date(),
       dateOfJoining: dateOfJoining || undefined,
       dateOfLeaving: dateOfLeaving || undefined,
@@ -513,13 +516,13 @@ export async function getStudentDetailsForReportCard(admissionIdOrStudentId: str
       query = { 
         _id: new ObjectId(admissionIdOrStudentId),
         schoolId: new ObjectId(schoolIdQuery),
-        role: 'student',
+        role: 'student' as UserRole,
       };
     } else {
        query = { 
         admissionId: admissionIdOrStudentId, 
         schoolId: new ObjectId(schoolIdQuery),
-        role: 'student',
+        role: 'student' as UserRole,
       };
     }
 
@@ -567,7 +570,7 @@ export async function bulkCreateSchoolUsers(
     
     // Fetch all classes for the school once to avoid repeated DB calls
     const existingClasses = await db.collection<SchoolClass>('school_classes')
-        .find({ schoolId: schoolObjectId })
+        .find({ schoolId: schoolObjectId.toString() })
         .toArray();
     
     // Create a map for quick lookup: "ClassName-Section-AcademicYear" -> classId
