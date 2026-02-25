@@ -3,8 +3,8 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckSquare, Loader2, Info, ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CheckSquare, Loader2, Info, CalendarDays } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -13,257 +13,285 @@ import type { MonthlyAttendanceRecord, AuthUser } from "@/types/attendance";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getClassesForSchoolAsOptions } from "@/app/actions/classes";
 import { getAcademicYears } from "@/app/actions/academicYears";
-
-const months = Array.from({ length: 12 }, (_, i) => ({ value: i, label: format(new Date(0, i), 'MMMM') }));
+import type { AcademicYear } from "@/types/academicYear";
 
 interface ClassOption {
   value: string;
   label: string;
 }
 
-export default function AdminAttendancePage() {
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  
-  const [attendanceRecords, setAttendanceRecords] = useState<MonthlyAttendanceRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
-  const [filterClassId, setFilterClassId] = useState<string>("");
-  const [availableYears, setAvailableYears] = useState<number[]>([]);
-  const [isLoadingYears, setIsLoadingYears] = useState(true);
+interface AcademicMonthSlot {
+  month: number;   // 0–11
+  year: number;
+  label: string;   // e.g. "Jun 2024"
+}
 
+/** 
+ * For an academic year string like "2024-2025" generate the 12 month
+ * slots in school-year order: June(startYear) → May(endYear).
+ */
+function getAcademicMonthSlots(academicYear: string): AcademicMonthSlot[] {
+  const parts = academicYear.split('-');
+  if (parts.length !== 2) return [];
+  const startYear = parseInt(parts[0], 10);
+  const endYear   = parseInt(parts[1], 10);
+  const schedule = [
+    { month: 5,  year: startYear },
+    { month: 6,  year: startYear },
+    { month: 7,  year: startYear },
+    { month: 8,  year: startYear },
+    { month: 9,  year: startYear },
+    { month: 10, year: startYear },
+    { month: 11, year: startYear },
+    { month: 0,  year: endYear   },
+    { month: 1,  year: endYear   },
+    { month: 2,  year: endYear   },
+    { month: 3,  year: endYear   },
+    { month: 4,  year: endYear   },
+  ];
+  return schedule.map(s => ({
+    ...s,
+    label: format(new Date(s.year, s.month, 1), 'MMM yyyy'),
+  }));
+}
+
+export default function AdminAttendancePage() {
+  const { toast } = useToast();
+
+  const [authUser, setAuthUser]             = useState<AuthUser | null>(null);
+  const [academicYears, setAcademicYears]   = useState<AcademicYear[]>([]);
+  const [selectedAY, setSelectedAY]         = useState<string>('');
+  const [monthSlots, setMonthSlots]         = useState<AcademicMonthSlot[]>([]);
+  const [selectedSlot, setSelectedSlot]     = useState<AcademicMonthSlot | null>(null);
+  const [classOptions, setClassOptions]     = useState<ClassOption[]>([]);
+  const [filterClassId, setFilterClassId]   = useState<string>('');
+  const [attendanceRecords, setAttendanceRecords] = useState<MonthlyAttendanceRecord[]>([]);
+  const [isLoading, setIsLoading]           = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+
+  /* ── auth ── */
   useEffect(() => {
-    const storedUser = localStorage.getItem('loggedInUser');
-    if (storedUser && storedUser !== "undefined") {
+    const stored = localStorage.getItem('loggedInUser');
+    if (stored && stored !== 'undefined') {
       try {
-        const parsedUser: AuthUser = JSON.parse(storedUser);
-        if (parsedUser.role === 'admin' && parsedUser.schoolId) {
-          setAuthUser(parsedUser);
-        }
-      } catch(e) { console.error("Failed to parse authUser in AdminAttendancePage", e); }
+        const u: AuthUser = JSON.parse(stored);
+        if (u.role === 'admin' && u.schoolId) setAuthUser(u);
+      } catch { /* ignore */ }
     }
   }, []);
 
-  // Fetch available academic years
+  /* ── load academic years + classes once auth is ready ── */
   useEffect(() => {
-    const fetchAvailableYears = async () => {
-      try {
-        setIsLoadingYears(true);
-        const result = await getAcademicYears();
-        
-        if (result.success && result.academicYears && result.academicYears.length > 0) {
-          // Extract years from academic year strings (e.g., "2024-2025" -> [2024, 2025])
-          const yearsSet = new Set<number>();
-          result.academicYears.forEach(ay => {
-            const parts = ay.year.split('-');
-            if (parts.length === 2) {
-              const startYear = parseInt(parts[0], 10);
-              const endYear = parseInt(parts[1], 10);
-              yearsSet.add(startYear);
-              yearsSet.add(endYear);
-            }
-          });
-          
-          const sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
-          setAvailableYears(sortedYears);
-          
-          // Set the selected year to the first available year if current year is not available
-          if (sortedYears.length > 0 && !sortedYears.includes(selectedYear)) {
-            setSelectedYear(sortedYears[0]);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch academic years:", error);
-        // Fallback to current year if fetch fails
-        setAvailableYears([new Date().getFullYear()]);
-      } finally {
-        setIsLoadingYears(false);
-      }
-    };
-
-    fetchAvailableYears();
-  }, []);
-
-  const fetchClasses = useCallback(async () => {
     if (!authUser?.schoolId) return;
-    const classes = await getClassesForSchoolAsOptions(authUser.schoolId.toString());
-    setClassOptions(classes);
+    (async () => {
+      const [ayRes, classes] = await Promise.all([
+        getAcademicYears(),
+        getClassesForSchoolAsOptions(authUser.schoolId!.toString()),
+      ]);
+      setClassOptions(classes);
+
+      if (ayRes.success && ayRes.academicYears?.length) {
+        const sorted = [...ayRes.academicYears].sort((a, b) => b.year.localeCompare(a.year));
+        setAcademicYears(sorted);
+
+        // pick default or most-recent academic year
+        const defaultAY = sorted.find(a => a.isDefault) ?? sorted[0];
+        setSelectedAY(defaultAY.year);
+      }
+      setIsBootstrapping(false);
+    })();
   }, [authUser]);
 
+  /* ── whenever academic year changes, rebuild month slots + auto-select current/nearest month ── */
   useEffect(() => {
-    fetchClasses();
-  }, [fetchClasses]);
+    if (!selectedAY) return;
+    const slots = getAcademicMonthSlots(selectedAY);
+    setMonthSlots(slots);
+    setAttendanceRecords([]);
 
+    // Auto-select: find today's slot inside this academic year, else pick first
+    const today = new Date();
+    const todayM = today.getMonth();
+    const todayY = today.getFullYear();
+    const match = slots.find(s => s.month === todayM && s.year === todayY);
+    setSelectedSlot(match ?? slots[0] ?? null);
+  }, [selectedAY]);
+
+  /* ── fetch attendance whenever selected slot changes ── */
   const fetchAttendance = useCallback(async () => {
-    if (!authUser || !authUser.schoolId) {
-      if (authUser) toast({ variant: "destructive", title: "Error", description: "School information missing for admin." });
-      setAttendanceRecords([]);
-      return;
-    }
-
+    if (!authUser?.schoolId || !selectedSlot) return;
     setIsLoading(true);
-    const result = await getMonthlyAttendanceForAdmin(authUser.schoolId.toString(), selectedMonth, selectedYear);
+    const res = await getMonthlyAttendanceForAdmin(
+      authUser.schoolId.toString(),
+      selectedSlot.month,
+      selectedSlot.year,
+    );
     setIsLoading(false);
-
-    if (result.success && result.records) {
-      setAttendanceRecords(result.records);
-      if (result.records.length === 0) {
-        toast({ title: "No Records", description: "No monthly attendance records found for the selected period." });
-      }
+    if (res.success && res.records) {
+      setAttendanceRecords(res.records);
     } else {
-      toast({ variant: "destructive", title: "Failed to load attendance", description: result.error || "Could not fetch attendance data." });
+      toast({ variant: 'destructive', title: 'Failed to load attendance', description: res.error ?? 'Could not fetch data.' });
       setAttendanceRecords([]);
     }
-  }, [authUser, selectedMonth, selectedYear, toast]);
+  }, [authUser, selectedSlot, toast]);
 
-  useEffect(() => {
-    if (authUser?.schoolId) {
-      fetchAttendance();
-    }
-  }, [authUser, selectedMonth, selectedYear, fetchAttendance]);
-  
-  const handleMonthChange = (direction: 'prev' | 'next') => {
-    let newMonth = selectedMonth;
-    let newYear = selectedYear;
-    if (direction === 'prev') {
-        newMonth = newMonth === 0 ? 11 : newMonth - 1;
-        newYear = newMonth === 11 ? newYear - 1 : newYear;
-    } else {
-        newMonth = newMonth === 11 ? 0 : newMonth + 1;
-        newYear = newMonth === 0 ? newYear + 1 : newYear;
-    }
-    
-    // Only allow navigation if the new year is available
-    if (availableYears.includes(newYear)) {
-      setSelectedMonth(newMonth);
-      setSelectedYear(newYear);
-    } else {
-      // Show toast if user tries to navigate to unavailable year
-      toast({
-        variant: "destructive",
-        title: "Year Not Available",
-        description: `No academic year data available for ${newYear}. Please select a date within available years.`
-      });
-    }
-  };
-
-  const handleFilterChange = (value: string) => {
-    setFilterClassId(value === "all" ? "" : value);
-  };
+  useEffect(() => { fetchAttendance(); }, [fetchAttendance]);
 
   const filteredRecords = filterClassId
-    ? attendanceRecords.filter(record => record.classId === filterClassId)
+    ? attendanceRecords.filter(r => r.classId === filterClassId)
     : attendanceRecords;
 
+  const isCurrentSlot = (slot: AcademicMonthSlot) =>
+    selectedSlot?.month === slot.month && selectedSlot?.year === slot.year;
+
+  /* ─────────────── render ─────────────── */
   return (
     <div className="space-y-6">
+      {/* ── page header ── */}
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
             <CheckSquare className="mr-2 h-6 w-6" /> Student Monthly Attendance
           </CardTitle>
-          <CardDescription>View submitted monthly attendance totals for your school.</CardDescription>
+          <CardDescription>
+            View submitted monthly attendance totals for your school. Select an academic year
+            and click any month to load its records.
+          </CardDescription>
         </CardHeader>
       </Card>
 
-      <Card>
-        <CardHeader>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-                <CardTitle>Monthly Attendance Records</CardTitle>
-                <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => handleMonthChange('prev')}
-                    disabled={isLoadingYears || availableYears.length === 0}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-lg font-semibold w-32 text-center">{format(new Date(selectedYear, selectedMonth), 'MMM yyyy')}</span>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => handleMonthChange('next')}
-                    disabled={isLoadingYears || availableYears.length === 0}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  
-                  {/* Year Selector */}
-                  {!isLoadingYears && availableYears.length > 0 && (
-                    <Select 
-                      value={selectedYear.toString()} 
-                      onValueChange={(value) => setSelectedYear(parseInt(value, 10))}
-                    >
-                      <SelectTrigger className="w-full sm:w-[120px]">
-                        <SelectValue placeholder="Select year..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableYears.map(year => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-                <div>
-                  <Select onValueChange={handleFilterChange} value={filterClassId || "all"}>
-                    <SelectTrigger className="w-full sm:w-[200px]">
-                      <SelectValue placeholder="Filter by class..."/>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Classes</SelectItem>
-                      {classOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+      {isBootstrapping ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="ml-3 text-muted-foreground">Loading…</p>
+        </div>
+      ) : (
+        <>
+          {/* ── filters row ── */}
+          <div className="flex flex-wrap gap-3 items-center">
+            {/* Academic year selector */}
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+              <Select value={selectedAY} onValueChange={v => { setSelectedAY(v); setFilterClassId(''); }}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Academic year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {academicYears.map(ay => (
+                    <SelectItem key={ay._id} value={ay.year}>{ay.year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-10">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading attendance...</p>
-            </div>
-          ) : !authUser ? (
-             <p className="text-center text-muted-foreground py-4">Please log in as a school admin.</p>
-          ) : filteredRecords.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Student Name</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Days Present</TableHead>
-                  <TableHead>Total Working Days</TableHead>
-                  <TableHead>Percentage</TableHead>
-                  <TableHead>Marked By</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRecords.map((record) => (
-                  <TableRow key={record._id.toString()}>
-                    <TableCell>{record.studentName}</TableCell>
-                    <TableCell>{record.className}</TableCell>
-                    <TableCell>{record.daysPresent}</TableCell>
-                    <TableCell>{record.totalWorkingDays}</TableCell>
-                    <TableCell>{record.totalWorkingDays > 0 ? `${Math.round((record.daysPresent / record.totalWorkingDays) * 100)}%` : 'N/A'}</TableCell>
-                    <TableCell>{record.markedByTeacherName || 'N/A'}</TableCell>
-                  </TableRow>
+
+            {/* Class filter */}
+            <Select value={filterClassId || 'all'} onValueChange={v => setFilterClassId(v === 'all' ? '' : v)}>
+              <SelectTrigger className="w-52">
+                <SelectValue placeholder="Filter by class…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
+                {classOptions.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                 ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="text-center py-10">
-                <Info className="mx-auto h-12 w-12 text-muted-foreground" />
-                <p className="mt-4 text-lg font-semibold">No Attendance Data</p>
-                <p className="text-muted-foreground">No attendance has been submitted for this month.</p>
-            </div>
+              </SelectContent>
+            </Select>
+
+            {selectedSlot && (
+              <Badge variant="secondary" className="text-sm px-3 py-1">
+                {filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''} — {selectedSlot.label}
+              </Badge>
+            )}
+          </div>
+
+          {/* ── month grid ── */}
+          {monthSlots.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Academic Year {selectedAY} — Select a Month</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                  {monthSlots.map(slot => (
+                    <button
+                      key={slot.label}
+                      onClick={() => setSelectedSlot(slot)}
+                      className={[
+                        'rounded-lg border px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary',
+                        isCurrentSlot(slot)
+                          ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                          : 'bg-background hover:bg-muted border-border text-foreground',
+                      ].join(' ')}
+                    >
+                      {slot.label}
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+
+          {/* ── attendance table ── */}
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {selectedSlot
+                  ? `Attendance — ${selectedSlot.label}`
+                  : 'Attendance Records'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="ml-2">Loading attendance…</p>
+                </div>
+              ) : !authUser ? (
+                <p className="text-center text-muted-foreground py-4">Please log in as a school admin.</p>
+              ) : filteredRecords.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Days Present</TableHead>
+                      <TableHead>Total Working Days</TableHead>
+                      <TableHead>Percentage</TableHead>
+                      <TableHead>Marked By</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRecords.map(record => (
+                      <TableRow key={record._id.toString()}>
+                        <TableCell>{record.studentName}</TableCell>
+                        <TableCell>{record.className}</TableCell>
+                        <TableCell>{record.daysPresent}</TableCell>
+                        <TableCell>{record.totalWorkingDays}</TableCell>
+                        <TableCell>
+                          {record.totalWorkingDays > 0
+                            ? `${Math.round((record.daysPresent / record.totalWorkingDays) * 100)}%`
+                            : 'N/A'}
+                        </TableCell>
+                        <TableCell>{record.markedByTeacherName || 'N/A'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-10">
+                  <Info className="mx-auto h-12 w-12 text-muted-foreground" />
+                  <p className="mt-4 text-lg font-semibold">No Attendance Data</p>
+                  <p className="text-muted-foreground">
+                    {selectedSlot
+                      ? `No attendance has been submitted for ${selectedSlot.label}.`
+                      : 'Select a month above to view records.'}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
